@@ -2,6 +2,9 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/core/theme/app_theme.dart';
+import 'package:rumbo/features/favorites/data/fake_favorites_repository.dart';
+import 'package:rumbo/features/favorites/domain/favorite.dart';
+import 'package:rumbo/features/favorites/presentation/favorites_controller.dart';
 import 'package:rumbo/features/map/data/connectivity_provider.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/stops_and_lines/presentation/stop_details_sheet.dart';
@@ -17,11 +20,13 @@ void main() {
   );
 
   testWidgets(
-    'shows live and scheduled arrivals, line, and disabled favorite',
+    'shows live and scheduled arrivals, line, and saves the stop as favorite',
     (tester) async {
       var requestedRoute = false;
+      final favorites = FakeFavoritesRepository();
       final container = ProviderContainer(
         overrides: [
+          favoritesRepositoryProvider.overrideWithValue(favorites),
           stopDetailsProvider(stop.id).overrideWith(
             (ref) async => StopDetailsData(
               routes: const [
@@ -74,9 +79,22 @@ void main() {
       expect(find.text('A'), findsNWidgets(3));
 
       final favorite = tester.widget<OutlinedButton>(
-        find.widgetWithText(OutlinedButton, 'Favorito · Próximamente'),
+        find.widgetWithText(OutlinedButton, 'Guardar parada'),
       );
-      expect(favorite.onPressed, isNull);
+      expect(favorite.onPressed, isNotNull);
+      await tester.tap(find.text('Guardar parada'));
+      await tester.pumpAndSettle();
+      expect(find.text('Quitar de favoritos'), findsOneWidget);
+      final saved = await favorites.load();
+      expect(saved, hasLength(1));
+      expect(saved.single.type, FavoriteType.stop);
+      expect(saved.single.id, stop.id);
+
+      await tester.tap(find.text('Quitar de favoritos'));
+      await tester.pumpAndSettle();
+      expect(find.text('Guardar parada'), findsOneWidget);
+      expect(await favorites.load(), isEmpty);
+
       await tester.tap(find.text('Cómo llegar'));
       expect(requestedRoute, isTrue);
     },

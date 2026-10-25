@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rumbo/app.dart';
 import 'package:rumbo/core/theme/app_colors.dart';
+import 'package:rumbo/features/favorites/data/fake_favorites_repository.dart';
+import 'package:rumbo/features/favorites/domain/favorites_repository.dart';
+import 'package:rumbo/features/favorites/presentation/favorites_controller.dart';
 import 'package:rumbo/features/map/data/connectivity_provider.dart';
 import 'package:rumbo/features/map/presentation/map_location_controller.dart';
 import 'package:rumbo/features/map/presentation/map_screen.dart';
@@ -10,7 +13,10 @@ import 'package:rumbo/features/stops_and_lines/presentation/feed_update_controll
 
 import 'fakes/fake_location_repository.dart';
 
-Widget buildRumboTestApp({Widget Function(Widget child)? wrapApp}) {
+Widget buildRumboTestApp({
+  Widget Function(Widget child)? wrapApp,
+  FavoritesRepository? favoritesRepository,
+}) {
   return ProviderScope(
     overrides: [
       mapBuilderOverrideProvider.overrideWithValue(
@@ -19,6 +25,9 @@ Widget buildRumboTestApp({Widget Function(Widget child)? wrapApp}) {
       networkAvailableProvider.overrideWith((ref) => Stream<bool>.value(true)),
       locationRepositoryProvider.overrideWith(
         (ref) => FakeLocationRepository(),
+      ),
+      favoritesRepositoryProvider.overrideWithValue(
+        favoritesRepository ?? FakeFavoritesRepository(),
       ),
       feedUpdateControllerProvider.overrideWith(_OfflineFeedController.new),
     ],

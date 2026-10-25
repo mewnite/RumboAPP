@@ -10,6 +10,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/config/map_config.dart';
 import '../../../core/config/transit_config.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../features/favorites/domain/favorite.dart';
+import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/search/presentation/search_controller.dart';
 import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
 import '../../../features/stops_and_lines/data/sqflite_transit_repository.dart';
@@ -27,6 +29,7 @@ import '../data/connectivity_provider.dart';
 import '../data/map_cache_repository.dart';
 import 'live_bus_chip.dart';
 import 'live_buses_controller.dart';
+import 'map_action_provider.dart';
 import 'map_location_controller.dart';
 
 typedef MapBuilder = Widget Function(BuildContext context);
@@ -519,7 +522,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  Future<void> _showTripSearch({Stop? destinationStop}) async {
+  Future<void> _showTripSearch({TripEndpoint? destination}) async {
     final l10n = AppLocalizations.of(context);
     final location = ref.read(mapLocationControllerProvider).location;
     final feed = ref.read(feedUpdateControllerProvider).asData?.value;
@@ -542,9 +545,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         builder: (context) => TripSearchSheet(
           hasCurrentLocation: location != null,
           remotePlaceSearchEnabled: remotePlaceSearchEnabled,
-          initialDestination: destinationStop == null
-              ? null
-              : TripEndpoint.fromStop(destinationStop),
+          initialDestination: destination,
           searchService: searchService,
           onPlanSelected: (plan, origin, destination) {
             didSelectPlan = true;
@@ -684,7 +685,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       setState(() => _openDetailStop = null);
     }
     if (mounted && shouldPlan) {
-      await _showTripSearch(destinationStop: stop);
+      await _showTripSearch(destination: TripEndpoint.fromStop(stop));
     }
   }
 
@@ -944,6 +945,41 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
+  Future<void> _showSavedRoute(Route route) async {
+    final hexColor = route.color.replaceFirst('#', '');
+    final routeColor = RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hexColor)
+        ? Color(int.parse('FF$hexColor', radix: 16))
+        : AppColors.deepBlue;
+    setState(() {
+      _selectedTripPlan = null;
+      _selectedVariantId = null;
+      _selectedRoute = route;
+      _selectedRouteColor = routeColor;
+    });
+    final variants = await ref.read(routeVariantsProvider(route.id).future);
+    RouteVariant? variant;
+    for (final candidate in variants) {
+      if (candidate.shapeId != null) {
+        variant = candidate;
+        break;
+      }
+    }
+    if (variant == null || !mounted || _selectedRoute?.id != route.id) return;
+    final shape = await ref.read(routeShapeProvider(variant.id).future);
+    if (!mounted || _selectedRoute?.id != route.id) return;
+    setState(() => _selectedVariantId = variant!.id);
+    final points = shape?.points;
+    if (points == null || points.isEmpty) return;
+    final middle = points[points.length ~/ 2];
+    await _mapController?.animateCamera(
+      center: Geographic(lon: middle.longitude, lat: middle.latitude),
+      zoom: 12.5,
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+      ),
+    );
+  }
+
   Future<void> _setNearbyStopsExpanded(Stop stop, bool expanded) async {
     setState(() {
       if (expanded) {
@@ -963,6 +999,31 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.listen<MapAction?>(mapActionProvider, (previous, next) {
+      if (next == null) return;
+      ref.read(mapActionProvider.notifier).clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        switch (next) {
+          case ShowRouteOnMap(:final route):
+            unawaited(_showSavedRoute(route));
+          case PlanTripToPlace(:final destination):
+            unawaited(_showTripSearch(destination: destination));
+        }
+      });
+    });
+    final favorites =
+        ref.watch(favoritesControllerProvider).asData?.value ??
+        const <Favorite>[];
+    final placeFavorites = <FavoritePlaceSlot, Favorite>{};
+    for (final favorite in favorites) {
+      final slot = favorite.placeSlot;
+      if (slot != null &&
+          favorite.latitude != null &&
+          favorite.longitude != null) {
+        placeFavorites[slot] = favorite;
+      }
+    }
     final locationState = ref.watch(mapLocationControllerProvider);
     final networkState = ref.watch(networkAvailableProvider);
     final feedAsync = ref.watch(feedUpdateControllerProvider);
@@ -1045,7 +1106,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             ExcludeSemantics(child: mapWidget),
             if (_mapLoading)
               Positioned(
-                top: 92,
+                top: placeFavorites.isEmpty ? 92 : 148,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -1071,31 +1132,62 @@ class _MapScreenState extends ConsumerState<MapScreen>
               right: 16,
               child: SafeArea(
                 bottom: false,
-                child: _SearchControl(onTap: _showTripSearch),
-              ),
-            ),
-            Positioned(
-              top: 82,
-              left: 16,
-              right: 16,
-              child: Column(
-                children: [
-                  if (networkState.asData?.value == false)
-                    _InfoBanner(
-                      icon: Symbols.wifi_off_rounded,
-                      label: l10n.mapOffline,
+                child: Column(
+                  children: [
+                    _SearchControl(onTap: _showTripSearch),
+                    if (placeFavorites.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final slot in FavoritePlaceSlot.values)
+                              if (placeFavorites[slot] case final favorite?)
+                                _FavoriteShortcutChip(
+                                  key: ValueKey('map-favorite-${slot.name}'),
+                                  label: slot == FavoritePlaceSlot.home
+                                      ? l10n.favoritesHome
+                                      : l10n.favoritesWork,
+                                  semanticLabel: l10n.favoritesPlanTo(
+                                    slot == FavoritePlaceSlot.home
+                                        ? l10n.favoritesHome
+                                        : l10n.favoritesWork,
+                                  ),
+                                  onTap: () => unawaited(
+                                    _showTripSearch(
+                                      destination: TripEndpoint(
+                                        name: favorite.name,
+                                        latitude: favorite.latitude!,
+                                        longitude: favorite.longitude!,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    if (networkState.asData?.value == false)
+                      _InfoBanner(
+                        icon: Symbols.wifi_off_rounded,
+                        label: l10n.mapOffline,
+                      ),
+                    if (liveBuses.error != null &&
+                        networkState.asData?.value != false)
+                      _InfoBanner(
+                        icon: Symbols.cloud_off_rounded,
+                        label: l10n.mapLiveServiceDown,
+                      ),
+                    _LocationBanner(
+                      status: locationState.status,
+                      onAction: () =>
+                          _handleLocationAction(locationState.status),
                     ),
-                  if (liveBuses.error != null &&
-                      networkState.asData?.value != false)
-                    _InfoBanner(
-                      icon: Symbols.cloud_off_rounded,
-                      label: l10n.mapLiveServiceDown,
-                    ),
-                  _LocationBanner(
-                    status: locationState.status,
-                    onAction: () => _handleLocationAction(locationState.status),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             Positioned(
@@ -1443,6 +1535,7 @@ class _StopRouteExpansion extends ConsumerWidget {
       title: Text(route.shortName),
       subtitle: Text(route.longName),
       children: [
+        _LineFavoriteButton(route: route),
         if (variants.isLoading)
           Padding(
             padding: const EdgeInsets.all(12),
@@ -1480,6 +1573,114 @@ class _StopRouteExpansion extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _LineFavoriteButton extends ConsumerWidget {
+  const _LineFavoriteButton({required this.route});
+
+  final Route route;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final favorites =
+        ref.watch(favoritesControllerProvider).asData?.value ??
+        const <Favorite>[];
+    Favorite? saved;
+    for (final favorite in favorites) {
+      if (favorite.type == FavoriteType.line && favorite.id == route.id) {
+        saved = favorite;
+        break;
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(44, 0, 12, 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          key: ValueKey('favorite-line-${route.id}'),
+          onPressed: () => unawaited(_toggleLineFavorite(ref, route, saved)),
+          icon: Icon(
+            saved == null
+                ? Symbols.favorite_border_rounded
+                : Symbols.favorite_rounded,
+            fill: saved == null ? 0 : 1,
+          ),
+          label: Text(
+            saved == null ? l10n.lineFavoriteSave : l10n.lineFavoriteRemove,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _toggleLineFavorite(
+  WidgetRef ref,
+  Route route,
+  Favorite? saved,
+) async {
+  final controller = ref.read(favoritesControllerProvider.notifier);
+  if (saved != null) {
+    await controller.remove(saved);
+    return;
+  }
+  await controller.add(
+    Favorite(
+      id: route.id,
+      type: FavoriteType.line,
+      name: route.shortName.isEmpty ? route.id : route.shortName,
+    ),
+  );
+}
+
+class _FavoriteShortcutChip extends StatelessWidget {
+  const _FavoriteShortcutChip({
+    required this.label,
+    required this.semanticLabel,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        color: colorScheme.surface,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Symbols.bookmark_rounded,
+                    size: 18,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(label),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

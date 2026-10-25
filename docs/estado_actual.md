@@ -5,7 +5,7 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 116 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 131 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -26,7 +26,7 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 | 9. Búsqueda de lugares, paradas y líneas | parcial | `TripSearchSheet`, `LocalTransitSearchSource`, `RemoteGeocodingSource`, `RemotePlaceSearchEnabledController` | `search_controller_test`, `trip_search_sheet_test`; la búsqueda remota está apagada por defecto y solo se ejecuta tras una acción explícita. Sigue dentro del planificador, no como pantalla independiente |
 | 10. Planificador, resultados y horario | parcial | `TransitTripPlanner`, `PlannerConfig`, `TripSearchSheet`, `TripPlanDetails` | `trip_planner_test`, `trip_search_sheet_test`; permite salir ahora, salir a una hora o llegar a una hora (hoy/mañana, 24 h); “llegar a las” prueba hasta 18 salidas candidatas; descarta itinerarios dominados, ordena por rápido/caminata/transbordos, ofrece «Caminar» y transbordos peatonales, y ejecuta la búsqueda en un isolate en plataformas nativas. La tarjeta muestra salida–llegada, duración, chips de línea, caminata, transbordos y etiqueta semántica; el estado vacío sugiere ampliar la caminata o cambiar la hora |
 | 11. Detalle y viaje en curso/aviso de bajada | parcial | `TripPlanDetails`, capas de plan en `MapScreen` | se muestra una línea de tiempo vertical esquemática con horas estimadas, caminata aproximada y aviso de horarios programados; el mapa dibuja bus continuo, caminata punteada y origen/destino, pero no hay seguimiento activo ni aviso de bajada |
-| 12. Favoritos | solo interfaz/placeholder | `FavoritesScreen` | `theme_navigation_test`; solo muestra estado vacío, no hay acción para guardar |
+| 12. Favoritos | completa y probada (almacenamiento local) | `Favorite`, `FavoritesRepository`, `FavoritesScreen`, `favoritesControllerProvider`, `mapActionProvider` | `favorites_test`, `stop_details_sheet_test`, `map_screen_test`; guarda paradas, líneas y las ranuras Casa/Trabajo en `shared_preferences`; el mapa aún no se probó en dispositivo |
 | 13. Privacidad y atribuciones | parcial | `_showAttribution` en `MapScreen`, interruptor de búsqueda remota en Ajustes, textos ARB | `map_screen_test`, `settings_transit_status_test`, `search_controller_test`; hay atribución, nota de ubicación y aviso de envío del texto, pero no una pantalla de privacidad |
 | 14. Identidad visual, isotipo, ícono e Inter | parcial | `RumboLogo`, `pubspec.yaml`, recursos de plataforma | Inter local está declarada y existen archivos de icono; el isotipo es placeholder. El aspecto de los assets no se verificó |
 
@@ -38,6 +38,7 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 - `lib/features/map/data/montevideo_realtime_bus_source.dart` compone `/buses?format=geojson` sobre la base `.../api`. El proxy del repo implementa `/api/buses`; la documentación `docs/api/montevideo_publictransport.md` describe la ruta del proxy como `/api/buses`.
 - `lib/features/stops_and_lines/data/transit_arrivals_source.dart` combina `upcomingDepartures` con un ETA local por bus: proyecta la posición sobre el shape de la variante, descarta los buses que ya pasaron la parada y usa la velocidad reportada si es de 8 km/h o más, o 18 km/h por defecto. Un arribo en vivo reemplaza la próxima salida programada de su variante; si no hay bus en vivo, se conservan los horarios programados.
 - `lib/features/search/presentation/search_controller.dart` conserva el fallback `http://127.0.0.1:8765/geocode`. `lib/features/search/data/remote_geocoding_source.dart` y `lib/features/trip_planner/data/open_street_map_place_source.dart` incluyen `https://github.com/mewnite/RumboAPP` solo en el encabezado User-Agent, no como destino de una petición.
+- `lib/features/favorites/` guarda una lista JSON en `shared_preferences` bajo `favorites_v1`, sin red. Las paradas y líneas se identifican por su id; Casa y Trabajo usan las ranuras `place-home` y `place-work`, con nombre y coordenadas del lugar elegido. Una entrada dañada se omite al cargar sin invalidar el resto; si todo el JSON está dañado, se empieza con una lista vacía.
 - En web, `web/index.html` carga `https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.js` y `https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.css`.
 - El proxy de `tool/montevideo_api_proxy.py` configura `https://api.montevideo.gub.uy/api/transportepublico` como upstream de transporte; la app no lo llama directamente. El destino de geocodificación depende de `PLACE_SEARCH_URL` del proxy/`.env`, cuyo valor efectivo no se verificó. Disponibilidad y condiciones del upstream no verificadas.
 - La ubicación precisa se usa para centrar el mapa y consultar la base local; la petición de teselas revela al proveedor el área aproximada visible. No se encontró envío de coordenadas en el flujo del planificador conectado. La búsqueda remota envía el texto consultado al endpoint `/geocode` configurado; el destino upstream efectivo del proxy no se verificó.
@@ -50,7 +51,8 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 - El ETA en vivo usa la proyección sobre el shape y una velocidad de 18 km/h cuando el dato reportado es menor a 8 km/h; no se validó contra arribos oficiales ni contra el comportamiento real de la flota.
 - El detalle de parada se calcula al abrirlo: no se refresca periódicamente mientras la hoja permanece visible.
 - El planificador traza segmentos rectos/esquemáticos entre puntos; su propio detalle aclara que no es navegación peatonal ni ETA en vivo.
-- Favoritos, viaje activo y aviso de bajada no tienen flujo funcional. `privacyMessage` está localizado, pero no se encontró una pantalla que lo presente.
+- Favoritos se guarda solo en el dispositivo: no hay sincronización entre dispositivos ni recuperación al desinstalar. El renombrado cambia únicamente el nombre visible, no las coordenadas. Además de Casa y Trabajo, el modelo admite lugares sin ranura, pero todavía no hay una acción para agregarlos desde la interfaz.
+- Viaje activo y aviso de bajada no tienen flujo funcional. `privacyMessage` está localizado, pero no se encontró una pantalla que lo presente.
 
 ## 5. Cómo probarlo
 
@@ -73,9 +75,9 @@ Al abrir (comportamiento esperado según código; dispositivo no verificado):
 3. La ubicación solo se solicita al tocar el control y aceptar la explicación.
 4. La búsqueda abre el panel de planificación. La búsqueda remota está apagada por defecto; se habilita en Ajustes y el texto solo se envía al tocar «Buscar lugares o direcciones».
 5. Con datos disponibles, el mapa lista paradas cercanas, dibuja buses de las líneas/variantes seleccionadas o de la parada abierta (máximo 60 y solo en la zona visible) y abre el detalle de parada con sus arribos.
-6. Favoritos muestra el estado vacío.
+6. Favoritos muestra Casa y Trabajo (con «Definir» si faltan), las paradas y las líneas guardadas. Tocar un lugar abre el planificador con ese destino; tocar una línea la dibuja en el mapa; tocar una parada abre su detalle. Deslizar elimina con «Deshacer» y mantener presionado permite renombrar. Las ranuras definidas aparecen como atajos debajo de la búsqueda del mapa.
 7. Ajustes permite elegir tema claro, oscuro o sistema, muestra el estado/fuente de datos y permite habilitar la búsqueda de direcciones en línea.
-8. No hay pantalla de privacidad ni viaje en curso; los favoritos siguen siendo un placeholder.
+8. No hay pantalla de privacidad ni viaje en curso.
 
 ## 6. Qué falta, en orden de dependencias
 
@@ -86,13 +88,11 @@ Al abrir (comportamiento esperado según código; dispositivo no verificado):
 5. Completar el detalle de línea con recorrido y horarios; hoy solo se puede dibujar el shape de una variante.
 6. Validar el planificador con horarios GTFS reales y definir trazados peatonales fiables; hoy la caminata es una estimación en línea recta.
 7. Implementar viaje activo y aviso de bajada; requiere definir el criterio/umbral del aviso, notificaciones y validación de capacidades/permisos en Android e iOS.
-8. Implementar favoritos persistidos y controles para guardar; falta decidir qué entidades se pueden guardar (paradas, lugares, líneas o viajes).
-9. Crear una pantalla de privacidad que reúna flujos de ubicación, geocodificación y atribución; requiere confirmar proveedor y condiciones del servicio remoto.
+8. Crear una pantalla de privacidad que reúna flujos de ubicación, geocodificación y atribución; requiere confirmar proveedor y condiciones del servicio remoto.
 
 ### Preguntas para mí
 
 1. ¿Qué feed GTFS oficial, licencia y entorno de proxy autorizás para pruebas y producción?
 2. ¿Qué contrato confirmado debe usarse para buses y arribos, y qué frecuencia/ETA se permite?
 3. ¿Autorizás el envío del texto de búsqueda al gateway/proveedor remoto mientras se escribe, o solo tras una acción explícita?
-4. ¿Qué se podrá guardar en Favoritos: paradas, lugares, líneas, viajes o una combinación?
-5. ¿Qué criterio de proximidad debe activar el aviso de bajada y aceptás notificación/ubicación en segundo plano solo durante el viaje activo?
+4. ¿Qué criterio de proximidad debe activar el aviso de bajada y aceptás notificación/ubicación en segundo plano solo durante el viaje activo?

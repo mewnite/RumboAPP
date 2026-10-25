@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/line_chip.dart';
+import '../../../features/favorites/domain/favorite.dart';
+import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/map/data/connectivity_provider.dart';
 import '../../../features/map/presentation/live_buses_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -58,6 +62,16 @@ class StopDetailsSheet extends ConsumerWidget {
     final details = ref.watch(stopDetailsProvider(stop.id));
     final isOffline =
         ref.watch(networkAvailableProvider).asData?.value == false;
+    final favorites =
+        ref.watch(favoritesControllerProvider).asData?.value ??
+        const <Favorite>[];
+    Favorite? savedFavorite;
+    for (final favorite in favorites) {
+      if (favorite.type == FavoriteType.stop && favorite.id == stop.id) {
+        savedFavorite = favorite;
+        break;
+      }
+    }
 
     return SafeArea(
       child: Padding(
@@ -132,9 +146,20 @@ class StopDetailsSheet extends ConsumerWidget {
                 runSpacing: 12,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: null,
-                    icon: const Icon(Symbols.favorite_rounded),
-                    label: Text(l10n.stopFavoriteComingSoon),
+                    key: ValueKey('favorite-stop-${stop.id}'),
+                    onPressed: () =>
+                        unawaited(_toggleFavorite(ref, stop, savedFavorite)),
+                    icon: Icon(
+                      savedFavorite == null
+                          ? Symbols.favorite_border_rounded
+                          : Symbols.favorite_rounded,
+                      fill: savedFavorite == null ? 0 : 1,
+                    ),
+                    label: Text(
+                      savedFavorite == null
+                          ? l10n.stopFavoriteSave
+                          : l10n.stopFavoriteRemove,
+                    ),
                   ),
                   FilledButton.icon(
                     onPressed: onHowToGetThere,
@@ -149,6 +174,27 @@ class StopDetailsSheet extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _toggleFavorite(
+  WidgetRef ref,
+  Stop stop,
+  Favorite? savedFavorite,
+) async {
+  final controller = ref.read(favoritesControllerProvider.notifier);
+  if (savedFavorite != null) {
+    await controller.remove(savedFavorite);
+    return;
+  }
+  await controller.add(
+    Favorite(
+      id: stop.id,
+      type: FavoriteType.stop,
+      name: stop.name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+    ),
+  );
 }
 
 class _ArrivalRow extends StatelessWidget {

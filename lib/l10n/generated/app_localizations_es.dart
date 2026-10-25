@@ -280,7 +280,103 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get favoritesEmptyBody =>
-      'Cuando guardes una parada o un lugar, lo vas a encontrar acá.';
+      'Guardá paradas o líneas desde el mapa y definí Casa y Trabajo para llegar más rápido.';
+
+  @override
+  String get favoritesLoading => 'Cargando favoritos…';
+
+  @override
+  String get favoritesLoadErrorTitle => 'No se pudieron cargar tus favoritos';
+
+  @override
+  String get favoritesLoadErrorBody =>
+      'Revisá el almacenamiento del dispositivo e intentá de nuevo.';
+
+  @override
+  String get favoritesPlacesSection => 'Lugares';
+
+  @override
+  String get favoritesStopsSection => 'Paradas';
+
+  @override
+  String get favoritesLinesSection => 'Líneas';
+
+  @override
+  String get favoritesHome => 'Casa';
+
+  @override
+  String get favoritesWork => 'Trabajo';
+
+  @override
+  String get favoritesPlaceNotSet => 'Todavía sin definir';
+
+  @override
+  String get favoritesDefine => 'Definir';
+
+  @override
+  String favoritesDefinePlace(String name) {
+    return 'Definir $name';
+  }
+
+  @override
+  String get favoritesEmptyStops =>
+      'Todavía no guardaste paradas. Abrí una parada en el mapa y tocá el corazón.';
+
+  @override
+  String get favoritesEmptyLines =>
+      'Todavía no guardaste líneas. Expandí una línea en el mapa y tocá el corazón.';
+
+  @override
+  String get favoritesHelp =>
+      'Deslizá para eliminar. Mantené presionado para renombrar.';
+
+  @override
+  String favoritesRemoved(String name) {
+    return 'Se eliminó «$name»';
+  }
+
+  @override
+  String get favoritesRenameTitle => 'Renombrar favorito';
+
+  @override
+  String get favoritesNameLabel => 'Nombre';
+
+  @override
+  String get favoritesStopSubtitle => 'Parada';
+
+  @override
+  String get favoritesLineSubtitle => 'Línea';
+
+  @override
+  String get favoritesPlaceSubtitle => 'Lugar guardado';
+
+  @override
+  String favoritesPlanTo(String name) {
+    return 'Planificar viaje a $name';
+  }
+
+  @override
+  String favoritesShowLineOnMap(String name) {
+    return 'Ver la línea $name en el mapa';
+  }
+
+  @override
+  String get stopFavoriteSave => 'Guardar parada';
+
+  @override
+  String get stopFavoriteRemove => 'Quitar de favoritos';
+
+  @override
+  String get lineFavoriteSave => 'Guardar línea';
+
+  @override
+  String get lineFavoriteRemove => 'Quitar línea de favoritos';
+
+  @override
+  String get actionSave => 'Guardar';
+
+  @override
+  String get actionUndo => 'Deshacer';
 
   @override
   String get settingsScreenTitle => 'Ajustes';
@@ -1019,7 +1115,103 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get favoritesEmptyBody =>
-      'Cuando guardes una parada o un lugar, lo vas a encontrar acá.';
+      'Guardá paradas o líneas desde el mapa y definí Casa y Trabajo para llegar más rápido.';
+
+  @override
+  String get favoritesLoading => 'Cargando favoritos…';
+
+  @override
+  String get favoritesLoadErrorTitle => 'No se pudieron cargar tus favoritos';
+
+  @override
+  String get favoritesLoadErrorBody =>
+      'Revisá el almacenamiento del dispositivo e intentá de nuevo.';
+
+  @override
+  String get favoritesPlacesSection => 'Lugares';
+
+  @override
+  String get favoritesStopsSection => 'Paradas';
+
+  @override
+  String get favoritesLinesSection => 'Líneas';
+
+  @override
+  String get favoritesHome => 'Casa';
+
+  @override
+  String get favoritesWork => 'Trabajo';
+
+  @override
+  String get favoritesPlaceNotSet => 'Todavía sin definir';
+
+  @override
+  String get favoritesDefine => 'Definir';
+
+  @override
+  String favoritesDefinePlace(String name) {
+    return 'Definir $name';
+  }
+
+  @override
+  String get favoritesEmptyStops =>
+      'Todavía no guardaste paradas. Abrí una parada en el mapa y tocá el corazón.';
+
+  @override
+  String get favoritesEmptyLines =>
+      'Todavía no guardaste líneas. Expandí una línea en el mapa y tocá el corazón.';
+
+  @override
+  String get favoritesHelp =>
+      'Deslizá para eliminar. Mantené presionado para renombrar.';
+
+  @override
+  String favoritesRemoved(String name) {
+    return 'Se eliminó «$name»';
+  }
+
+  @override
+  String get favoritesRenameTitle => 'Renombrar favorito';
+
+  @override
+  String get favoritesNameLabel => 'Nombre';
+
+  @override
+  String get favoritesStopSubtitle => 'Parada';
+
+  @override
+  String get favoritesLineSubtitle => 'Línea';
+
+  @override
+  String get favoritesPlaceSubtitle => 'Lugar guardado';
+
+  @override
+  String favoritesPlanTo(String name) {
+    return 'Planificar viaje a $name';
+  }
+
+  @override
+  String favoritesShowLineOnMap(String name) {
+    return 'Ver la línea $name en el mapa';
+  }
+
+  @override
+  String get stopFavoriteSave => 'Guardar parada';
+
+  @override
+  String get stopFavoriteRemove => 'Quitar de favoritos';
+
+  @override
+  String get lineFavoriteSave => 'Guardar línea';
+
+  @override
+  String get lineFavoriteRemove => 'Quitar línea de favoritos';
+
+  @override
+  String get actionSave => 'Guardar';
+
+  @override
+  String get actionUndo => 'Deshacer';
 
   @override
   String get settingsScreenTitle => 'Ajustes';

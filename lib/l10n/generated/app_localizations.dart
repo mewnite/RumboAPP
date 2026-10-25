@@ -556,8 +556,176 @@ abstract class AppLocalizations {
   /// No description provided for @favoritesEmptyBody.
   ///
   /// In es_UY, this message translates to:
-  /// **'Cuando guardes una parada o un lugar, lo vas a encontrar acá.'**
+  /// **'Guardá paradas o líneas desde el mapa y definí Casa y Trabajo para llegar más rápido.'**
   String get favoritesEmptyBody;
+
+  /// No description provided for @favoritesLoading.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cargando favoritos…'**
+  String get favoritesLoading;
+
+  /// No description provided for @favoritesLoadErrorTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudieron cargar tus favoritos'**
+  String get favoritesLoadErrorTitle;
+
+  /// No description provided for @favoritesLoadErrorBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Revisá el almacenamiento del dispositivo e intentá de nuevo.'**
+  String get favoritesLoadErrorBody;
+
+  /// No description provided for @favoritesPlacesSection.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Lugares'**
+  String get favoritesPlacesSection;
+
+  /// No description provided for @favoritesStopsSection.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Paradas'**
+  String get favoritesStopsSection;
+
+  /// No description provided for @favoritesLinesSection.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Líneas'**
+  String get favoritesLinesSection;
+
+  /// No description provided for @favoritesHome.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Casa'**
+  String get favoritesHome;
+
+  /// No description provided for @favoritesWork.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Trabajo'**
+  String get favoritesWork;
+
+  /// No description provided for @favoritesPlaceNotSet.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Todavía sin definir'**
+  String get favoritesPlaceNotSet;
+
+  /// No description provided for @favoritesDefine.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Definir'**
+  String get favoritesDefine;
+
+  /// No description provided for @favoritesDefinePlace.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Definir {name}'**
+  String favoritesDefinePlace(String name);
+
+  /// No description provided for @favoritesEmptyStops.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Todavía no guardaste paradas. Abrí una parada en el mapa y tocá el corazón.'**
+  String get favoritesEmptyStops;
+
+  /// No description provided for @favoritesEmptyLines.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Todavía no guardaste líneas. Expandí una línea en el mapa y tocá el corazón.'**
+  String get favoritesEmptyLines;
+
+  /// No description provided for @favoritesHelp.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Deslizá para eliminar. Mantené presionado para renombrar.'**
+  String get favoritesHelp;
+
+  /// No description provided for @favoritesRemoved.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Se eliminó «{name}»'**
+  String favoritesRemoved(String name);
+
+  /// No description provided for @favoritesRenameTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Renombrar favorito'**
+  String get favoritesRenameTitle;
+
+  /// No description provided for @favoritesNameLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Nombre'**
+  String get favoritesNameLabel;
+
+  /// No description provided for @favoritesStopSubtitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Parada'**
+  String get favoritesStopSubtitle;
+
+  /// No description provided for @favoritesLineSubtitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Línea'**
+  String get favoritesLineSubtitle;
+
+  /// No description provided for @favoritesPlaceSubtitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Lugar guardado'**
+  String get favoritesPlaceSubtitle;
+
+  /// No description provided for @favoritesPlanTo.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Planificar viaje a {name}'**
+  String favoritesPlanTo(String name);
+
+  /// No description provided for @favoritesShowLineOnMap.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ver la línea {name} en el mapa'**
+  String favoritesShowLineOnMap(String name);
+
+  /// No description provided for @stopFavoriteSave.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Guardar parada'**
+  String get stopFavoriteSave;
+
+  /// No description provided for @stopFavoriteRemove.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Quitar de favoritos'**
+  String get stopFavoriteRemove;
+
+  /// No description provided for @lineFavoriteSave.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Guardar línea'**
+  String get lineFavoriteSave;
+
+  /// No description provided for @lineFavoriteRemove.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Quitar línea de favoritos'**
+  String get lineFavoriteRemove;
+
+  /// No description provided for @actionSave.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Guardar'**
+  String get actionSave;
+
+  /// No description provided for @actionUndo.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Deshacer'**
+  String get actionUndo;
 
   /// No description provided for @settingsScreenTitle.
   ///

@@ -60,6 +60,14 @@ lista las paradas cercanas y sus líneas GTFS; al expandir una línea se pueden
 ver sus destinos y dibujar la geometría del recorrido elegido. El selector de
 tema claro, oscuro o del sistema persiste localmente.
 
+Favoritos permite guardar paradas y líneas, definir Casa y Trabajo con el
+buscador existente y abrirlas desde la pestaña o desde los atajos del mapa.
+Tocar un lugar lo usa como destino del planificador, una línea se dibuja en el
+mapa y una parada abre su detalle. La lista se guarda como JSON en
+`shared_preferences`, solo en el dispositivo: no se envía a ningún servidor.
+Deslizar un favorito lo elimina y ofrece «Deshacer»; mantener presionado
+permite renombrarlo.
+
 Las dos variantes de estilo, la atribución y el centro/zoom se cambian en
 `lib/core/config/map_config.dart`. OpenFreeMap no requiere clave, pero ofrece el
 servicio sin SLA; revisar sus términos y capacidad antes de un lanzamiento con

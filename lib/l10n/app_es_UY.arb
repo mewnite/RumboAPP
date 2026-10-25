@@ -153,7 +153,63 @@
   "mapLogoSemanticLabel": "Símbolo provisional de Rumbo",
   "favoritesScreenTitle": "Favoritos",
   "favoritesEmptyTitle": "Todavía no guardaste favoritos",
-  "favoritesEmptyBody": "Cuando guardes una parada o un lugar, lo vas a encontrar acá.",
+  "favoritesEmptyBody": "Guardá paradas o líneas desde el mapa y definí Casa y Trabajo para llegar más rápido.",
+  "favoritesLoading": "Cargando favoritos…",
+  "favoritesLoadErrorTitle": "No se pudieron cargar tus favoritos",
+  "favoritesLoadErrorBody": "Revisá el almacenamiento del dispositivo e intentá de nuevo.",
+  "favoritesPlacesSection": "Lugares",
+  "favoritesStopsSection": "Paradas",
+  "favoritesLinesSection": "Líneas",
+  "favoritesHome": "Casa",
+  "favoritesWork": "Trabajo",
+  "favoritesPlaceNotSet": "Todavía sin definir",
+  "favoritesDefine": "Definir",
+  "favoritesDefinePlace": "Definir {name}",
+  "@favoritesDefinePlace": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "favoritesEmptyStops": "Todavía no guardaste paradas. Abrí una parada en el mapa y tocá el corazón.",
+  "favoritesEmptyLines": "Todavía no guardaste líneas. Expandí una línea en el mapa y tocá el corazón.",
+  "favoritesHelp": "Deslizá para eliminar. Mantené presionado para renombrar.",
+  "favoritesRemoved": "Se eliminó «{name}»",
+  "@favoritesRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "favoritesRenameTitle": "Renombrar favorito",
+  "favoritesNameLabel": "Nombre",
+  "favoritesStopSubtitle": "Parada",
+  "favoritesLineSubtitle": "Línea",
+  "favoritesPlaceSubtitle": "Lugar guardado",
+  "favoritesPlanTo": "Planificar viaje a {name}",
+  "@favoritesPlanTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "favoritesShowLineOnMap": "Ver la línea {name} en el mapa",
+  "@favoritesShowLineOnMap": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "stopFavoriteSave": "Guardar parada",
+  "stopFavoriteRemove": "Quitar de favoritos",
+  "lineFavoriteSave": "Guardar línea",
+  "lineFavoriteRemove": "Quitar línea de favoritos",
+  "actionSave": "Guardar",
+  "actionUndo": "Deshacer",
   "settingsScreenTitle": "Ajustes",
   "settingsIntro": "Personalizá Rumbo a tu gusto.",
   "themePreferenceTitle": "Apariencia",
