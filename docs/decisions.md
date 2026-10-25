@@ -1,0 +1,58 @@
+# Decisiones técnicas de la base Rumbo
+
+- `flutter_riverpod` — administra el estado compartido y conecta Ajustes con el repositorio de preferencias.
+- `go_router` — conserva estado independiente para las tres pestañas mediante navegación con ramas.
+- `shared_preferences` — persiste la preferencia de apariencia, que es un dato local pequeño y no sensible.
+- `material_symbols_icons` — aporta Material Symbols redondeados como fuente incluida, sin solicitudes de red.
+- `flutter_localizations` (SDK) — ofrece las delegaciones oficiales para la interfaz `es-UY` generada desde archivos ARB.
+- `flutter_test` (SDK) — permite verificar widgets, contraste, persistencia y navegación sin sumar un framework externo.
+- `flutter_lints` — mantiene las reglas de análisis recomendadas por Flutter en desarrollo.
+- Inter 4.1 en TTF local con licencia OFL — mantiene la tipografía disponible sin descargar fuentes en ejecución.
+- El tema claro usa `surfaceGray` para el fondo, blanco para superficies y `deepBlue` para la acción primaria.
+- `mint` ajusta un canal del token original `lime` para que el texto `deepBlue` supere AA; `lime` conserva el color de identidad y usa texto `ink`.
+- El widget `LineChip` compara blanco, `deepBlue` e `ink` y elige el que ofrece más contraste para el fondo recibido.
+- La selección de apariencia se guarda por nombre de `ThemeMode`; si falta o es inválido, se usa el tema del sistema.
+- El isotipo SVG definitivo no estaba en el repositorio; `RumboLogo` muestra un símbolo de ruta provisional.
+- La muestra de paleta y tipografía solo se registra y se enlaza en builds de debug.
+- No se agregaron dependencias de anuncios, analíticas, tracking, identificadores publicitarios ni fuentes remotas.
+- `maplibre` 0.3.7 — renderiza estilos vectoriales en Android, iOS y web; se eligió frente a `maplibre_gl` por su API de caché ambiental con tope en bytes, necesaria para limitar el almacenamiento local. Es una reescritura reciente y requiere validar los toolchains nativos al actualizarlo ([paquete y plataformas](https://pub.dev/packages/maplibre), [alternativa](https://pub.dev/packages/maplibre_gl)).
+- `geolocator` — solicita ubicación foreground solo después de una acción del usuario y expone permisos/servicios sin enviar coordenadas a un backend propio.
+- `connectivity_plus` — informa desconexión para presentar el estado offline; no registra ni envía telemetría.
+- `OpenFreeMap` — proveedor vectorial sin clave y con estilos claro/oscuro; sus términos públicos ofrecen el servicio “as-is”, sin SLA, y permiten interrumpirlo. No fijan un máximo de solicitudes de visualización, pero las descargas offline sí se limitan a 3.000 teselas o 50 MB por descarga, hasta 4 solicitudes en paralelo y User-Agent que identifique la app ([términos](https://openfreemap.org/tos/)). Es la opción configurada por ser más adecuada para publicar que el servidor comunitario raster, aunque no garantiza disponibilidad para una operación grande.
+- `OpenStreetMap Carto` (`tile.openstreetmap.org`) — alternativa raster para desarrollo con atribución visible. Su política exige User-Agent identificado, Referer web, caché de al menos 7 días si no hay cabeceras, prohíbe descargas masivas/prefetch, puede bloquear el uso y no ofrece SLA ([política](https://operations.osmfoundation.org/policies/tiles/)); por eso no se publica como proveedor predeterminado.
+- Las teselas son datos de OpenStreetMap y OpenMapTiles; la atribución accesible aparece en el mapa y en su panel de información. El origen, estilo, atribución, centro y zoom están centralizados en `lib/core/config/map_config.dart`.
+- El modo oscuro usa el estilo oscuro ofrecido por el mismo proveedor. En web, la integración requiere MapLibre GL JS/CSS cargados por la página; las fuentes de texto Inter permanecen locales.
+- Se limita la caché ambiental nativa a 50 MiB cuando la plataforma implementa el `OfflineManager`; web utiliza su caché del navegador. No se descargan regiones ni áreas completas.
+- El permiso se solicita luego de aceptar una explicación; Android usa ubicación aproximada/precisa en primer plano e iOS `WhenInUse`. No se configura ubicación `Always` o en segundo plano.
+- Rumbo no guarda ni manda la coordenada GPS. Al centrar el mapa, las peticiones de teselas sí pueden permitir al proveedor inferir la zona visible aproximada; la interfaz lo explica junto a la atribución.
+- `http` — descarga el feed estático y consulta el cliente GeoJSON detrás del proxy OAuth de desarrollo; las credenciales nunca se envían desde la app.
+- `archive` — valida y lee el ZIP GTFS sin ejecutar herramientas externas; se mantiene como adaptador de datos.
+- `sqflite` y `path_provider` — guardan el dominio en SQLite en Android/iOS y sitúan la base bajo almacenamiento privado de la app; la compilación web evita invocar SQLite.
+- `path` — construye rutas de archivos de base de forma portable.
+- GTFS se convierte a modelos Dart independientes del estándar. Las variantes actuales se derivan de la tupla `route_id + direction_id + shape_id`; esta agrupación evita mezclar sentidos/recorridos distintos, pero no sustituye identificadores oficiales de variante.
+- `StopTime` guarda segundos desde el inicio del día de servicio, permitiendo valores como 25:10:00; los arribos posteriores a medianoche se reconstruyen desde el día de servicio anterior.
+- En Android/iOS, la descarga estática se escribe a disco; un isolate lee el ZIP desde archivo, descomprime `stop_times.txt` a disco, recorre CSV por bloques de 64 KiB y escribe JSONL. SQLite importa horarios en lotes de 500 dentro de la transacción de reemplazo; el ZIP y la tabla completa de horarios no se mantienen en memoria.
+- SQLite usa tablas e índices geográficos, por parada/horario y por shape; los feeds se escriben en una base temporal en transacción y se renombran al finalizar para conservar la base anterior frente a fallos.
+- El feed de ejemplo es sintético, pequeño y marcado como no oficial. Sus paradas son puntos de demostración alrededor del centro de Montevideo, no paradas reales ni horarios del STM.
+- El vencimiento se deriva de `feed_info.txt` cuando está disponible; si no hay fecha final, el estado no se marca vencido. La app no declara condiciones de licencia no verificadas.
+- `RealtimeBusSource` tiene una implementación HTTP para la API oficial, accesible desde la app solo a través del proxy local OAuth durante desarrollo, y un fake para tests. `RealtimeMatcher` busca `RouteVariant.externalVariantId`; una variante no encontrada conserva el vehículo sin recorrido asociado.
+- El proxy del repositorio expone la flota como `GET /api/buses?format=geojson`; el cliente Flutter configura la base con sufijo `/api` y agrega `/buses`. La documentación del proxy usa la ruta completa para evitar confundirla con el endpoint upstream.
+- En builds debug Android/iOS, el proxy local `127.0.0.1:8765` es el valor predeterminado y requiere `adb reverse`; `RUMBO_API_BASE_URL` permite cambiarlo. En release queda deshabilitado salvo que se configure explícitamente. HTTP se acepta solo en localhost; las otras fuentes deben usar HTTPS. Si el único feed disponible es sintético, se vuelve a intentar la descarga aunque haya una comprobación fallida reciente. Los errores de descarga no renuevan el intervalo de caché.
+
+- `sqflite_common_ffi` (solo desarrollo) — permite probar las transacciones SQLite en escritorio sin emulador ni plugins móviles.
+- `Route.shortName` es una etiqueta visible y no se usa como identificador; `RouteVariant.externalVariantId` guarda el código entero STM opcional. Se importa desde `variant_id` de `trips.txt`, o desde `variant_map.csv` por `trip_id`/`shape_id`; si falta, se registra una advertencia.
+- El parser STM interpreta `FeatureCollection` y `Point.coordinates` como [longitud, latitud], valida rangos y caja configurable de Uruguay, descarta features inválidas con conteo por motivo y deduplica por `properties.id` conservando la última aparición. `sourceId` conserva tipo/valor recibido; no se considera única la pareja empresa/unidad.
+- Las líneas que pasan por una parada se derivan del join GTFS `stop_times → trips → routes`, agrupadas por `stop_id`. Las variantes usan su `shape_id` estático y se pueden dibujar en el mapa; la relación con `lineVariantId` de la API se mantiene opcional porque el feed oficial no trae ese campo y los cruces por texto no son unívocos.
+- El snapshot de prueba conserva `frecuencia` y `version` en `rawExtras` sin interpretarlos. `receivedAt` es el instante local entregado al parser; la fuente descrita no trae timestamp ni rumbo.
+- La API documenta `GET /buses` y `GET /buses/geo`; la app consulta la flota como GeoJSON sin coordenadas de ubicación, y limita en el dispositivo los vehículos cercanos. La ubicación precisa nunca se incluye en la solicitud.
+- Los códigos de variante y las posiciones incluidos en fixtures son sintéticos. Los nombres de parada son ficticios y sus coordenadas son puntos sintéticos próximos al centro de mapa de Montevideo configurado en Rumbo; no se presentan como paradas reales.
+- Las tablas GTFS restantes se procesan en memoria para formar los modelos de dominio; el tiempo y pico de memoria de un feed oficial siguen pendientes porque aún no hay fuente confirmada.
+- La medición aislada del camino de archivo (parseo e importación SQLite) fue 325 ms en este equipo (ZIP sintético de 2.202 bytes, 18 paradas, 3 líneas, 6 variantes y 48 stop_times); no extrapolarla a feeds de producción ni a millones de horarios.
+
+- `sourceId` mantiene el valor JSON de `properties.id` sin convertirlo; no se usa para formar una identidad de vehículo porque su formato puede cambiar cuando cambia la variante. La deduplicación usa ese valor opaco de forma exacta.
+- No hay hora ni rumbo en la fuente de posiciones descrita: Rumbo asigna `receivedAt` al recibir el snapshot y no estima el rumbo. `frecuencia` y `version` permanecen en `rawExtras` hasta confirmar su significado.
+- El parser GeoJSON conserva validaciones de rango y campos; el endpoint real se consume a través del proxy para mantener OAuth fuera del APK. La respuesta no incluye timestamp de origen, por lo que la UI muestra la hora local de recepción y no la etiqueta como ETA.
+- El planificador Dart puro busca itinerarios directos y con un transbordo, activa los calendarios GTFS y reconstruye tiempos de servicio que superan medianoche. Consulta SQLite para viajes que sirven paradas candidatas, sin cargar el feed completo desde la UI.
+- Los resultados del motor se marcan como horarios programados. La caminata usa distancia geodésica para filtrar/cotizar candidatos y no equivale a una ruta peatonal; no se muestran todavía como guía real de navegación.
+- El planificador aún no tiene pantalla ni búsqueda de destinos/paradas; tampoco hay enrutador peatonal. La pantalla de mapa muestra posiciones live cuando se configura el proxy, pero no entrega ETA a una parada ni un viaje guiado.
+- Se aprobó el seguimiento de ubicación solo durante un viaje activo que la persona inicia explícitamente, para actualizar el progreso y notificación local. Debe procesarse en el dispositivo, detenerse al finalizar/cancelar y nunca enviar la ubicación a un servidor. La implementación debe solicitar autorización específica, usar los modos de segundo plano requeridos por cada SO y no mantener seguimiento fuera del viaje; Android puede mostrar servicio/notificación persistente y iOS puede limitar la persistencia visible.

@@ -1,0 +1,333 @@
+{
+  "@@locale": "es",
+  "appTitle": "Rumbo",
+  "appSlogan": "Tu ciudad, en movimiento.",
+  "privacyMessage": "Sin anuncios. Sin rastreadores.",
+  "navigationMap": "Mapa",
+  "navigationFavorites": "Favoritos",
+  "navigationSettings": "Ajustes",
+  "mapScreenTitle": "Mapa",
+  "mapEmptyTitle": "Tu ciudad te espera",
+  "mapEmptyBody": "Pronto vas a poder explorar el transporte público de Montevideo.",
+  "mapSearchPlaceholder": "¿A dónde vamos?",
+  "mapSearchTitle": "Buscar un destino",
+  "comingSoon": "Próximamente",
+  "actionClose": "Cerrar",
+  "actionCancel": "Ahora no",
+  "actionRetry": "Reintentar",
+  "mapLoading": "Cargando el mapa",
+  "mapErrorTitle": "No se pudo cargar el mapa",
+  "mapErrorBody": "Revisá tu conexión e intentá de nuevo.",
+  "mapOffline": "Sin conexión. Se usarán las teselas disponibles en caché.",
+  "mapAttributionButton": "Información y atribución del mapa",
+  "mapAttributionShort": "© OSM",
+  "mapAttributionTitle": "Datos del mapa",
+  "mapAttributionDetails": "Mapa de OpenFreeMap con datos de OpenStreetMap y OpenMapTiles. La búsqueda de lugares usa OpenStreetMap/Nominatim. Las solicitudes de teselas muestran al proveedor el área aproximada que se está viendo.",
+  "mapLocationPrivacy": "La ubicación precisa se procesa en este dispositivo y Rumbo no la guarda ni la envía a un servidor. Al recentrar, el proveedor puede inferir la zona aproximada por las teselas solicitadas.",
+  "nearbyBuses": "Próximos ómnibus",
+  "mapStopsAndBuses": "Paradas y ómnibus",
+  "mapStopsNearby": "Paradas cercanas",
+  "mapStopRouteCount": "{count} líneas",
+  "@mapStopRouteCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mapStopNoRoutes": "No hay líneas asociadas en el horario.",
+  "mapNoStops": "No encontramos paradas a menos de 1,5 km. Activá tu ubicación o acercá el mapa.",
+  "mapLiveSection": "Ómnibus en vivo",
+  "mapLiveNotConfigured": "El tiempo real no está conectado en esta instalación.",
+  "mapLiveLoading": "Consultando ómnibus en vivo…",
+  "mapLiveEmpty": "El STM no reporta ómnibus en vivo cerca de este punto.",
+  "mapLiveError": "No se pudo actualizar el tiempo real: {message}",
+  "@mapLiveError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mapLiveUpdated": "Recibido a las {time}",
+  "@mapLiveUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mapStopsLoading": "Cargando paradas y recorridos oficiales…",
+  "mapStopsError": "No se pudieron consultar las paradas: {message}",
+  "@mapStopsError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mapRoutesLoading": "Buscando líneas y recorridos…",
+  "mapRoutesError": "No se pudieron consultar las líneas: {message}",
+  "@mapRoutesError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mapRouteNoVariants": "No hay variantes de recorrido para esta línea.",
+  "mapRouteNoGeometry": "El feed no incluye la geometría de este recorrido.",
+  "mapRouteShowOnMap": "Ver recorrido en el mapa",
+  "mapFeedLoading": "Descargando y preparando los datos oficiales…",
+  "mapFeedDemoOnly": "La muestra de prueba no contiene recorridos reales.",
+  "mapFeedError": "No se pudieron cargar los datos oficiales: {message}",
+  "@mapFeedError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mapFeedUnknownError": "Revisá la conexión e intentá actualizar de nuevo.",
+  "mapFeedProxyHint": "En debug, iniciá python tool/montevideo_api_proxy.py en la computadora. En un teléfono por USB, usá adb reverse tcp:8765 tcp:8765 y RUMBO_API_BASE_URL=http://127.0.0.1:8765.",
+  "locationRecenter": "Usar mi ubicación",
+  "locationRationaleTitle": "Usar tu ubicación",
+  "locationRationaleBody": "Rumbo la usa para centrar el mapa. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.",
+  "locationRationaleContinue": "Continuar",
+  "locationPermissionDenied": "Sin permiso, el mapa sigue disponible desde Montevideo.",
+  "locationPermissionDeniedForever": "El permiso está bloqueado en los ajustes del sistema.",
+  "locationServiceDisabled": "Los servicios de ubicación están desactivados.",
+  "locationError": "No pudimos obtener tu ubicación. Probá de nuevo.",
+  "locationRetry": "Reintentar",
+  "locationOpenSettings": "Abrir ajustes",
+  "locationEnableService": "Activar ubicación",
+  "mapLogoSemanticLabel": "Símbolo provisional de Rumbo",
+  "favoritesScreenTitle": "Favoritos",
+  "favoritesEmptyTitle": "Todavía no guardaste favoritos",
+  "favoritesEmptyBody": "Cuando guardes una parada o un lugar, lo vas a encontrar acá.",
+  "settingsScreenTitle": "Ajustes",
+  "settingsIntro": "Personalizá Rumbo a tu gusto.",
+  "themePreferenceTitle": "Apariencia",
+  "themePreferenceDescription": "Elegí cómo se ve la app.",
+  "themeLight": "Claro",
+  "themeDark": "Oscuro",
+  "themeSystem": "Sistema",
+  "settingsLoadError": "No se pudo cargar la preferencia de apariencia.",
+  "remotePlaceSearchTitle": "Buscar direcciones en línea",
+  "remotePlaceSearchDescription": "Al buscar, el texto escrito se envía al servicio remoto. Mientras escribís, solo se buscan datos locales.",
+  "debugThemeSample": "Muestra de identidad visual",
+  "debugThemeSampleTitle": "Identidad visual",
+  "debugPaletteTitle": "Paleta Rumbo",
+  "debugTypographyTitle": "Tipografía Inter",
+  "debugTypographyBody": "Texto de cuerpo con escala del sistema.",
+  "debugAccentLabel": "Acento: destino",
+  "debugErrorLabel": "Error",
+  "debugLineChipsTitle": "Líneas de ejemplo",
+  "debugBodyText": "Tu ciudad. Tu camino.",
+  "debugPaletteInk": "Ink",
+  "debugPaletteIvory": "Ivory",
+  "debugPaletteDeepBlue": "Deep blue",
+  "debugPaletteMint": "Mint AA",
+  "debugPaletteLime": "Lima de identidad",
+  "debugPaletteSurface": "Superficie",
+  "debugPaletteDarkSurface": "Superficie oscura",
+  "debugPaletteDarkElevated": "Superficie elevada",
+  "transitDataTitle": "Datos de transporte",
+  "transitDataLoading": "Cargando datos de prueba…",
+  "transitSourceLabel": "Fuente",
+  "transitVersionLabel": "Versión",
+  "transitUpdatedLabel": "Última actualización",
+  "transitValidityLabel": "Vigencia",
+  "transitCurrent": "Vigente",
+  "transitExpired": "Desactualizado",
+  "transitCounts": "{stops} paradas · {routes} líneas",
+  "@transitCounts": {
+    "placeholders": {
+      "stops": {
+        "type": "int"
+      },
+      "routes": {
+        "type": "int"
+      }
+    }
+  },
+  "transitUpdateNow": "Actualizar ahora",
+  "transitDemoNotice": "Datos sintéticos para probar la app; no son datos reales del STM.",
+  "transitNoSource": "La URL oficial del feed no está configurada.",
+  "transitAttributionLabel": "Atribución",
+  "transitLicenseLabel": "Licencia",
+  "transitNoData": "No hay datos disponibles.",
+  "transitUpdatedAtNone": "Todavía no actualizado",
+  "transitUpdateError": "No se pudo actualizar; se conservan los datos guardados.",
+  "transitUnknownValue": "—",
+  "tripSearchTitle": "Planificá tu viaje",
+  "tripOriginLabel": "Desde",
+  "tripDestinationLabel": "Hasta",
+  "tripOriginLocationHint": "Mi ubicación",
+  "tripOriginStopHint": "Elegí una parada de origen",
+  "tripDestinationHint": "Buscá una parada",
+  "tripUseCurrentLocation": "Usar mi ubicación",
+  "tripNoStops": "No encontramos paradas con ese nombre.",
+  "tripNoPlaces": "No encontramos lugares o direcciones con ese texto.",
+  "tripSearchError": "No se pudo buscar: {error}",
+  "@tripSearchError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "tripShowTrips": "Buscar ómnibus",
+  "tripSearchingTrips": "Buscando opciones…",
+  "tripLocationUnavailable": "Elegí una parada de origen o activá tu ubicación desde el mapa.",
+  "tripNoTrips": "No encontramos viajes con los horarios disponibles.",
+  "tripStaticScheduleNotice": "Opciones basadas en horarios programados; no son arribos en vivo.",
+  "tripOfficialDataUnavailable": "El GTFS oficial todavía no está disponible. Iniciá el proxy local y reintentá la actualización.",
+  "tripOriginRequired": "Elegí una parada de origen o activá tu ubicación desde el mapa.",
+  "tripSearchPlaces": "Buscar lugares o direcciones",
+  "tripPlaceResult": "Lugar o dirección · OpenStreetMap",
+  "tripStopResult": "Parada del STM",
+  "tripGeocodingPrivacy": "Al tocar «Buscar lugares o direcciones», se envía el texto escrito al servicio remoto. La ubicación actual no se envía.",
+  "tripPlaceSearchUnavailable": "La búsqueda de lugares no está configurada en esta instalación.",
+  "tripPlanError": "No se pudo planificar: {error}",
+  "@tripPlanError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "tripPlanSummary": "{minutes} min · {transfers, plural, =0{sin transbordos} one{1 transbordo} other{{transfers} transbordos}} · llega {arrival}",
+  "@tripPlanSummary": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "transfers": {
+        "type": "int"
+      },
+      "arrival": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailTitle": "Tu recorrido",
+  "tripDetailDeparture": "Salida · {origin} · {time}",
+  "@tripDetailDeparture": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailArrival": "Llegada · {destination} · {time}",
+  "@tripDetailArrival": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailWalking": "Caminá {meters} m · {minutes} min",
+  "@tripDetailWalking": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripDetailWait": "Esperá en {stop} · {minutes} min",
+  "@tripDetailWait": {
+    "placeholders": {
+      "stop": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripDetailTransfer": "Transbordo en {stop} · {minutes} min",
+  "@tripDetailTransfer": {
+    "placeholders": {
+      "stop": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripDetailBus": "Ómnibus {line}",
+  "@tripDetailBus": {
+    "placeholders": {
+      "line": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailBusDirection": "Ómnibus {line} hacia {direction}",
+  "@tripDetailBusDirection": {
+    "placeholders": {
+      "line": {
+        "type": "String"
+      },
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailBetweenStops": "{from} → {to}",
+  "@tripDetailBetweenStops": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailWalkingTotal": "Caminata total: {meters} m",
+  "@tripDetailWalkingTotal": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
+  "tripDetailUnknownStop": "Parada",
+  "tripDetailScheduleNotice": "Horarios programados, no ETA en vivo. La caminata es aproximada y el trazo del ómnibus une paradas de forma esquemática; no es navegación guiada.",
+  "tripDetailChangeTrip": "Cambiar viaje",
+  "tripDetailClose": "Cerrar recorrido",
+  "searchHint": "Buscá una calle, esquina, parada o lugar…",
+  "searchRecent": "Búsquedas recientes",
+  "searchClearRecent": "Borrar historial",
+  "searchEmptyTitle": "Sin resultados",
+  "searchEmptyBody": "No encontramos coincidencias para «{query}».",
+  "@searchEmptyBody": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "searchOfflineNotice": "Sin conexión a internet. Mostrando solo paradas y datos locales.",
+  "searchKindStop": "Parada de ómnibus",
+  "searchKindAddress": "Dirección",
+  "searchKindIntersection": "Esquina",
+  "searchKindPoi": "Lugar de interés",
+  "searchKindNeighborhood": "Barrio",
+  "searchKindRoute": "Línea STM",
+  "searchKindRecent": "Reciente",
+  "searchKindFavorite": "Favorito"
+}

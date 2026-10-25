@@ -1,0 +1,1377 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' hide Route;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maplibre/maplibre.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../../../core/config/map_config.dart';
+import '../../../core/config/transit_config.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../features/search/presentation/search_controller.dart';
+import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
+import '../../../features/stops_and_lines/data/sqflite_transit_repository.dart';
+import '../../../features/stops_and_lines/data/transit_database.dart';
+import '../../../features/stops_and_lines/domain/transit_models.dart';
+import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
+import '../../../features/trip_planner/data/open_street_map_place_source.dart';
+import '../../../features/trip_planner/domain/trip_planner.dart';
+import '../../../features/trip_planner/presentation/trip_plan_details.dart';
+import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
+import '../data/connectivity_provider.dart';
+import '../data/map_cache_repository.dart';
+import 'map_location_controller.dart';
+
+typedef MapBuilder = Widget Function(BuildContext context);
+
+final mapBuilderOverrideProvider = Provider<MapBuilder?>((ref) => null);
+
+final nearbyOfficialStopsProvider = FutureProvider<List<Stop>>((ref) async {
+  if (transitConfig.url.isEmpty) return const [];
+  final feedState = ref.watch(feedUpdateControllerProvider);
+  final feed = feedState.asData?.value;
+  if (feed == null || feed.status.synthetic || feed.status.stopCount == 0) {
+    return const [];
+  }
+  final location = ref.watch(mapLocationControllerProvider).location;
+  final database = TransitDatabase();
+  final db = await database.open();
+  try {
+    return await SqfliteTransitRepository(() async => db).nearbyStops(
+      location?.latitude ?? MapConfig.initialCenter.lat,
+      location?.longitude ?? MapConfig.initialCenter.lon,
+      1500,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+final nearbyStopRoutesProvider = FutureProvider<Map<String, List<Route>>>((
+  ref,
+) async {
+  final stops = await ref.watch(nearbyOfficialStopsProvider.future);
+  if (stops.isEmpty) return const {};
+  final database = TransitDatabase();
+  final db = await database.open();
+  try {
+    return await SqfliteTransitRepository(() async => db)
+        .routesForStops(stops.map((stop) => stop.id).toSet());
+  } finally {
+    await db.close();
+  }
+});
+
+final routeVariantsProvider = FutureProvider.family<List<RouteVariant>, String>(
+  (ref, routeId) async {
+    final feed = ref.watch(feedUpdateControllerProvider).asData?.value;
+    if (feed == null || feed.status.synthetic) return const [];
+    final db = await TransitDatabase().open();
+    try {
+      return await SqfliteTransitRepository(() async => db)
+          .variantsForRoute(routeId);
+    } finally {
+      await db.close();
+    }
+  },
+);
+
+final routeShapeProvider = FutureProvider.family<Shape?, String>((
+  ref,
+  variantId,
+) async {
+  final feed = ref.watch(feedUpdateControllerProvider).asData?.value;
+  if (feed == null || feed.status.synthetic) return null;
+  final db = await TransitDatabase().open();
+  try {
+    return await SqfliteTransitRepository(() async => db)
+        .shapeForVariant(variantId);
+  } finally {
+    await db.close();
+  }
+});
+
+class MapScreen extends ConsumerStatefulWidget {
+  const MapScreen({super.key, this.mapBuilder, this.mapLoadTimeout});
+
+  @visibleForTesting
+  final MapBuilder? mapBuilder;
+
+  @visibleForTesting
+  final Duration? mapLoadTimeout;
+
+  @override
+  ConsumerState<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends ConsumerState<MapScreen> {
+  final DraggableScrollableController _sheetController =
+      DraggableScrollableController();
+  Timer? _mapLoadTimer;
+  MapController? _mapController;
+  double _sheetExtent = 0.23;
+  double _metersPerPixel = 5;
+  int _mapGeneration = 0;
+  bool _mapLoading = true;
+  bool _mapError = false;
+  bool _realtimeLoading = false;
+  RealtimeSnapshot? _realtimeSnapshot;
+  String? _realtimeError;
+  String? _selectedVariantId;
+  Color _selectedRouteColor = AppColors.deepBlue;
+  bool? _lastDarkTheme;
+  TripPlan? _selectedTripPlan;
+  String? _selectedTripOriginName;
+  String? _selectedTripDestinationName;
+
+  @override
+  void initState() {
+    super.initState();
+    _sheetController.addListener(_onSheetChanged);
+    final hasTestMap =
+        widget.mapBuilder != null ||
+        ref.read(mapBuilderOverrideProvider) != null;
+    if (hasTestMap && widget.mapLoadTimeout == null) {
+      _mapLoading = false;
+    } else {
+      _startMapLoadTimer();
+    }
+    if (transitConfig.realtimeEndpoint.isNotEmpty) {
+      _realtimeSource = MontevideoRealtimeBusSource(
+        transitConfig.realtimeEndpoint,
+      );
+      unawaited(_refreshRealtimeBuses());
+      _realtimeTimer = Timer.periodic(
+        const Duration(seconds: 10),
+        (_) => unawaited(_refreshRealtimeBuses()),
+      );
+    }
+  }
+
+  Timer? _realtimeTimer;
+  MontevideoRealtimeBusSource? _realtimeSource;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_lastDarkTheme != null && _lastDarkTheme != isDark) {
+      _mapController?.setStyle(_styleFor(isDark));
+      _beginMapLoad();
+    }
+    _lastDarkTheme = isDark;
+  }
+
+  @override
+  void dispose() {
+    _mapLoadTimer?.cancel();
+    _realtimeTimer?.cancel();
+    _realtimeSource?.close();
+    _sheetController
+      ..removeListener(_onSheetChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onSheetChanged() {
+    if (mounted && _sheetController.isAttached) {
+      setState(() => _sheetExtent = _sheetController.size);
+    }
+  }
+
+  String _styleFor(bool isDark) =>
+      isDark ? MapConfig.darkStyleUrl : MapConfig.lightStyleUrl;
+
+  void _startMapLoadTimer() {
+    _mapLoadTimer?.cancel();
+    _mapLoadTimer = Timer(
+      widget.mapLoadTimeout ?? MapConfig.mapLoadTimeout,
+      () {
+        if (mounted && _mapLoading) {
+          setState(() {
+            _mapLoading = false;
+            _mapError = true;
+          });
+        }
+      },
+    );
+  }
+
+  void _beginMapLoad() {
+    setState(() {
+      _mapLoading = true;
+      _mapError = false;
+    });
+    _startMapLoadTimer();
+  }
+
+  void _retryMap() {
+    _mapController = null;
+    setState(() {
+      _mapGeneration++;
+      _mapLoading = true;
+      _mapError = false;
+    });
+    _startMapLoadTimer();
+  }
+
+  Future<void> _refreshRealtimeBuses() async {
+    if (_realtimeLoading || !mounted) return;
+    setState(() {
+      _realtimeLoading = true;
+      _realtimeError = null;
+    });
+    try {
+      final snapshot = await _realtimeSource!.fetch();
+      if (!mounted) return;
+      setState(() {
+        _realtimeSnapshot = snapshot;
+        _realtimeLoading = false;
+      });
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _realtimeError = error.toString();
+        _realtimeLoading = false;
+      });
+    }
+  }
+
+  List<BusPosition> _nearbyBuses(MapLocationState locationState) {
+    final centerLatitude =
+        locationState.location?.latitude ?? MapConfig.initialCenter.lat;
+    final centerLongitude =
+        locationState.location?.longitude ?? MapConfig.initialCenter.lon;
+    return (_realtimeSnapshot?.positions ?? const <BusPosition>[])
+        .where(
+          (bus) =>
+              _distanceMeters(
+                centerLatitude,
+                centerLongitude,
+                bus.latitude,
+                bus.longitude,
+              ) <=
+              2000,
+        )
+        .toList()
+      ..sort(
+        (a, b) =>
+            _distanceMeters(
+              centerLatitude,
+              centerLongitude,
+              a.latitude,
+              a.longitude,
+            ).compareTo(
+              _distanceMeters(
+                centerLatitude,
+                centerLongitude,
+                b.latitude,
+                b.longitude,
+              ),
+            ),
+      );
+  }
+
+  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371000.0;
+    final latitudeDelta = (lat2 - lat1) * math.pi / 180;
+    final longitudeDelta = (lon2 - lon1) * math.pi / 180;
+    final haversine =
+        math.pow(math.sin(latitudeDelta / 2), 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.pow(math.sin(longitudeDelta / 2), 2);
+    return earthRadius *
+        2 *
+        math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+  }
+
+  Future<void> _onMapCreated(MapController controller) async {
+    _mapController = controller;
+    _startMapLoadTimer();
+    _updateMetersPerPixel();
+    try {
+      await ref.read(mapCacheRepositoryProvider).configureAmbientCache();
+    } on Exception {
+      // The map remains usable if cache configuration is unavailable.
+    }
+  }
+
+  void _onStyleLoaded(StyleController _) {
+    _mapLoadTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _mapLoading = false;
+        _mapError = false;
+      });
+    }
+  }
+
+  void _onMapEvent(MapEvent event) {
+    if (event is MapEventMoveCamera) _updateMetersPerPixel();
+  }
+
+  void _updateMetersPerPixel() {
+    final location = ref.read(mapLocationControllerProvider).location;
+    final controller = _mapController;
+    if (location == null || controller == null) return;
+    try {
+      final value = controller.getMetersPerPixelAtLatitude(location.latitude);
+      if (value > 0 && value.isFinite && mounted) {
+        setState(() => _metersPerPixel = value);
+      }
+    } on Exception {
+      // Keep the last valid scale until the map is ready again.
+    }
+  }
+
+  Future<void> _requestLocation() async {
+    final l10n = AppLocalizations.of(context);
+    final shouldContinue = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Symbols.my_location_rounded),
+        title: Text(l10n.locationRationaleTitle),
+        content: Text(l10n.locationRationaleBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.locationRationaleContinue),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || shouldContinue != true) return;
+    await ref.read(mapLocationControllerProvider.notifier).locate();
+    if (!mounted) return;
+    final state = ref.read(mapLocationControllerProvider);
+    final location = state.location;
+    if (location != null) {
+      final position = Geographic(
+        lon: location.longitude,
+        lat: location.latitude,
+      );
+      await _mapController?.animateCamera(
+        center: position,
+        zoom: 15,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+        ),
+      );
+      _updateMetersPerPixel();
+    }
+  }
+
+  Future<void> _showTripSearch() async {
+    final l10n = AppLocalizations.of(context);
+    final location = ref.read(mapLocationControllerProvider).location;
+    final feed = ref.read(feedUpdateControllerProvider).asData?.value;
+    final hasOfficialFeed =
+        feed != null && !feed.status.synthetic && feed.status.stopCount > 0;
+    final searchService = hasOfficialFeed
+        ? ref.read(searchServiceProvider)
+        : null;
+    final remotePlaceSearchEnabled =
+        ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
+    final placeSource = transitConfig.placeSearchEndpoint.isEmpty
+        ? null
+        : OpenStreetMapPlaceSource(endpoint: transitConfig.placeSearchEndpoint);
+    var didSelectPlan = false;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: false,
+        builder: (context) => TripSearchSheet(
+          hasCurrentLocation: location != null,
+          remotePlaceSearchEnabled: remotePlaceSearchEnabled,
+          searchService: searchService,
+          onPlanSelected: (plan, origin, destination) {
+            didSelectPlan = true;
+            setState(() {
+              _selectedTripPlan = plan;
+              _selectedTripOriginName =
+                  origin?.name ?? l10n.tripOriginLocationHint;
+              _selectedTripDestinationName = destination.name;
+            });
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+          searchStops: (query) async {
+            final feed = ref.read(feedUpdateControllerProvider).asData?.value;
+            if (feed == null ||
+                feed.status.synthetic ||
+                feed.status.stopCount == 0) {
+              throw Exception(l10n.tripOfficialDataUnavailable);
+            }
+            final db = await TransitDatabase().open();
+            try {
+              return await SqfliteTransitRepository(() async => db)
+                  .searchStops(query);
+            } finally {
+              await db.close();
+            }
+          },
+          searchPlaces: (query) async {
+            if (placeSource == null) {
+              throw Exception(l10n.tripPlaceSearchUnavailable);
+            }
+            return placeSource.search(query);
+          },
+          findPlans: (origin, destination) async {
+            final feed = ref.read(feedUpdateControllerProvider).asData?.value;
+            if (feed == null ||
+                feed.status.synthetic ||
+                feed.status.stopCount == 0) {
+              throw Exception(l10n.tripOfficialDataUnavailable);
+            }
+            final originLatitude = origin?.latitude ?? location?.latitude;
+            final originLongitude = origin?.longitude ?? location?.longitude;
+            if (originLatitude == null || originLongitude == null) {
+              throw Exception(l10n.tripOriginRequired);
+            }
+            final db = await TransitDatabase().open();
+            try {
+              return await TransitTripPlanner(
+                SqfliteTransitRepository(() async => db),
+              ).plan(
+                TripRequest(
+                  originLatitude: originLatitude,
+                  originLongitude: originLongitude,
+                  destinationLatitude: destination.latitude,
+                  destinationLongitude: destination.longitude,
+                  departureTime: DateTime.now(),
+                ),
+              );
+            } finally {
+              await db.close();
+            }
+          },
+        ),
+      );
+      if (didSelectPlan && mounted) {
+        if (_sheetController.isAttached) {
+          await _sheetController.animateTo(
+            .65,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+        final plan = _selectedTripPlan;
+        if (plan != null) await _focusOnTripPlan(plan);
+      }
+    } finally {
+      placeSource?.close();
+    }
+  }
+
+  Future<void> _showAttribution() async {
+    final l10n = AppLocalizations.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.mapAttributionTitle,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(MapConfig.attribution),
+              const SizedBox(height: 16),
+              Text(l10n.mapAttributionDetails),
+              const SizedBox(height: 16),
+              Text(l10n.mapLocationPrivacy),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(l10n.actionClose),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleLocationAction(MapLocationStatus status) async {
+    final controller = ref.read(mapLocationControllerProvider.notifier);
+    switch (status) {
+      case MapLocationStatus.permissionDeniedForever:
+        await controller.openPermissionSettings();
+      case MapLocationStatus.serviceDisabled:
+        await controller.openLocationSettings();
+      case MapLocationStatus.permissionDenied:
+      case MapLocationStatus.error:
+        await _requestLocation();
+      case MapLocationStatus.idle:
+      case MapLocationStatus.loading:
+      case MapLocationStatus.available:
+        break;
+    }
+  }
+
+  List<Layer> _locationLayers(MapLocationState state, bool isDark) {
+    final location = state.location;
+    if (state.status != MapLocationStatus.available || location == null) {
+      return const [];
+    }
+    final point = Feature<Point>(
+      geometry: Point(
+        Geographic(lon: location.longitude, lat: location.latitude),
+      ),
+    );
+    final primary = isDark ? AppColors.darkPrimary : AppColors.deepBlue;
+    final radius = (location.accuracyMeters / _metersPerPixel)
+        .round()
+        .clamp(16, 96)
+        .toInt();
+    return [
+      CircleLayer(
+        points: [point],
+        radius: radius,
+        color: primary.withValues(alpha: 0.2),
+        strokeWidth: 1,
+        strokeColor: primary.withValues(alpha: 0.58),
+      ),
+      CircleLayer(
+        points: [point],
+        radius: 7,
+        color: primary,
+        strokeWidth: 3,
+        strokeColor: AppColors.white,
+      ),
+    ];
+  }
+
+  List<Layer> _stopLayers(List<Stop> stops) {
+    if (stops.isEmpty) return const [];
+    return [
+      CircleLayer(
+        points: [
+          for (final stop in stops)
+            Feature<Point>(
+              geometry: Point(
+                Geographic(lon: stop.longitude, lat: stop.latitude),
+              ),
+            ),
+        ],
+        radius: 8,
+        color: AppColors.lime,
+        strokeWidth: 2,
+        strokeColor: AppColors.ink,
+      ),
+    ];
+  }
+
+  List<Layer> _selectedRouteLayers(Shape? shape) {
+    if (shape == null || shape.points.length < 2) return const [];
+    return [
+      PolylineLayer(
+        polylines: [
+          Feature<LineString>(
+            geometry: LineString.from([
+              for (final point in shape.points)
+                Geographic(lon: point.longitude, lat: point.latitude),
+            ]),
+          ),
+        ],
+        color: _selectedRouteColor,
+        width: 5,
+      ),
+    ];
+  }
+
+  List<Layer> _tripPlanLayers(TripPlan? plan) {
+    if (plan == null) return const [];
+
+    final walkingPoints = <Feature<LineString>>[];
+    final transitPoints = <Feature<LineString>>[];
+    for (final leg in plan.legs) {
+      final fromLat = leg.fromLatitude ?? leg.fromStop?.latitude;
+      final fromLon = leg.fromLongitude ?? leg.fromStop?.longitude;
+      final toLat = leg.toLatitude ?? leg.toStop?.latitude;
+      final toLon = leg.toLongitude ?? leg.toStop?.longitude;
+      if (fromLat == null ||
+          fromLon == null ||
+          toLat == null ||
+          toLon == null) {
+        continue;
+      }
+      final segment = Feature<LineString>(
+        geometry: LineString.from([
+          Geographic(lon: fromLon, lat: fromLat),
+          Geographic(lon: toLon, lat: toLat),
+        ]),
+      );
+      if (leg.kind == TripLegKind.walking) {
+        walkingPoints.add(segment);
+      } else {
+        transitPoints.add(segment);
+      }
+    }
+
+    final layers = <Layer>[];
+    if (walkingPoints.isNotEmpty) {
+      layers.add(
+        PolylineLayer(
+          polylines: walkingPoints,
+          color: AppColors.lime.withValues(alpha: 0.92),
+          width: 4,
+        ),
+      );
+    }
+    if (transitPoints.isNotEmpty) {
+      layers.add(
+        PolylineLayer(
+          polylines: transitPoints,
+          color: AppColors.deepBlue.withValues(alpha: 0.96),
+          width: 6,
+        ),
+      );
+    }
+    return layers;
+  }
+
+  Future<void> _focusOnTripPlan(TripPlan plan) async {
+    final points = <Geographic>[];
+    for (final leg in plan.legs) {
+      final fromLat = leg.fromLatitude ?? leg.fromStop?.latitude;
+      final fromLon = leg.fromLongitude ?? leg.fromStop?.longitude;
+      final toLat = leg.toLatitude ?? leg.toStop?.latitude;
+      final toLon = leg.toLongitude ?? leg.toStop?.longitude;
+      if (fromLat == null ||
+          fromLon == null ||
+          toLat == null ||
+          toLon == null) {
+        continue;
+      }
+      points.addAll([
+        Geographic(lon: fromLon, lat: fromLat),
+        Geographic(lon: toLon, lat: toLat),
+      ]);
+    }
+    if (points.isEmpty) return;
+    final latitudes = points.map((point) => point.lat).toList();
+    final longitudes = points.map((point) => point.lon).toList();
+    final minLat = latitudes.reduce(math.min);
+    final maxLat = latitudes.reduce(math.max);
+    final minLon = longitudes.reduce(math.min);
+    final maxLon = longitudes.reduce(math.max);
+    final center = Geographic(
+      lon: (minLon + maxLon) / 2,
+      lat: (minLat + maxLat) / 2,
+    );
+    final deltaLat = maxLat - minLat;
+    final deltaLon = maxLon - minLon;
+    final zoom = deltaLat < 0.01 && deltaLon < 0.01 ? 14.0 : 12.5;
+    await _mapController?.animateCamera(
+      center: center,
+      zoom: zoom,
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+      ),
+    );
+  }
+
+  Future<void> _selectVariant(
+    RouteVariant variant,
+    Route route,
+    Stop stop,
+  ) async {
+    final hexColor = route.color.replaceFirst('#', '');
+    final routeColor = RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hexColor)
+        ? Color(int.parse('FF$hexColor', radix: 16))
+        : AppColors.deepBlue;
+    setState(() {
+      _selectedVariantId = variant.id;
+      _selectedRouteColor = routeColor;
+    });
+    await _mapController?.animateCamera(
+      center: Geographic(lon: stop.longitude, lat: stop.latitude),
+      zoom: 12.5,
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+      ),
+    );
+    if (_sheetController.isAttached) {
+      await _sheetController.animateTo(
+        .46,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _setNearbyStopsExpanded(bool expanded) async {
+    if (!expanded || !_sheetController.isAttached) return;
+    await _sheetController.animateTo(
+      .46,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final locationState = ref.watch(mapLocationControllerProvider);
+    final networkState = ref.watch(networkAvailableProvider);
+    final feedAsync = ref.watch(feedUpdateControllerProvider);
+    final feedState = feedAsync.asData?.value;
+    final nearbyStops = ref.watch(nearbyOfficialStopsProvider);
+    final stops = nearbyStops.asData?.value ?? const <Stop>[];
+    final stopRoutes = ref.watch(nearbyStopRoutesProvider);
+    final routesByStop =
+        stopRoutes.asData?.value ?? const <String, List<Route>>{};
+    final selectedShape = _selectedVariantId == null
+        ? null
+        : ref.watch(routeShapeProvider(_selectedVariantId!)).asData?.value;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mapBuilder =
+        widget.mapBuilder ?? ref.watch(mapBuilderOverrideProvider);
+    final mapWidget =
+        mapBuilder?.call(context) ??
+        MapLibreMap(
+          key: ValueKey(_mapGeneration),
+          options: MapOptions(
+            initStyle: _styleFor(isDark),
+            initCenter: MapConfig.initialCenter,
+            initZoom: MapConfig.initialZoom,
+            minZoom: 2,
+            maxZoom: 19,
+          ),
+          onMapCreated: _onMapCreated,
+          onStyleLoaded: _onStyleLoaded,
+          onEvent: _onMapEvent,
+          layers: [
+            ..._tripPlanLayers(_selectedTripPlan),
+            ..._selectedRouteLayers(selectedShape),
+            ..._stopLayers(stops),
+            ..._locationLayers(locationState, isDark),
+          ],
+        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sheetHeight = constraints.maxHeight * _sheetExtent;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ExcludeSemantics(child: mapWidget),
+            if (_mapLoading)
+              Positioned(
+                top: 92,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _StatusPill(
+                    icon: const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    label: l10n.mapLoading,
+                  ),
+                ),
+              ),
+            if (_mapError)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 88, 24, 130),
+                  child: _MapErrorCard(onRetry: _retryMap),
+                ),
+              ),
+            Positioned(
+              top: 8,
+              left: 16,
+              right: 16,
+              child: SafeArea(
+                bottom: false,
+                child: _SearchControl(onTap: _showTripSearch),
+              ),
+            ),
+            Positioned(
+              top: 82,
+              left: 16,
+              right: 16,
+              child: Column(
+                children: [
+                  if (networkState.asData?.value == false)
+                    _InfoBanner(
+                      icon: Symbols.wifi_off_rounded,
+                      label: l10n.mapOffline,
+                    ),
+                  _LocationBanner(
+                    status: locationState.status,
+                    onAction: () => _handleLocationAction(locationState.status),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 16,
+              bottom: sheetHeight + 68,
+              child: Semantics(
+                button: true,
+                label: l10n.locationRecenter,
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: FloatingActionButton(
+                    heroTag: 'map-recenter',
+                    tooltip: l10n.locationRecenter,
+                    onPressed: _requestLocation,
+                    child: locationState.status == MapLocationStatus.loading
+                        ? const SizedBox.square(
+                            dimension: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Symbols.my_location_rounded),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              bottom: sheetHeight + 10,
+              child: Semantics(
+                button: true,
+                label: l10n.mapAttributionButton,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(24),
+                  child: InkWell(
+                    onTap: _showAttribution,
+                    borderRadius: BorderRadius.circular(24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              l10n.mapAttributionShort,
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Symbols.info_rounded, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            DraggableScrollableSheet(
+              controller: _sheetController,
+              initialChildSize: 0.23,
+              minChildSize: 0.18,
+              maxChildSize: _selectedTripPlan == null ? 0.46 : 0.68,
+              snap: true,
+              snapSizes: _selectedTripPlan == null
+                  ? const [0.23, 0.46]
+                  : const [0.46, 0.68],
+              builder: (context, scrollController) => Semantics(
+                container: true,
+                label: _selectedTripPlan == null
+                    ? l10n.mapStopsAndBuses
+                    : l10n.tripDetailTitle,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  elevation: 8,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      if (_selectedTripPlan != null) ...[
+                        TripPlanDetails(
+                          plan: _selectedTripPlan!,
+                          originName:
+                              _selectedTripOriginName ??
+                              l10n.tripOriginLocationHint,
+                          destinationName:
+                              _selectedTripDestinationName ??
+                              l10n.tripDetailUnknownStop,
+                          onChangeTrip: () {
+                            setState(() {
+                              _selectedTripPlan = null;
+                              _selectedTripOriginName = null;
+                              _selectedTripDestinationName = null;
+                            });
+                            unawaited(_showTripSearch());
+                          },
+                          onCloseTrip: () {
+                            setState(() {
+                              _selectedTripPlan = null;
+                              _selectedTripOriginName = null;
+                              _selectedTripDestinationName = null;
+                            });
+                            if (_sheetController.isAttached) {
+                              unawaited(
+                                _sheetController.animateTo(
+                                  .23,
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ] else ...[
+                        Text(
+                          l10n.mapStopsAndBuses,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        if (transitConfig.url.isNotEmpty &&
+                            stops.isNotEmpty) ...[
+                          Text(
+                            l10n.mapStopsNearby,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          ...stops
+                              .take(12)
+                              .map(
+                                (stop) => ExpansionTile(
+                                  key: ValueKey('stop-${stop.id}'),
+                                  onExpansionChanged: _setNearbyStopsExpanded,
+                                  tilePadding: EdgeInsets.zero,
+                                  leading: const Icon(
+                                    Symbols.location_on_rounded,
+                                    color: AppColors.deepBlue,
+                                  ),
+                                  title: Text(stop.name),
+                                  subtitle: Text(
+                                    stopRoutes.isLoading
+                                        ? l10n.mapRoutesLoading
+                                        : routesByStop[stop.id]?.isNotEmpty ==
+                                              true
+                                        ? l10n.mapStopRouteCount(
+                                            routesByStop[stop.id]!.length,
+                                          )
+                                        : l10n.mapStopNoRoutes,
+                                  ),
+                                  children: [
+                                    for (final route
+                                        in routesByStop[stop.id] ??
+                                            const <Route>[])
+                                      _StopRouteExpansion(
+                                        stop: stop,
+                                        route: route,
+                                        selectedVariantId: _selectedVariantId,
+                                        onSelectVariant: _selectVariant,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                        ],
+                        if (transitConfig.url.isEmpty)
+                          Text(l10n.mapLiveNotConfigured)
+                        else if ((nearbyStops.isLoading ||
+                                feedAsync.isLoading) &&
+                            stops.isEmpty)
+                          Row(
+                            children: [
+                              const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  feedState?.phase ==
+                                              FeedUpdatePhase.processing ||
+                                          feedState?.phase ==
+                                              FeedUpdatePhase.downloading
+                                      ? l10n.mapFeedLoading
+                                      : l10n.mapStopsLoading,
+                                ),
+                              ),
+                            ],
+                          )
+                        else if (feedState?.phase == FeedUpdatePhase.offline ||
+                            feedState?.phase ==
+                                FeedUpdatePhase.errorWithOldData)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.mapFeedError(
+                                  feedState?.message.isNotEmpty == true
+                                      ? feedState!.message
+                                      : l10n.mapFeedUnknownError,
+                                ),
+                              ),
+                              if (kDebugMode) ...[
+                                const SizedBox(height: 8),
+                                Text(l10n.mapFeedProxyHint),
+                              ],
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: () => ref
+                                    .read(feedUpdateControllerProvider.notifier)
+                                    .updateNow(),
+                                icon: const Icon(Symbols.refresh_rounded),
+                                label: Text(l10n.actionRetry),
+                              ),
+                            ],
+                          )
+                        else if (feedState?.status.synthetic == true)
+                          Text(l10n.mapFeedDemoOnly)
+                        else if (nearbyStops.hasError)
+                          Text(l10n.mapStopsError(nearbyStops.error.toString()))
+                        else if (stops.isEmpty)
+                          Text(l10n.mapNoStops)
+                        else if (stopRoutes.isLoading)
+                          Text(l10n.mapRoutesLoading)
+                        else if (stopRoutes.hasError)
+                          Text(l10n.mapRoutesError(stopRoutes.error.toString()))
+                        else if (_realtimeError != null)
+                          Text(l10n.mapLiveError(_realtimeError!))
+                        else if (_realtimeSnapshot == null)
+                          Row(
+                            children: [
+                              const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(l10n.mapLiveLoading),
+                            ],
+                          )
+                        else
+                          Text(
+                            l10n.mapLiveSection,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        if (stops.isNotEmpty &&
+                            _realtimeSnapshot != null &&
+                            _nearbyBuses(locationState).isNotEmpty)
+                          ..._nearbyBuses(locationState)
+                              .take(8)
+                              .map(
+                                (bus) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: CircleAvatar(
+                                    child: Text(bus.lineLabel),
+                                  ),
+                                  title: Text(bus.destinationName),
+                                  subtitle: Text(
+                                    '${bus.speedKmh.toStringAsFixed(0)} km/h',
+                                  ),
+                                  trailing: Text(
+                                    l10n.mapLiveUpdated(
+                                      '${bus.receivedAt.hour.toString().padLeft(2, '0')}:'
+                                      '${bus.receivedAt.minute.toString().padLeft(2, '0')}',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        if (_realtimeSnapshot != null &&
+                            _nearbyBuses(locationState).isEmpty)
+                          Text(l10n.mapLiveEmpty),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _StopRouteExpansion extends ConsumerWidget {
+  const _StopRouteExpansion({
+    required this.stop,
+    required this.route,
+    required this.selectedVariantId,
+    required this.onSelectVariant,
+  });
+
+  final Stop stop;
+  final Route route;
+  final String? selectedVariantId;
+  final Future<void> Function(RouteVariant variant, Route route, Stop stop)
+  onSelectVariant;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final variants = ref.watch(routeVariantsProvider(route.id));
+    return ExpansionTile(
+      key: ValueKey('route-${stop.id}-${route.id}'),
+      tilePadding: const EdgeInsets.only(left: 44),
+      title: Text(route.shortName),
+      subtitle: Text(route.longName),
+      children: [
+        if (variants.isLoading)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(l10n.mapRoutesLoading),
+          )
+        else if (variants.hasError)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(l10n.mapRoutesError(variants.error.toString())),
+          )
+        else if (variants.asData?.value.isEmpty ?? true)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(l10n.mapRouteNoVariants),
+          )
+        else
+          ...variants.requireValue.map(
+            (variant) => ListTile(
+              key: ValueKey('variant-${variant.id}'),
+              selected: variant.id == selectedVariantId,
+              leading: const Icon(Symbols.route_rounded),
+              title: Text(
+                variant.destination.isEmpty
+                    ? route.longName
+                    : variant.destination,
+              ),
+              subtitle: Text(
+                variant.shapeId == null
+                    ? l10n.mapRouteNoGeometry
+                    : l10n.mapRouteShowOnMap,
+              ),
+              onTap: variant.shapeId == null
+                  ? null
+                  : () => onSelectVariant(variant, route, stop),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SearchControl extends StatelessWidget {
+  const _SearchControl({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        key: const ValueKey('map-search-control'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              children: [
+                Icon(
+                  Symbols.search_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  l10n.mapSearchPlaceholder,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.icon, required this.label});
+
+  final Widget icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [icon, const SizedBox(width: 8), Text(label)],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocationBanner extends StatelessWidget {
+  const _LocationBanner({required this.status, required this.onAction});
+
+  final MapLocationStatus status;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final (String? message, String? action, IconData icon) = switch (status) {
+      MapLocationStatus.permissionDenied => (
+        l10n.locationPermissionDenied,
+        l10n.locationRetry,
+        Symbols.location_disabled_rounded,
+      ),
+      MapLocationStatus.permissionDeniedForever => (
+        l10n.locationPermissionDeniedForever,
+        l10n.locationOpenSettings,
+        Symbols.settings_rounded,
+      ),
+      MapLocationStatus.serviceDisabled => (
+        l10n.locationServiceDisabled,
+        l10n.locationEnableService,
+        Symbols.location_off_rounded,
+      ),
+      MapLocationStatus.error => (
+        l10n.locationError,
+        l10n.locationRetry,
+        Symbols.location_searching_rounded,
+      ),
+      MapLocationStatus.idle ||
+      MapLocationStatus.loading ||
+      MapLocationStatus.available => (null, null, Symbols.my_location_rounded),
+    };
+    if (message == null || action == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+          child: Row(
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(message)),
+              TextButton(onPressed: onAction, child: Text(action)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapErrorCard extends StatelessWidget {
+  const _MapErrorCard({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Symbols.map_rounded,
+              size: 36,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.mapErrorTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(l10n.mapErrorBody, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Symbols.refresh_rounded),
+              label: Text(l10n.actionRetry),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
