@@ -216,6 +216,37 @@
   "tripOriginStopHint": "Elegí una parada de origen",
   "tripDestinationHint": "Buscá una parada",
   "tripUseCurrentLocation": "Usar mi ubicación",
+  "tripTimingLabel": "Horario del viaje",
+  "tripTimingNow": "Salir ahora",
+  "tripTimingDepartAt": "Salir a las…",
+  "tripTimingArriveBy": "Llegar a las…",
+  "tripTimingSummaryNow": "Salida: ahora",
+  "tripTimingSummaryDepart": "Salida: {day} · {time}",
+  "@tripTimingSummaryDepart": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tripTimingSummaryArrive": "Llegada: {day} · {time}",
+  "@tripTimingSummaryArrive": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDayToday": "Hoy",
+  "tripDayTomorrow": "Mañana",
+  "tripPastTime": "Esa hora ya pasó. Elegí una hora futura.",
+  "tripNoArrivalTrips": "No hay viajes que lleguen a esa hora",
   "tripDepartureLabel": "Salida",
   "tripChangeDate": "Cambiar fecha",
   "tripChangeTime": "Cambiar hora",

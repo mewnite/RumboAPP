@@ -20,7 +20,7 @@ void main() {
     var searchQuery = '';
     TripEndpoint? plannedOrigin;
     TripEndpoint? plannedDestination;
-    DateTime? plannedDeparture;
+    TripTiming? plannedTiming;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -37,10 +37,10 @@ void main() {
             searchPlaces: (query) async => [
               TripEndpoint(name: query, latitude: -34.9, longitude: -56.2),
             ],
-            findPlans: (origin, selectedDestination, departureTime) async {
+            findPlans: (origin, selectedDestination, timing) async {
               plannedOrigin = origin;
               plannedDestination = selectedDestination;
-              plannedDeparture = departureTime;
+              plannedTiming = timing;
               return [
                 TripPlan(
                   requestedDeparture: departure,
@@ -83,27 +83,22 @@ void main() {
 
     expect(plannedOrigin, isNull);
     expect(plannedDestination?.stop, destination);
-    expect(plannedDeparture, isNotNull);
-    expect(
-      DateTime.now().difference(plannedDeparture!).inSeconds.abs(),
-      lessThan(60),
-    );
+    expect(plannedTiming?.mode, TripTimingMode.departNow);
+    expect(plannedTiming?.dateTime, isNull);
     expect(find.textContaining('35 min'), findsOneWidget);
     expect(find.text('522'), findsOneWidget);
     expect(find.textContaining('horarios programados'), findsOneWidget);
   });
 
-  testWidgets('plans with the selected departure date and time', (
-    tester,
-  ) async {
+  testWidgets('plans with a future departure day and time', (tester) async {
     const destination = Stop(
       id: 'destination',
       name: 'Nuevo Centro',
       latitude: -34.85,
       longitude: -56.17,
     );
-    DateTime? plannedDeparture;
-    DateTime? pickedInitialDate;
+    final fixedNow = DateTime(2026, 10, 24, 12);
+    TripTiming? plannedTiming;
     TimeOfDay? pickedInitialTime;
 
     await tester.pumpWidget(
@@ -114,19 +109,15 @@ void main() {
         home: Scaffold(
           body: TripSearchSheet(
             hasCurrentLocation: true,
-            departureDatePicker:
-                (context, initialDate, firstDate, lastDate) async {
-                  pickedInitialDate = initialDate;
-                  return DateTime(2026, 10, 28);
-                },
+            now: () => fixedNow,
             departureTimePicker: (context, initialTime) async {
               pickedInitialTime = initialTime;
               return const TimeOfDay(hour: 18, minute: 30);
             },
             searchStops: (_) async => [destination],
             searchPlaces: (_) async => const [],
-            findPlans: (origin, selectedDestination, departureTime) async {
-              plannedDeparture = departureTime;
+            findPlans: (origin, selectedDestination, timing) async {
+              plannedTiming = timing;
               return const [];
             },
           ),
@@ -141,30 +132,37 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(
-      find.byKey(const ValueKey('trip-departure-date')),
+      find.byKey(const ValueKey('trip-timing-depart-at')),
     );
-    await tester.tap(find.byKey(const ValueKey('trip-departure-date')));
+    await tester.tap(find.byKey(const ValueKey('trip-timing-depart-at')));
     await tester.pumpAndSettle();
-    expect(pickedInitialDate, isNotNull);
+    expect(find.text('Salida: Hoy · 12:10'), findsOneWidget);
 
     await tester.ensureVisible(
       find.byKey(const ValueKey('trip-departure-time')),
     );
     await tester.tap(find.byKey(const ValueKey('trip-departure-time')));
     await tester.pumpAndSettle();
-    expect(pickedInitialTime, isNotNull);
+    expect(pickedInitialTime, const TimeOfDay(hour: 12, minute: 10));
     expect(find.text('18:30'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('trip-day-tomorrow')));
+    await tester.pumpAndSettle();
+    expect(find.text('Salida: Mañana · 18:30'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Buscar ómnibus'));
     await tester.tap(find.text('Buscar ómnibus'));
     await tester.pumpAndSettle();
 
-    expect(plannedDeparture, DateTime(2026, 10, 28, 18, 30));
+    expect(plannedTiming?.mode, TripTimingMode.departAt);
+    expect(plannedTiming?.dateTime, DateTime(2026, 10, 25, 18, 30));
   });
 
-  testWidgets('opens the material departure date and time pickers', (
+  testWidgets('opens a 24-hour time picker and builds an arrival timing', (
     tester,
   ) async {
+    final fixedNow = DateTime(2026, 10, 24, 12);
+
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('es', 'UY'),
@@ -173,22 +171,21 @@ void main() {
         home: Scaffold(
           body: TripSearchSheet(
             hasCurrentLocation: true,
+            now: () => fixedNow,
             searchStops: (_) async => const [],
             searchPlaces: (_) async => const [],
-            findPlans: (origin, destination, departureTime) async => const [],
+            findPlans: (origin, destination, timing) async => const [],
           ),
         ),
       ),
     );
 
     await tester.ensureVisible(
-      find.byKey(const ValueKey('trip-departure-date')),
+      find.byKey(const ValueKey('trip-timing-arrive-by')),
     );
-    await tester.tap(find.byKey(const ValueKey('trip-departure-date')));
+    await tester.tap(find.byKey(const ValueKey('trip-timing-arrive-by')));
     await tester.pumpAndSettle();
-    expect(find.byType(DatePickerDialog), findsOneWidget);
-    await tester.tap(find.text('Cancelar'));
-    await tester.pumpAndSettle();
+    expect(find.text('Llegada: Hoy · 12:10'), findsOneWidget);
 
     await tester.ensureVisible(
       find.byKey(const ValueKey('trip-departure-time')),
@@ -196,8 +193,123 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('trip-departure-time')));
     await tester.pumpAndSettle();
     expect(find.byType(TimePickerDialog), findsOneWidget);
+    expect(find.byType(DatePickerDialog), findsNothing);
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('shows the arrival-by empty state when no trip arrives in time', (
+    tester,
+  ) async {
+    const destination = Stop(
+      id: 'destination',
+      name: 'Nuevo Centro',
+      latitude: -34.85,
+      longitude: -56.17,
+    );
+    final fixedNow = DateTime(2026, 10, 24, 8);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            now: () => fixedNow,
+            searchStops: (_) async => [destination],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, selectedDestination, timing) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Nuevo');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('trip-endpoint--34.85:-56.17')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-timing-arrive-by')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-timing-arrive-by')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Buscar ómnibus'));
+    await tester.tap(find.text('Buscar ómnibus'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No hay viajes que lleguen a esa hora'), findsOneWidget);
+  });
+
+  testWidgets('warns and skips the search when the time is in the past', (
+    tester,
+  ) async {
+    const destination = Stop(
+      id: 'destination',
+      name: 'Nuevo Centro',
+      latitude: -34.85,
+      longitude: -56.17,
+    );
+    final fixedNow = DateTime(2026, 10, 24, 12);
+    var planSearches = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            now: () => fixedNow,
+            departureTimePicker: (context, initialTime) async =>
+                const TimeOfDay(hour: 8, minute: 0),
+            searchStops: (_) async => [destination],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, selectedDestination, timing) async {
+              planSearches++;
+              return const [];
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Nuevo');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('trip-endpoint--34.85:-56.17')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-timing-depart-at')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-timing-depart-at')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-departure-time')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-departure-time')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Salida: Hoy · 08:00'), findsOneWidget);
+    expect(
+      find.text('Esa hora ya pasó. Elegí una hora futura.'),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.text('Buscar ómnibus'));
+    await tester.tap(find.text('Buscar ómnibus'));
+    await tester.pumpAndSettle();
+
+    expect(planSearches, 0);
+    expect(
+      find.text('Esa hora ya pasó. Elegí una hora futura.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('notifies when the user selects a trip option', (tester) async {
@@ -223,7 +335,7 @@ void main() {
             onPlanSelected: (plan, origin, selectedDestination) {
               selectedPlans.add(plan);
             },
-            findPlans: (origin, selectedDestination, departureTime) async {
+            findPlans: (origin, selectedDestination, timing) async {
               return [
                 TripPlan(
                   requestedDeparture: departure,
@@ -409,7 +521,7 @@ void main() {
                 ),
               ];
             },
-            findPlans: (origin, destination, departureTime) async => const [],
+            findPlans: (origin, destination, timing) async => const [],
           ),
         ),
       ),
@@ -449,7 +561,7 @@ void main() {
               remoteSearchCount++;
               return const [];
             },
-            findPlans: (origin, destination, departureTime) async => const [],
+            findPlans: (origin, destination, timing) async => const [],
           ),
         ),
       ),

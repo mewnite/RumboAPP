@@ -871,6 +871,72 @@ abstract class AppLocalizations {
   /// **'Usar mi ubicación'**
   String get tripUseCurrentLocation;
 
+  /// No description provided for @tripTimingLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Horario del viaje'**
+  String get tripTimingLabel;
+
+  /// No description provided for @tripTimingNow.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salir ahora'**
+  String get tripTimingNow;
+
+  /// No description provided for @tripTimingDepartAt.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salir a las…'**
+  String get tripTimingDepartAt;
+
+  /// No description provided for @tripTimingArriveBy.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Llegar a las…'**
+  String get tripTimingArriveBy;
+
+  /// No description provided for @tripTimingSummaryNow.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salida: ahora'**
+  String get tripTimingSummaryNow;
+
+  /// No description provided for @tripTimingSummaryDepart.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salida: {day} · {time}'**
+  String tripTimingSummaryDepart(String day, String time);
+
+  /// No description provided for @tripTimingSummaryArrive.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Llegada: {day} · {time}'**
+  String tripTimingSummaryArrive(String day, String time);
+
+  /// No description provided for @tripDayToday.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Hoy'**
+  String get tripDayToday;
+
+  /// No description provided for @tripDayTomorrow.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Mañana'**
+  String get tripDayTomorrow;
+
+  /// No description provided for @tripPastTime.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Esa hora ya pasó. Elegí una hora futura.'**
+  String get tripPastTime;
+
+  /// No description provided for @tripNoArrivalTrips.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No hay viajes que lleguen a esa hora'**
+  String get tripNoArrivalTrips;
+
   /// No description provided for @tripDepartureLabel.
   ///
   /// In es_UY, this message translates to:

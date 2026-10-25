@@ -124,16 +124,17 @@ void main() {
       calendars: [dailyCalendar],
     );
 
-    final plans = await TransitTripPlanner(repo).plan(
-      TripRequest(
-        originLatitude: 0,
-        originLongitude: 0,
-        destinationLatitude: 0,
-        destinationLongitude: .02,
-        departureTime: DateTime(2026, 6, 2, 10),
-        maximumWalkingMeters: 500,
-      ),
-    );
+    final plans =
+        await TransitTripPlanner(repo, now: () => DateTime(2026, 6, 2, 9)).plan(
+          TripRequest(
+            originLatitude: 0,
+            originLongitude: 0,
+            destinationLatitude: 0,
+            destinationLongitude: .02,
+            timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+            maximumWalkingMeters: 500,
+          ),
+        );
 
     expect(
       plans,
@@ -198,12 +199,13 @@ void main() {
         originLongitude: 0,
         destinationLatitude: 0,
         destinationLongitude: .01,
-        departureTime: DateTime(2026, 6, 3, 0, 5),
+        timing: TripTiming.departAt(DateTime(2026, 6, 3, 0, 5)),
         maximumWalkingMeters: 500,
       ),
       data: data,
       originStopIds: {'A'},
       destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 23),
     );
 
     expect(plans, hasLength(1));
@@ -269,11 +271,12 @@ void main() {
         originLongitude: 0,
         destinationLatitude: 0,
         destinationLongitude: .01,
-        departureTime: departureTime,
+        timing: TripTiming.departAt(departureTime),
       ),
       data: data,
       originStopIds: {'A'},
       destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 15),
     );
 
     expect(plans, hasLength(1));
@@ -328,11 +331,12 @@ void main() {
         originLongitude: 0,
         destinationLatitude: 0,
         destinationLongitude: .01,
-        departureTime: DateTime(2026, 6, 2, 9),
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 9)),
       ),
       data: data,
       originStopIds: {'A'},
       destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 8),
     );
 
     expect(plans, isEmpty);
@@ -346,7 +350,7 @@ void main() {
           originLongitude: 0,
           destinationLatitude: 0,
           destinationLongitude: 0,
-          departureTime: travelDay,
+          timing: TripTiming.departAt(travelDay),
         ),
         data: const TransitScheduleData(),
         originStopIds: {'A'},
@@ -361,7 +365,7 @@ void main() {
           originLongitude: 0,
           destinationLatitude: 0,
           destinationLongitude: 0,
-          departureTime: travelDay,
+          timing: TripTiming.departAt(travelDay),
           maximumTransfers: 2,
         ),
         data: const TransitScheduleData(),
@@ -371,6 +375,202 @@ void main() {
       throwsArgumentError,
     );
   });
+  test('plans a trip leaving now with the injected clock', () async {
+    final repo = _singleTripRepository(
+      departureHour: 10,
+      departureMinute: 15,
+      arrivalHour: 10,
+      arrivalMinute: 35,
+      calendars: [dailyCalendar],
+    );
+    final now = DateTime(2026, 6, 2, 10);
+
+    final plans = await TransitTripPlanner(repo, now: () => now).plan(
+      TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        timing: const TripTiming.departNow(),
+        maximumWalkingMeters: 500,
+      ),
+    );
+
+    expect(plans, hasLength(1));
+    expect(plans.single.requestedDeparture, now);
+    expect(
+      plans.single.legs
+          .singleWhere((leg) => leg.kind == TripLegKind.transit)
+          .departureTime,
+      DateTime(2026, 6, 2, 10, 15),
+    );
+  });
+
+  test('finds the latest departure that arrives by the requested time', () {
+    final data = _singleTripData(
+      departureHour: 9,
+      departureMinute: 10,
+      arrivalHour: 9,
+      arrivalMinute: 41,
+      calendars: [dailyCalendar],
+    );
+
+    final plans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        timing: TripTiming.arriveBy(DateTime(2026, 6, 2, 10)),
+        maximumWalkingMeters: 500,
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 8),
+    );
+
+    expect(plans, hasLength(1));
+    expect(plans.single.requestedDeparture, DateTime(2026, 6, 2, 9));
+    expect(
+      plans.single.legs
+          .singleWhere((leg) => leg.kind == TripLegKind.transit)
+          .departureTime,
+      DateTime(2026, 6, 2, 9, 10),
+    );
+    expect(plans.single.arrivalTime.isAfter(DateTime(2026, 6, 2, 10)), isFalse);
+  });
+
+  test('returns no plans when no trip arrives by the requested time', () {
+    final data = _singleTripData(
+      departureHour: 12,
+      departureMinute: 0,
+      arrivalHour: 12,
+      arrivalMinute: 30,
+      calendars: [dailyCalendar],
+    );
+
+    final plans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        timing: TripTiming.arriveBy(DateTime(2026, 6, 2, 8)),
+        maximumWalkingMeters: 500,
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 6),
+    );
+
+    expect(plans, isEmpty);
+  });
+
+  test('does not calculate when the requested time is in the past', () {
+    final data = _singleTripData(
+      departureHour: 12,
+      departureMinute: 0,
+      arrivalHour: 12,
+      arrivalMinute: 30,
+      calendars: [dailyCalendar],
+    );
+    final now = DateTime(2026, 6, 2, 13);
+
+    final departurePlans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 11)),
+        maximumWalkingMeters: 500,
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: now,
+    );
+    final arrivalPlans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        timing: TripTiming.arriveBy(DateTime(2026, 6, 2, 11)),
+        maximumWalkingMeters: 500,
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: now,
+    );
+
+    expect(departurePlans, isEmpty);
+    expect(arrivalPlans, isEmpty);
+  });
+}
+
+TransitScheduleData _singleTripData({
+  required int departureHour,
+  required int departureMinute,
+  required int arrivalHour,
+  required int arrivalMinute,
+  required List<ServiceCalendar> calendars,
+}) => TransitScheduleData(
+  stops: const [
+    Stop(id: 'A', name: 'A', latitude: 0, longitude: .001),
+    Stop(id: 'B', name: 'B', latitude: 0, longitude: .009),
+  ],
+  routes: const [Route(id: 'R', shortName: '10')],
+  variants: const [
+    RouteVariant(id: 'V', routeId: 'R', directionId: '0', destination: 'B'),
+  ],
+  trips: const [
+    Trip(id: 'T', routeId: 'R', serviceId: 'daily', variantId: 'V'),
+  ],
+  stopTimes: [
+    StopTime(
+      tripId: 'T',
+      stopId: 'A',
+      arrivalSeconds: _seconds(departureHour, departureMinute),
+      departureSeconds: _seconds(departureHour, departureMinute),
+      sequence: 1,
+    ),
+    StopTime(
+      tripId: 'T',
+      stopId: 'B',
+      arrivalSeconds: _seconds(arrivalHour, arrivalMinute),
+      departureSeconds: _seconds(arrivalHour, arrivalMinute),
+      sequence: 2,
+    ),
+  ],
+  calendars: calendars,
+);
+
+FakeTransitRepository _singleTripRepository({
+  required int departureHour,
+  required int departureMinute,
+  required int arrivalHour,
+  required int arrivalMinute,
+  required List<ServiceCalendar> calendars,
+}) {
+  final data = _singleTripData(
+    departureHour: departureHour,
+    departureMinute: departureMinute,
+    arrivalHour: arrivalHour,
+    arrivalMinute: arrivalMinute,
+    calendars: calendars,
+  );
+  return FakeTransitRepository(
+    stops: data.stops,
+    routes: data.routes,
+    variants: data.variants,
+    trips: data.trips,
+    times: data.stopTimes,
+    calendars: data.calendars,
+  );
 }
 
 int _seconds(int hour, int minute) => hour * 3600 + minute * 60;

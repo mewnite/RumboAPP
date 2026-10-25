@@ -14,18 +14,12 @@ typedef PlaceSearch = Future<List<TripEndpoint>> Function(String query);
 typedef PlanSearch = Future<List<TripPlan>> Function(
   TripEndpoint? origin,
   TripEndpoint destination,
-  DateTime departureTime,
+  TripTiming timing,
 );
 typedef TripPlanSelected = void Function(
   TripPlan plan,
   TripEndpoint? origin,
   TripEndpoint destination,
-);
-typedef DepartureDatePicker = Future<DateTime?> Function(
-  BuildContext context,
-  DateTime initialDate,
-  DateTime firstDate,
-  DateTime lastDate,
 );
 typedef DepartureTimePicker = Future<TimeOfDay?> Function(
   BuildContext context,
@@ -42,8 +36,8 @@ class TripSearchSheet extends StatefulWidget {
     this.searchService,
     this.initialDestination,
     this.onPlanSelected,
-    this.departureDatePicker,
     this.departureTimePicker,
+    this.now,
     super.key,
   });
 
@@ -55,8 +49,8 @@ class TripSearchSheet extends StatefulWidget {
   final PlaceSearchService? searchService;
   final TripEndpoint? initialDestination;
   final TripPlanSelected? onPlanSelected;
-  final DepartureDatePicker? departureDatePicker;
   final DepartureTimePicker? departureTimePicker;
+  final DateTime Function()? now;
 
   @override
   State<TripSearchSheet> createState() => _TripSearchSheetState();
@@ -79,15 +73,30 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   bool _originUsesLocation = true;
   bool _searchOrigin = false;
   bool _hasSearchedPlaces = false;
-  DateTime _departureTime = DateTime.now();
-  bool _departureCustomized = false;
+  TripTimingMode _timingMode = TripTimingMode.departNow;
+  late DateTime _timedDateTime;
+  bool _tomorrow = false;
+  TripTiming? _lastTiming;
 
   TextEditingController get _activeController =>
       _searchOrigin ? _originController : _destinationController;
 
+  DateTime get _now => widget.now?.call() ?? DateTime.now();
+
+  TripTiming get _timing => switch (_timingMode) {
+    TripTimingMode.departNow => const TripTiming.departNow(),
+    TripTimingMode.departAt => TripTiming.departAt(_timedDateTime),
+    TripTimingMode.arriveBy => TripTiming.arriveBy(_timedDateTime),
+  };
+
+  bool get _isPast =>
+      _timingMode != TripTimingMode.departNow && _timing.isPast(_now);
+
   @override
   void initState() {
     super.initState();
+    _timedDateTime = _nextTimeSlot(_now);
+    _tomorrow = _isTomorrowDate(_timedDateTime);
     if (widget.initialDestination != null) {
       _destination = widget.initialDestination;
       _destinationController.text = widget.initialDestination!.name;
@@ -200,82 +209,118 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     FocusScope.of(context).unfocus();
   }
 
-  Future<void> _pickDepartureDate() async {
-    final l10n = AppLocalizations.of(context);
-    final now = DateTime.now();
-    final firstDate = DateTime(now.year, now.month, now.day);
-    final lastDate = firstDate.add(const Duration(days: 60));
-    var initialDate = DateTime(
-      _departureTime.year,
-      _departureTime.month,
-      _departureTime.day,
-    );
-    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
-    if (initialDate.isAfter(lastDate)) initialDate = lastDate;
-    final selected =
-        await (widget.departureDatePicker?.call(
-              context,
-              initialDate,
-              firstDate,
-              lastDate,
-            ) ??
-            showDatePicker(
-              context: context,
-              initialDate: initialDate,
-              firstDate: firstDate,
-              lastDate: lastDate,
-              helpText: l10n.tripDepartureLabel,
-            ));
-    if (!mounted || selected == null) return;
+  DateTime _nextTimeSlot(DateTime now) {
+    final minutes = (now.minute ~/ 10 + 1) * 10;
+    return DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+    ).add(Duration(minutes: minutes));
+  }
+
+  bool _isTomorrowDate(DateTime value) {
+    final now = _now;
+    final tomorrow = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).add(const Duration(days: 1));
+    return DateTime(value.year, value.month, value.day) == tomorrow;
+  }
+
+  void _clearResults() {
+    _plans = null;
+    _planError = null;
+    _lastTiming = null;
+  }
+
+  void _selectTimingMode(TripTimingMode mode) {
+    if (_timingMode == mode) return;
     setState(() {
-      _departureTime = DateTime(
-        selected.year,
-        selected.month,
-        selected.day,
-        _departureTime.hour,
-        _departureTime.minute,
+      _timingMode = mode;
+      if (mode != TripTimingMode.departNow && !_timedDateTime.isAfter(_now)) {
+        _timedDateTime = _nextTimeSlot(_now);
+      }
+      _tomorrow = _isTomorrowDate(_timedDateTime);
+      _clearResults();
+    });
+  }
+
+  void _selectDay(bool tomorrow) {
+    setState(() {
+      final day = _now.add(Duration(days: tomorrow ? 1 : 0));
+      _timedDateTime = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        _timedDateTime.hour,
+        _timedDateTime.minute,
       );
-      _departureCustomized = true;
-      _plans = null;
-      _planError = null;
+      _tomorrow = tomorrow;
+      _clearResults();
     });
   }
 
   Future<void> _pickDepartureTime() async {
     final l10n = AppLocalizations.of(context);
+    final initialTime = TimeOfDay.fromDateTime(_timedDateTime);
     final selected =
-        await (widget.departureTimePicker?.call(
-              context,
-              TimeOfDay.fromDateTime(_departureTime),
-            ) ??
+        await (widget.departureTimePicker?.call(context, initialTime) ??
             showTimePicker(
               context: context,
-              initialTime: TimeOfDay.fromDateTime(_departureTime),
-              helpText: l10n.tripDepartureLabel,
+              initialTime: initialTime,
+              helpText: l10n.tripTimingLabel,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(alwaysUse24HourFormat: true),
+                child: child!,
+              ),
             ));
     if (!mounted || selected == null) return;
     setState(() {
-      _departureTime = DateTime(
-        _departureTime.year,
-        _departureTime.month,
-        _departureTime.day,
+      _timedDateTime = DateTime(
+        _timedDateTime.year,
+        _timedDateTime.month,
+        _timedDateTime.day,
         selected.hour,
         selected.minute,
       );
-      _departureCustomized = true;
-      _plans = null;
-      _planError = null;
+      _clearResults();
     });
   }
 
-  String _departureDateText(BuildContext context) =>
-      MaterialLocalizations.of(context).formatMediumDate(_departureTime);
+  String _departureTimeText(BuildContext context) => _clock(_timedDateTime);
 
-  String _departureTimeText(BuildContext context) =>
-      MaterialLocalizations.of(context).formatTimeOfDay(
-        TimeOfDay.fromDateTime(_departureTime),
-        alwaysUse24HourFormat: true,
-      );
+  String _dayLabel(AppLocalizations l10n) {
+    final now = _now;
+    final today = DateTime(now.year, now.month, now.day);
+    final selected = DateTime(
+      _timedDateTime.year,
+      _timedDateTime.month,
+      _timedDateTime.day,
+    );
+    if (selected == today) return l10n.tripDayToday;
+    if (selected == today.add(const Duration(days: 1))) {
+      return l10n.tripDayTomorrow;
+    }
+    return MaterialLocalizations.of(context).formatMediumDate(_timedDateTime);
+  }
+
+  String _timingSummary(AppLocalizations l10n) {
+    final time = _departureTimeText(context);
+    return switch (_timingMode) {
+      TripTimingMode.departNow => l10n.tripTimingSummaryNow,
+      TripTimingMode.departAt => l10n.tripTimingSummaryDepart(
+        _dayLabel(l10n),
+        time,
+      ),
+      TripTimingMode.arriveBy => l10n.tripTimingSummaryArrive(
+        _dayLabel(l10n),
+        time,
+      ),
+    };
+  }
 
   Future<void> _findPlans() async {
     final destination = _destination;
@@ -284,11 +329,13 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
         (_originUsesLocation && !widget.hasCurrentLocation)) {
       return;
     }
-    final departureTime = _departureCustomized
-        ? _departureTime
-        : DateTime.now();
+    final timing = _timing;
+    if (timing.isPast(_now)) {
+      setState(_clearResults);
+      return;
+    }
     setState(() {
-      _departureTime = departureTime;
+      _lastTiming = timing;
       _planning = true;
       _planError = null;
       _plans = null;
@@ -297,7 +344,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       final plans = await widget.findPlans(
         _originUsesLocation ? null : _origin,
         destination,
-        departureTime,
+        timing,
       );
       if (mounted) setState(() => _plans = plans);
     } on Exception catch (error) {
@@ -474,41 +521,94 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
             ],
             const SizedBox(height: 12),
             Text(
-              l10n.tripDepartureLabel,
+              l10n.tripTimingLabel,
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Expanded(
-                  child: Tooltip(
-                    message: l10n.tripChangeDate,
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('trip-departure-date'),
-                      onPressed: _planning ? null : _pickDepartureDate,
-                      icon: const Icon(Symbols.calendar_month_rounded),
-                      label: Text(
-                        _departureDateText(context),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
+                ChoiceChip(
+                  key: const ValueKey('trip-timing-now'),
+                  label: Text(l10n.tripTimingNow),
+                  selected: _timingMode == TripTimingMode.departNow,
+                  onSelected: _planning
+                      ? null
+                      : (_) => _selectTimingMode(TripTimingMode.departNow),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Tooltip(
-                    message: l10n.tripChangeTime,
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('trip-departure-time'),
-                      onPressed: _planning ? null : _pickDepartureTime,
-                      icon: const Icon(Symbols.schedule_rounded),
-                      label: Text(_departureTimeText(context)),
-                    ),
-                  ),
+                ChoiceChip(
+                  key: const ValueKey('trip-timing-depart-at'),
+                  label: Text(l10n.tripTimingDepartAt),
+                  selected: _timingMode == TripTimingMode.departAt,
+                  onSelected: _planning
+                      ? null
+                      : (_) => _selectTimingMode(TripTimingMode.departAt),
+                ),
+                ChoiceChip(
+                  key: const ValueKey('trip-timing-arrive-by'),
+                  label: Text(l10n.tripTimingArriveBy),
+                  selected: _timingMode == TripTimingMode.arriveBy,
+                  onSelected: _planning
+                      ? null
+                      : (_) => _selectTimingMode(TripTimingMode.arriveBy),
                 ),
               ],
             ),
+            if (_timingMode != TripTimingMode.departNow) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  ChoiceChip(
+                    key: const ValueKey('trip-day-today'),
+                    label: Text(l10n.tripDayToday),
+                    selected: !_tomorrow,
+                    onSelected: _planning ? null : (_) => _selectDay(false),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    key: const ValueKey('trip-day-tomorrow'),
+                    label: Text(l10n.tripDayTomorrow),
+                    selected: _tomorrow,
+                    onSelected: _planning ? null : (_) => _selectDay(true),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Tooltip(
+                      message: l10n.tripChangeTime,
+                      child: OutlinedButton.icon(
+                        key: const ValueKey('trip-departure-time'),
+                        onPressed: _planning ? null : _pickDepartureTime,
+                        icon: const Icon(Symbols.schedule_rounded),
+                        label: Text(_departureTimeText(context)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(
+                key: const ValueKey('trip-timing-summary'),
+                avatar: Icon(
+                  _timingMode == TripTimingMode.arriveBy
+                      ? Symbols.flag_rounded
+                      : Symbols.schedule_rounded,
+                  size: 18,
+                ),
+                label: Text(_timingSummary(l10n)),
+              ),
+            ),
+            if (_isPast)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l10n.tripPastTime,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: canPlan && !_planning ? _findPlans : null,
@@ -541,7 +641,11 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
             if (_plans != null) ...[
               const SizedBox(height: 12),
               if (_plans!.isEmpty)
-                Text(l10n.tripNoTrips)
+                Text(
+                  _lastTiming?.mode == TripTimingMode.arriveBy
+                      ? l10n.tripNoArrivalTrips
+                      : l10n.tripNoTrips,
+                )
               else
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 280),

@@ -445,6 +445,43 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripUseCurrentLocation => 'Usar mi ubicación';
 
   @override
+  String get tripTimingLabel => 'Horario del viaje';
+
+  @override
+  String get tripTimingNow => 'Salir ahora';
+
+  @override
+  String get tripTimingDepartAt => 'Salir a las…';
+
+  @override
+  String get tripTimingArriveBy => 'Llegar a las…';
+
+  @override
+  String get tripTimingSummaryNow => 'Salida: ahora';
+
+  @override
+  String tripTimingSummaryDepart(String day, String time) {
+    return 'Salida: $day · $time';
+  }
+
+  @override
+  String tripTimingSummaryArrive(String day, String time) {
+    return 'Llegada: $day · $time';
+  }
+
+  @override
+  String get tripDayToday => 'Hoy';
+
+  @override
+  String get tripDayTomorrow => 'Mañana';
+
+  @override
+  String get tripPastTime => 'Esa hora ya pasó. Elegí una hora futura.';
+
+  @override
+  String get tripNoArrivalTrips => 'No hay viajes que lleguen a esa hora';
+
+  @override
   String get tripDepartureLabel => 'Salida';
 
   @override
@@ -1070,6 +1107,43 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripUseCurrentLocation => 'Usar mi ubicación';
+
+  @override
+  String get tripTimingLabel => 'Horario del viaje';
+
+  @override
+  String get tripTimingNow => 'Salir ahora';
+
+  @override
+  String get tripTimingDepartAt => 'Salir a las…';
+
+  @override
+  String get tripTimingArriveBy => 'Llegar a las…';
+
+  @override
+  String get tripTimingSummaryNow => 'Salida: ahora';
+
+  @override
+  String tripTimingSummaryDepart(String day, String time) {
+    return 'Salida: $day · $time';
+  }
+
+  @override
+  String tripTimingSummaryArrive(String day, String time) {
+    return 'Llegada: $day · $time';
+  }
+
+  @override
+  String get tripDayToday => 'Hoy';
+
+  @override
+  String get tripDayTomorrow => 'Mañana';
+
+  @override
+  String get tripPastTime => 'Esa hora ya pasó. Elegí una hora futura.';
+
+  @override
+  String get tripNoArrivalTrips => 'No hay viajes que lleguen a esa hora';
 
   @override
   String get tripDepartureLabel => 'Salida';

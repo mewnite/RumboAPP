@@ -579,7 +579,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             }
             return placeSource.search(query);
           },
-          findPlans: (origin, destination, departureTime) async {
+          findPlans: (origin, destination, timing) async {
             final feed = ref.read(feedUpdateControllerProvider).asData?.value;
             if (feed == null ||
                 feed.status.synthetic ||
@@ -601,7 +601,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   originLongitude: originLongitude,
                   destinationLatitude: destination.latitude,
                   destinationLongitude: destination.longitude,
-                  departureTime: departureTime,
+                  timing: timing,
                 ),
               );
             } finally {
