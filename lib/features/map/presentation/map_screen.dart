@@ -10,11 +10,13 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/config/map_config.dart';
 import '../../../core/config/transit_config.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/line_chip.dart';
 import '../../../features/search/presentation/search_controller.dart';
 import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
 import '../../../features/stops_and_lines/data/sqflite_transit_repository.dart';
 import '../../../features/stops_and_lines/data/transit_database.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
+import '../../../features/stops_and_lines/domain/transit_repository.dart';
 import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
@@ -23,6 +25,7 @@ import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/connectivity_provider.dart';
 import '../data/map_cache_repository.dart';
+import 'live_buses_controller.dart';
 import 'map_location_controller.dart';
 
 typedef MapBuilder = Widget Function(BuildContext context);
@@ -95,7 +98,12 @@ final routeShapeProvider = FutureProvider.family<Shape?, String>((
 });
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key, this.mapBuilder, this.mapLoadTimeout});
+  const MapScreen({
+    super.key,
+    this.mapBuilder,
+    this.mapLoadTimeout,
+    @visibleForTesting this.realtimeBusSource,
+  });
 
   @visibleForTesting
   final MapBuilder? mapBuilder;
@@ -103,11 +111,15 @@ class MapScreen extends ConsumerStatefulWidget {
   @visibleForTesting
   final Duration? mapLoadTimeout;
 
+  @visibleForTesting
+  final RealtimeBusSource? realtimeBusSource;
+
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen> {
+class _MapScreenState extends ConsumerState<MapScreen>
+    with WidgetsBindingObserver {
   final DraggableScrollableController _sheetController =
       DraggableScrollableController();
   Timer? _mapLoadTimer;
@@ -117,10 +129,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   int _mapGeneration = 0;
   bool _mapLoading = true;
   bool _mapError = false;
-  bool _realtimeLoading = false;
-  RealtimeSnapshot? _realtimeSnapshot;
-  String? _realtimeError;
+  bool _mapVisible = false;
+  bool _appResumed = true;
+  bool _realtimeAttached = false;
+  LiveBusesController? _liveBusesController;
+  RealtimeBusSource? _realtimeSource;
+  MontevideoRealtimeBusSource? _ownedRealtimeSource;
+  final Set<String> _expandedStopIds = {};
   String? _selectedVariantId;
+  Route? _selectedRoute;
   Color _selectedRouteColor = AppColors.deepBlue;
   bool? _lastDarkTheme;
   TripPlan? _selectedTripPlan;
@@ -130,6 +147,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sheetController.addListener(_onSheetChanged);
     final hasTestMap =
         widget.mapBuilder != null ||
@@ -139,23 +157,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     } else {
       _startMapLoadTimer();
     }
-    if (transitConfig.realtimeEndpoint.isNotEmpty) {
-      _realtimeSource = MontevideoRealtimeBusSource(
+    _realtimeSource = widget.realtimeBusSource;
+    if (_realtimeSource == null && transitConfig.realtimeEndpoint.isNotEmpty) {
+      _ownedRealtimeSource = MontevideoRealtimeBusSource(
         transitConfig.realtimeEndpoint,
       );
-      unawaited(_refreshRealtimeBuses());
-      _realtimeTimer = Timer.periodic(
-        const Duration(seconds: 10),
-        (_) => unawaited(_refreshRealtimeBuses()),
-      );
+      _realtimeSource = _ownedRealtimeSource;
     }
   }
 
-  Timer? _realtimeTimer;
-  MontevideoRealtimeBusSource? _realtimeSource;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final isVisible = TickerMode.valuesOf(context).enabled;
+    if (_mapVisible != isVisible) {
+      _mapVisible = isVisible;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncRealtimePolling();
+      });
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_lastDarkTheme != null && _lastDarkTheme != isDark) {
       _mapController?.setStyle(_styleFor(isDark));
@@ -165,10 +185,40 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appResumed = state == AppLifecycleState.resumed;
+    _syncRealtimePolling();
+  }
+
+  void _syncRealtimePolling() {
+    final source = _realtimeSource;
+    if (source == null) return;
+    final controller = ref.read(liveBusesControllerProvider.notifier);
+    _liveBusesController = controller;
+    if (!_mapVisible || !_appResumed) {
+      controller.pausePolling();
+      return;
+    }
+    if (!_realtimeAttached) {
+      controller.attachSource(
+        source,
+        pollInterval: const Duration(seconds: 10),
+        maxMarkers: 60,
+      );
+      _realtimeAttached = true;
+    } else {
+      controller.resumePolling();
+    }
+  }
+
+  @override
   void dispose() {
     _mapLoadTimer?.cancel();
-    _realtimeTimer?.cancel();
-    _realtimeSource?.close();
+    WidgetsBinding.instance.removeObserver(this);
+    if (_realtimeAttached) {
+      _liveBusesController?.pausePolling();
+    }
+    _ownedRealtimeSource?.close();
     _sheetController
       ..removeListener(_onSheetChanged)
       ..dispose();
@@ -217,34 +267,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _startMapLoadTimer();
   }
 
-  Future<void> _refreshRealtimeBuses() async {
-    if (_realtimeLoading || !mounted) return;
-    setState(() {
-      _realtimeLoading = true;
-      _realtimeError = null;
-    });
-    try {
-      final snapshot = await _realtimeSource!.fetch();
-      if (!mounted) return;
-      setState(() {
-        _realtimeSnapshot = snapshot;
-        _realtimeLoading = false;
-      });
-    } on Exception catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _realtimeError = error.toString();
-        _realtimeLoading = false;
-      });
-    }
-  }
-
-  List<BusPosition> _nearbyBuses(MapLocationState locationState) {
+  List<BusPosition> _nearbyBuses(
+    MapLocationState locationState,
+    List<BusPosition> positions,
+  ) {
     final centerLatitude =
         locationState.location?.latitude ?? MapConfig.initialCenter.lat;
     final centerLongitude =
         locationState.location?.longitude ?? MapConfig.initialCenter.lon;
-    return (_realtimeSnapshot?.positions ?? const <BusPosition>[])
+    return positions
         .where(
           (bus) =>
               _distanceMeters(
@@ -292,6 +323,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _mapController = controller;
     _startMapLoadTimer();
     _updateMetersPerPixel();
+    _updateVisibleBounds();
     try {
       await ref.read(mapCacheRepositoryProvider).configureAmbientCache();
     } on Exception {
@@ -310,7 +342,90 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _onMapEvent(MapEvent event) {
-    if (event is MapEventMoveCamera) _updateMetersPerPixel();
+    if (event is MapEventMoveCamera) {
+      _updateMetersPerPixel();
+      _updateVisibleBounds();
+    }
+  }
+
+  void _updateVisibleBounds() {
+    final controller = _mapController;
+    if (controller == null) return;
+    try {
+      final bounds = controller.getVisibleRegion();
+      ref
+          .read(liveBusesControllerProvider.notifier)
+          .setVisibleBounds(
+            LiveBusesBounds(
+              minLatitude: bounds.latitudeSouth,
+              maxLatitude: bounds.latitudeNorth,
+              minLongitude: bounds.longitudeWest,
+              maxLongitude: bounds.longitudeEast,
+            ),
+          );
+    } on Exception {
+      // Keep the last valid visible region until the map is ready again.
+    }
+  }
+
+  Marker _busMarker(
+    BuildContext context,
+    BusPosition bus,
+    Set<int> matchedVariantIds,
+  ) {
+    final ageSeconds = DateTime.now().difference(bus.receivedAt).inSeconds;
+    final isStale = ageSeconds > 60;
+    final isMatched = matchedVariantIds.contains(bus.variantId);
+    final color = isMatched
+        ? AppColors.deepBlue
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final l10n = AppLocalizations.of(context);
+
+    return Marker(
+      point: Geographic(lon: bus.longitude, lat: bus.latitude),
+      size: const Size(48, 48),
+      child: Semantics(
+        button: true,
+        label: '${bus.lineLabel}, ${bus.destinationName}',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              showDragHandle: true,
+              builder: (context) => SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LineChip(label: bus.lineLabel, backgroundColor: color),
+                      const SizedBox(height: 12),
+                      Text(
+                        bus.destinationName,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text('${bus.speedKmh.toStringAsFixed(0)} km/h'),
+                      if (isStale) Text(l10n.mapBusAge(ageSeconds)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            child: Center(
+              child: Opacity(
+                opacity: isStale || !isMatched ? 0.5 : 1,
+                child: FittedBox(
+                  child: LineChip(label: bus.lineLabel, backgroundColor: color),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _updateMetersPerPixel() {
@@ -365,6 +480,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
       );
       _updateMetersPerPixel();
+      _updateVisibleBounds();
     }
   }
 
@@ -701,6 +817,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         : AppColors.deepBlue;
     setState(() {
       _selectedVariantId = variant.id;
+      _selectedRoute = route;
       _selectedRouteColor = routeColor;
     });
     await _mapController?.animateCamera(
@@ -719,7 +836,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  Future<void> _setNearbyStopsExpanded(bool expanded) async {
+  Future<void> _setNearbyStopsExpanded(Stop stop, bool expanded) async {
+    setState(() {
+      if (expanded) {
+        _expandedStopIds.add(stop.id);
+      } else {
+        _expandedStopIds.remove(stop.id);
+      }
+    });
     if (!expanded || !_sheetController.isAttached) return;
     await _sheetController.animateTo(
       .46,
@@ -740,6 +864,26 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final stopRoutes = ref.watch(nearbyStopRoutesProvider);
     final routesByStop =
         stopRoutes.asData?.value ?? const <String, List<Route>>{};
+    final liveBuses = ref.watch(liveBusesControllerProvider);
+    final selectedRoute = _selectedRoute;
+    final selectedRoutes = <String, Route>{
+      ...?(selectedRoute == null ? null : {selectedRoute.id: selectedRoute}),
+      for (final stopId in _expandedStopIds)
+        for (final route in routesByStop[stopId] ?? const <Route>[])
+          route.id: route,
+    };
+    final selectedLines = <String>{};
+    final selectedVariantIds = <int>{};
+    for (final route in selectedRoutes.values) {
+      if (route.shortName.isNotEmpty) selectedLines.add(route.shortName);
+      final variants = ref.watch(routeVariantsProvider(route.id)).asData?.value;
+      selectedVariantIds.addAll(
+        variants
+                ?.map((variant) => variant.externalVariantId)
+                .whereType<int>() ??
+            const <int>[],
+      );
+    }
     final selectedShape = _selectedVariantId == null
         ? null
         : ref.watch(routeShapeProvider(_selectedVariantId!)).asData?.value;
@@ -765,6 +909,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ..._selectedRouteLayers(selectedShape),
             ..._stopLayers(stops),
             ..._locationLayers(locationState, isDark),
+          ],
+          children: [
+            WidgetLayer(
+              allowInteraction: true,
+              markers: [
+                for (final bus in liveBuses.filteredPositions(
+                  selectedLines: selectedLines,
+                  selectedVariantIds: selectedVariantIds,
+                ))
+                  _busMarker(context, bus, selectedVariantIds),
+              ],
+            ),
           ],
         );
 
@@ -816,6 +972,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     _InfoBanner(
                       icon: Symbols.wifi_off_rounded,
                       label: l10n.mapOffline,
+                    ),
+                  if (liveBuses.error != null &&
+                      networkState.asData?.value != false)
+                    _InfoBanner(
+                      icon: Symbols.cloud_off_rounded,
+                      label: l10n.mapLiveServiceDown,
                     ),
                   _LocationBanner(
                     status: locationState.status,
@@ -968,7 +1130,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                               .map(
                                 (stop) => ExpansionTile(
                                   key: ValueKey('stop-${stop.id}'),
-                                  onExpansionChanged: _setNearbyStopsExpanded,
+                                  onExpansionChanged: (expanded) =>
+                                      _setNearbyStopsExpanded(stop, expanded),
                                   tilePadding: EdgeInsets.zero,
                                   leading: const Icon(
                                     Symbols.location_on_rounded,
@@ -1062,9 +1225,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           Text(l10n.mapRoutesLoading)
                         else if (stopRoutes.hasError)
                           Text(l10n.mapRoutesError(stopRoutes.error.toString()))
-                        else if (_realtimeError != null)
-                          Text(l10n.mapLiveError(_realtimeError!))
-                        else if (_realtimeSnapshot == null)
+                        else if (liveBuses.error != null)
+                          Text(l10n.mapLiveError(liveBuses.error!))
+                        else if (liveBuses.lastUpdatedAt == null)
                           Row(
                             children: [
                               const SizedBox.square(
@@ -1083,9 +1246,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         if (stops.isNotEmpty &&
-                            _realtimeSnapshot != null &&
-                            _nearbyBuses(locationState).isNotEmpty)
-                          ..._nearbyBuses(locationState)
+                            liveBuses.lastUpdatedAt != null &&
+                            _nearbyBuses(
+                              locationState,
+                              liveBuses.positions,
+                            ).isNotEmpty)
+                          ..._nearbyBuses(locationState, liveBuses.positions)
                               .take(8)
                               .map(
                                 (bus) => ListTile(
@@ -1105,8 +1271,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                   ),
                                 ),
                               ),
-                        if (_realtimeSnapshot != null &&
-                            _nearbyBuses(locationState).isEmpty)
+                        if (liveBuses.lastUpdatedAt != null &&
+                            _nearbyBuses(
+                              locationState,
+                              liveBuses.positions,
+                            ).isEmpty)
                           Text(l10n.mapLiveEmpty),
                       ],
                     ],

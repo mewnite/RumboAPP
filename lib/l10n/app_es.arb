@@ -41,6 +41,15 @@
   "mapLiveNotConfigured": "El tiempo real no está conectado en esta instalación.",
   "mapLiveLoading": "Consultando ómnibus en vivo…",
   "mapLiveEmpty": "El STM no reporta ómnibus en vivo cerca de este punto.",
+  "mapLiveServiceDown": "El servicio de ómnibus en vivo no está disponible.",
+  "mapBusAge": "hace {seconds} s",
+  "@mapBusAge": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "mapLiveError": "No se pudo actualizar el tiempo real: {message}",
   "@mapLiveError": {
     "placeholders": {
