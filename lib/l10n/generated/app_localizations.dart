@@ -1057,6 +1057,48 @@ abstract class AppLocalizations {
   /// **'{minutes} min · {transfers, plural, =0{sin transbordos} one{1 transbordo} other{{transfers} transbordos}} · llega {arrival}'**
   String tripPlanSummary(int minutes, int transfers, String arrival);
 
+  /// No description provided for @tripSortLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ordenar por'**
+  String get tripSortLabel;
+
+  /// No description provided for @tripSortFastest.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Más rápido'**
+  String get tripSortFastest;
+
+  /// No description provided for @tripSortLeastWalking.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Menos caminata'**
+  String get tripSortLeastWalking;
+
+  /// No description provided for @tripSortFewestTransfers.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Menos transbordos'**
+  String get tripSortFewestTransfers;
+
+  /// No description provided for @tripWalkingLimitLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Caminata máxima'**
+  String get tripWalkingLimitLabel;
+
+  /// No description provided for @tripWalkingMeters.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{meters} m'**
+  String tripWalkingMeters(int meters);
+
+  /// No description provided for @tripWalkOnly.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Caminar {meters} m'**
+  String tripWalkOnly(int meters);
+
   /// No description provided for @tripDetailTitle.
   ///
   /// In es_UY, this message translates to:

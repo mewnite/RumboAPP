@@ -5,8 +5,8 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 97 pruebas pasan, 0 fallan. Fallidas: ninguna.
-- `git log --oneline -15`: `f39a9be First commit` (único commit disponible).
+- `flutter test`: 111 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `git log --oneline -15`: 6 commits; el más reciente es el del planificador de viajes (salida/llegada y B2).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
 - En las dependencias directas no hay SDK de publicidad, analítica ni tracking; no se auditó cada dependencia transitiva.
@@ -24,7 +24,7 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 | 7. Arribos en vivo por parada | parcial | `TransitArrivalsSource`, `upcomingDepartures` | existe lógica de dominio, pero no pantalla ni integración visible; no se encontró test dedicado |
 | 8. Detalle de parada y línea, recorrido y horarios | parcial | expansiones de parada/línea en `MapScreen` | se puede seleccionar una variante y dibujar su shape; no hay detalle de parada/línea ni horarios visibles |
 | 9. Búsqueda de lugares, paradas y líneas | parcial | `TripSearchSheet`, `LocalTransitSearchSource`, `RemoteGeocodingSource` | tests de búsqueda y de `trip_search_sheet`; está dentro del planificador, no como pantalla independiente |
-| 10. Planificador, resultados y horario | parcial | `TransitTripPlanner`, `TripSearchSheet`, `TripPlanDetails` | `trip_planner_test`, `trip_search_sheet_test`; permite salir ahora, salir a una hora o llegar a una hora (hoy/mañana, 24 h); “llegar a las” prueba hasta 18 salidas candidatas |
+| 10. Planificador, resultados y horario | parcial | `TransitTripPlanner`, `PlannerConfig`, `TripSearchSheet`, `TripPlanDetails` | `trip_planner_test`, `trip_search_sheet_test`; permite salir ahora, salir a una hora o llegar a una hora (hoy/mañana, 24 h); “llegar a las” prueba hasta 18 salidas candidatas; descarta itinerarios dominados, ordena por rápido/caminata/transbordos, ofrece «Caminar» y transbordos peatonales, y ejecuta la búsqueda en un isolate en plataformas nativas |
 | 11. Detalle y viaje en curso/aviso de bajada | parcial | `TripPlanDetails`, capas de plan en `MapScreen` | se muestra itinerario esquemático; no hay seguimiento activo ni aviso de bajada |
 | 12. Favoritos | solo interfaz/placeholder | `FavoritesScreen` | `theme_navigation_test`; solo muestra estado vacío, no hay acción para guardar |
 | 13. Privacidad y atribuciones | parcial | `_showAttribution` en `MapScreen`, textos ARB | `map_screen_test`; hay atribución y nota de ubicación, no una pantalla de privacidad |

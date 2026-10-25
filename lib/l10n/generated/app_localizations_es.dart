@@ -563,6 +563,31 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get tripSortLabel => 'Ordenar por';
+
+  @override
+  String get tripSortFastest => 'Más rápido';
+
+  @override
+  String get tripSortLeastWalking => 'Menos caminata';
+
+  @override
+  String get tripSortFewestTransfers => 'Menos transbordos';
+
+  @override
+  String get tripWalkingLimitLabel => 'Caminata máxima';
+
+  @override
+  String tripWalkingMeters(int meters) {
+    return '$meters m';
+  }
+
+  @override
+  String tripWalkOnly(int meters) {
+    return 'Caminar $meters m';
+  }
+
+  @override
   String get tripDetailTitle => 'Tu recorrido';
 
   @override
@@ -1224,6 +1249,31 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
       zero: 'sin transbordos',
     );
     return '$minutes min · $_temp0 · llega $arrival';
+  }
+
+  @override
+  String get tripSortLabel => 'Ordenar por';
+
+  @override
+  String get tripSortFastest => 'Más rápido';
+
+  @override
+  String get tripSortLeastWalking => 'Menos caminata';
+
+  @override
+  String get tripSortFewestTransfers => 'Menos transbordos';
+
+  @override
+  String get tripWalkingLimitLabel => 'Caminata máxima';
+
+  @override
+  String tripWalkingMeters(int meters) {
+    return '$meters m';
+  }
+
+  @override
+  String tripWalkOnly(int meters) {
+    return 'Caminar $meters m';
   }
 
   @override

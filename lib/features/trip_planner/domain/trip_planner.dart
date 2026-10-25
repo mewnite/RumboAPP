@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import '../../stops_and_lines/domain/transit_models.dart';
 import '../../stops_and_lines/domain/transit_repository.dart';
+import 'plan_search_isolate.dart';
+import 'planner_config.dart';
 
 class TripEndpoint {
   const TripEndpoint({
@@ -52,11 +54,7 @@ class TripRequest {
     required this.destinationLatitude,
     required this.destinationLongitude,
     required this.timing,
-    this.maximumWalkingMeters = 1800,
-    this.maximumTransfers = 1,
-    this.maximumWait = const Duration(minutes: 45),
-    this.walkingSpeedMetersPerSecond = 1.2,
-    this.resultLimit = 5,
+    this.config = const PlannerConfig(),
   });
 
   final double originLatitude;
@@ -64,26 +62,46 @@ class TripRequest {
   final double destinationLatitude;
   final double destinationLongitude;
   final TripTiming timing;
-  final double maximumWalkingMeters;
-  final int maximumTransfers;
-  final Duration maximumWait;
-  final double walkingSpeedMetersPerSecond;
-  final int resultLimit;
+  final PlannerConfig config;
 
   DateTime? get departureTime => timing.dateTime;
 
-  TripRequest copyWith({TripTiming? timing}) => TripRequest(
-    originLatitude: originLatitude,
-    originLongitude: originLongitude,
-    destinationLatitude: destinationLatitude,
-    destinationLongitude: destinationLongitude,
-    timing: timing ?? this.timing,
-    maximumWalkingMeters: maximumWalkingMeters,
-    maximumTransfers: maximumTransfers,
-    maximumWait: maximumWait,
-    walkingSpeedMetersPerSecond: walkingSpeedMetersPerSecond,
-    resultLimit: resultLimit,
-  );
+  TripRequest copyWith({TripTiming? timing, PlannerConfig? config}) =>
+      TripRequest(
+        originLatitude: originLatitude,
+        originLongitude: originLongitude,
+        destinationLatitude: destinationLatitude,
+        destinationLongitude: destinationLongitude,
+        timing: timing ?? this.timing,
+        config: config ?? this.config,
+      );
+}
+
+enum TripPlanSort { fastest, leastWalking, fewestTransfers }
+
+/// Ordena itinerarios sin volver a ejecutar la búsqueda.
+///
+/// Cada modo usa su métrica principal y desempata por hora de llegada.
+List<TripPlan> sortTripPlans(Iterable<TripPlan> plans, TripPlanSort sort) {
+  final sorted = plans.toList(growable: false);
+  sorted.sort((a, b) {
+    final primary = switch (sort) {
+      TripPlanSort.fastest => 0,
+      TripPlanSort.leastWalking => a.totalWalkingMeters.compareTo(
+        b.totalWalkingMeters,
+      ),
+      TripPlanSort.fewestTransfers => a.transferCount.compareTo(
+        b.transferCount,
+      ),
+    };
+    if (primary != 0) return primary;
+    final arrival = a.arrivalTime.compareTo(b.arrivalTime);
+    if (arrival != 0) return arrival;
+    final transfers = a.transferCount.compareTo(b.transferCount);
+    if (transfers != 0) return transfers;
+    return a.totalWalkingMeters.compareTo(b.totalWalkingMeters);
+  });
+  return sorted;
 }
 
 enum TripLegKind { walking, waiting, transit }
@@ -152,39 +170,81 @@ class TransitTripPlanner {
     _validateRequest(request);
     final current = now?.call() ?? DateTime.now();
     if (request.timing.isPast(current)) return const [];
+    final config = request.config;
     final origins = await _repository.nearbyStops(
       request.originLatitude,
       request.originLongitude,
-      request.maximumWalkingMeters,
+      config.maximumWalkingMeters,
     );
     final destinations = await _repository.nearbyStops(
       request.destinationLatitude,
       request.destinationLongitude,
-      request.maximumWalkingMeters,
+      config.maximumWalkingMeters,
     );
-    if (origins.isEmpty || destinations.isEmpty) return const [];
 
-    final initialData = await _repository.scheduleForStops(
-      origins.map((stop) => stop.id).toSet(),
-    );
-    final transferStopIds = initialData.stopTimes
-        .map((time) => time.stopId)
-        .where((id) => !origins.any((stop) => stop.id == id))
-        .toSet();
-    final additionalData = await _repository.scheduleForStops({
-      ...transferStopIds,
-      ...destinations.map((stop) => stop.id),
-    });
-    final data = _mergeScheduleData(initialData, additionalData);
-    return const TransitRouteSearch().findPlans(
-      request: request,
-      data: data,
-      originStopIds: origins.map((stop) => stop.id).toSet(),
-      destinationStopIds: destinations.map((stop) => stop.id).toSet(),
-      now: current,
+    var data = const TransitScheduleData();
+    if (origins.isNotEmpty) {
+      final initialData = await _repository.scheduleForStops(
+        origins.map((stop) => stop.id).toSet(),
+      );
+      final transferStopIds = <String>{
+        ...initialData.stops.map((stop) => stop.id),
+        ...destinations.map((stop) => stop.id),
+      };
+      if (config.maximumTransfers > 0 &&
+          config.maximumTransferWalkingMeters > 0) {
+        for (final stop in initialData.stops) {
+          final nearby = await _repository.nearbyStops(
+            stop.latitude,
+            stop.longitude,
+            config.maximumTransferWalkingMeters,
+          );
+          transferStopIds.addAll(nearby.map((stop) => stop.id));
+        }
+      }
+      final additionalData = await _repository.scheduleForStops(
+        transferStopIds,
+      );
+      data = _mergeScheduleData(initialData, additionalData);
+    }
+
+    return runPlanSearch(
+      PlanSearchPayload(
+        request: request,
+        data: data,
+        originStopIds: origins.map((stop) => stop.id).toSet(),
+        destinationStopIds: destinations.map((stop) => stop.id).toSet(),
+        now: current,
+      ),
     );
   }
 }
+
+class PlanSearchPayload {
+  const PlanSearchPayload({
+    required this.request,
+    required this.data,
+    required this.originStopIds,
+    required this.destinationStopIds,
+    required this.now,
+  });
+
+  final TripRequest request;
+  final TransitScheduleData data;
+  final Set<String> originStopIds;
+  final Set<String> destinationStopIds;
+  final DateTime now;
+}
+
+/// Búsqueda pura y sincrónica. También se usa como entrada del isolate.
+List<TripPlan> searchPlansSync(PlanSearchPayload payload) =>
+    const TransitRouteSearch().findPlans(
+      request: payload.request,
+      data: payload.data,
+      originStopIds: payload.originStopIds,
+      destinationStopIds: payload.destinationStopIds,
+      now: payload.now,
+    );
 
 const _arrivalSearchStepMinutes = 10;
 const _arrivalSearchWindowMinutes = 180;
@@ -200,11 +260,28 @@ class TransitRouteSearch {
     DateTime? now,
   }) {
     _validateRequest(request);
-    if (originStopIds.isEmpty || destinationStopIds.isEmpty) return const [];
-
     final clock = now ?? DateTime.now();
     if (request.timing.isPast(clock)) return const [];
 
+    final walkingOnly = _walkingOnlyPlan(request, clock);
+    final transitPlans = _findTransitPlans(
+      request: request,
+      data: data,
+      originStopIds: originStopIds,
+      destinationStopIds: destinationStopIds,
+      clock: clock,
+    );
+    return _finalizePlans([?walkingOnly, ...transitPlans], request);
+  }
+
+  List<TripPlan> _findTransitPlans({
+    required TripRequest request,
+    required TransitScheduleData data,
+    required Set<String> originStopIds,
+    required Set<String> destinationStopIds,
+    required DateTime clock,
+  }) {
+    if (originStopIds.isEmpty || destinationStopIds.isEmpty) return const [];
     final indexCache = <DateTime, _ScheduleIndex>{};
     switch (request.timing.mode) {
       case TripTimingMode.departNow:
@@ -267,6 +344,8 @@ class TransitRouteSearch {
       serviceDay,
       () => _ScheduleIndex.build(data, serviceDay),
     );
+    final config = request.config;
+    final transferTargetsByStop = <String, List<_TransferTarget>>{};
 
     final plans = <TripPlan>[];
     for (final first in index.instances) {
@@ -284,7 +363,7 @@ class TransitRouteSearch {
           request.originLatitude,
           request.originLongitude,
           departureTime,
-          request.walkingSpeedMetersPerSecond,
+          config,
           toStop: boardStop,
           toLatitude: boardStop.latitude,
           toLongitude: boardStop.longitude,
@@ -292,7 +371,7 @@ class TransitRouteSearch {
         final transitDeparture = firstTimes[boardIndex].departure;
         if (transitDeparture.isBefore(initialWalk.arrivalTime) ||
             transitDeparture.isAfter(
-              initialWalk.arrivalTime.add(request.maximumWait),
+              initialWalk.arrivalTime.add(config.maximumWait),
             )) {
           continue;
         }
@@ -310,14 +389,14 @@ class TransitRouteSearch {
               alightStop.latitude,
               alightStop.longitude,
               firstTimes[alightIndex].arrival,
-              request.walkingSpeedMetersPerSecond,
+              config,
               fromStop: alightStop,
               toLatitude: request.destinationLatitude,
               toLongitude: request.destinationLongitude,
             );
             final walkingMeters =
                 initialWalk.distanceMeters + finalWalk.distanceMeters;
-            if (walkingMeters <= request.maximumWalkingMeters) {
+            if (walkingMeters <= config.maximumWalkingMeters) {
               plans.add(
                 _buildPlan(
                   departureTime: departureTime,
@@ -333,83 +412,185 @@ class TransitRouteSearch {
               );
             }
           }
-          if (request.maximumTransfers < 1) continue;
-          final connections =
-              index.instancesByStop[alight.stopId] ?? <(_TripInstance, int)>[];
-          for (final connection in connections) {
-            final second = connection.$1;
-            final secondBoardIndex = connection.$2;
-            if (second.trip.id == first.trip.id) continue;
-            final secondTimes = second.absoluteTimes;
-            final nextDeparture = secondTimes[secondBoardIndex].departure;
-            final wait = nextDeparture.difference(
-              firstTimes[alightIndex].arrival,
-            );
-            if (wait.isNegative || wait > request.maximumWait) continue;
-            for (
-              var secondAlightIndex = secondBoardIndex + 1;
-              secondAlightIndex < second.times.length;
-              secondAlightIndex++
-            ) {
-              final finalStopTime = second.times[secondAlightIndex];
-              if (!destinationStopIds.contains(finalStopTime.stopId)) continue;
-              final finalStop = index.stopsById[finalStopTime.stopId];
-              if (finalStop == null) continue;
-              final finalWalk = _walkingLeg(
-                finalStop.latitude,
-                finalStop.longitude,
-                secondTimes[secondAlightIndex].arrival,
-                request.walkingSpeedMetersPerSecond,
-                fromStop: finalStop,
-                toLatitude: request.destinationLatitude,
-                toLongitude: request.destinationLongitude,
+          if (config.maximumTransfers < 1) continue;
+          final targets = transferTargetsByStop.putIfAbsent(
+            alightStop.id,
+            () => _transferTargets(alightStop, index, config),
+          );
+          for (final target in targets) {
+            final connections =
+                index.instancesByStop[target.stop.id] ??
+                <(_TripInstance, int)>[];
+            for (final connection in connections) {
+              final second = connection.$1;
+              final secondBoardIndex = connection.$2;
+              if (second.trip.id == first.trip.id) continue;
+              final secondTimes = second.absoluteTimes;
+              final nextDeparture = secondTimes[secondBoardIndex].departure;
+              final transferArrival = firstTimes[alightIndex].arrival;
+              final transferWalk = target.stop.id == alightStop.id
+                  ? null
+                  : _walkingLeg(
+                      alightStop.latitude,
+                      alightStop.longitude,
+                      transferArrival,
+                      config,
+                      fromStop: alightStop,
+                      toStop: target.stop,
+                      toLatitude: target.stop.latitude,
+                      toLongitude: target.stop.longitude,
+                    );
+              final readyTime = transferWalk?.arrivalTime ?? transferArrival;
+              final transferDuration = nextDeparture.difference(
+                transferArrival,
               );
-              final walkingMeters =
-                  initialWalk.distanceMeters + finalWalk.distanceMeters;
-              if (walkingMeters > request.maximumWalkingMeters) continue;
-              plans.add(
-                _buildPlan(
-                  departureTime: departureTime,
-                  initialWalk: initialWalk,
-                  finalWalk: finalWalk,
-                  first: first,
-                  firstBoardIndex: boardIndex,
-                  firstAlightIndex: alightIndex,
-                  firstTimes: firstTimes,
-                  second: second,
-                  secondBoardIndex: secondBoardIndex,
-                  secondAlightIndex: secondAlightIndex,
-                  secondTimes: secondTimes,
-                  walkingMeters: walkingMeters,
-                  stopsById: index.stopsById,
-                ),
-              );
+              if (transferDuration < config.minimumTransferTime ||
+                  nextDeparture.isBefore(readyTime) ||
+                  transferDuration > config.maximumWait) {
+                continue;
+              }
+              for (
+                var secondAlightIndex = secondBoardIndex + 1;
+                secondAlightIndex < second.times.length;
+                secondAlightIndex++
+              ) {
+                final finalStopTime = second.times[secondAlightIndex];
+                if (!destinationStopIds.contains(finalStopTime.stopId)) {
+                  continue;
+                }
+                final finalStop = index.stopsById[finalStopTime.stopId];
+                if (finalStop == null) continue;
+                final finalWalk = _walkingLeg(
+                  finalStop.latitude,
+                  finalStop.longitude,
+                  secondTimes[secondAlightIndex].arrival,
+                  config,
+                  fromStop: finalStop,
+                  toLatitude: request.destinationLatitude,
+                  toLongitude: request.destinationLongitude,
+                );
+                final walkingMeters =
+                    initialWalk.distanceMeters +
+                    finalWalk.distanceMeters +
+                    (transferWalk?.distanceMeters ?? 0);
+                if (walkingMeters > config.maximumWalkingMeters) continue;
+                plans.add(
+                  _buildPlan(
+                    departureTime: departureTime,
+                    initialWalk: initialWalk,
+                    finalWalk: finalWalk,
+                    first: first,
+                    firstBoardIndex: boardIndex,
+                    firstAlightIndex: alightIndex,
+                    firstTimes: firstTimes,
+                    second: second,
+                    secondBoardIndex: secondBoardIndex,
+                    secondAlightIndex: secondAlightIndex,
+                    secondTimes: secondTimes,
+                    transferWalk: transferWalk,
+                    walkingMeters: walkingMeters,
+                    stopsById: index.stopsById,
+                  ),
+                );
+              }
             }
           }
         }
       }
     }
+    return plans;
+  }
 
-    plans.sort((a, b) {
-      final arrival = a.arrivalTime.compareTo(b.arrivalTime);
-      if (arrival != 0) return arrival;
-      final transfers = a.transferCount.compareTo(b.transferCount);
-      if (transfers != 0) return transfers;
-      return a.totalWalkingMeters.compareTo(b.totalWalkingMeters);
-    });
-    final unique = <String, TripPlan>{};
-    for (final plan in plans) {
-      final key = plan.legs
-          .where((leg) => leg.kind == TripLegKind.transit)
-          .map(
-            (leg) => '${leg.route?.id}:${leg.departureTime.toIso8601String()}',
-          )
-          .join('|');
-      unique.putIfAbsent(key, () => plan);
+  List<_TransferTarget> _transferTargets(
+    Stop from,
+    _ScheduleIndex index,
+    PlannerConfig config,
+  ) {
+    final targets = <_TransferTarget>[];
+    for (final stop in index.stopsById.values) {
+      if (stop.id == from.id) {
+        targets.add(_TransferTarget(stop));
+        continue;
+      }
+      final meters = _distanceMeters(
+        from.latitude,
+        from.longitude,
+        stop.latitude,
+        stop.longitude,
+      );
+      if (meters <= config.maximumTransferWalkingMeters) {
+        targets.add(_TransferTarget(stop));
+      }
     }
-    return unique.values.take(request.resultLimit).toList(growable: false);
+    return targets;
+  }
+
+  TripPlan? _walkingOnlyPlan(TripRequest request, DateTime clock) {
+    final config = request.config;
+    final straightMeters = _distanceMeters(
+      request.originLatitude,
+      request.originLongitude,
+      request.destinationLatitude,
+      request.destinationLongitude,
+    );
+    if (straightMeters < 1 || straightMeters >= config.maximumWalkingMeters) {
+      return null;
+    }
+    final walk = _walkingLeg(
+      request.originLatitude,
+      request.originLongitude,
+      clock,
+      config,
+      toLatitude: request.destinationLatitude,
+      toLongitude: request.destinationLongitude,
+    );
+    final DateTime departure;
+    switch (request.timing.mode) {
+      case TripTimingMode.departNow:
+        departure = clock;
+      case TripTimingMode.departAt:
+        departure = request.timing.dateTime!;
+      case TripTimingMode.arriveBy:
+        departure = request.timing.dateTime!.subtract(
+          walk.arrivalTime.difference(walk.departureTime),
+        );
+        if (departure.isBefore(clock)) return null;
+    }
+    final arrival = departure.add(
+      walk.arrivalTime.difference(walk.departureTime),
+    );
+    return TripPlan(
+      requestedDeparture: departure,
+      arrivalTime: arrival,
+      legs: [walk.copyWithTimes(departure, arrival).toLeg()],
+      totalWalkingMeters: walk.distanceMeters,
+      transferCount: 0,
+    );
   }
 }
+
+List<TripPlan> _finalizePlans(List<TripPlan> plans, TripRequest request) {
+  final sorted = sortTripPlans(plans, TripPlanSort.fastest);
+  final unique = <String, TripPlan>{};
+  for (final plan in sorted) {
+    final key = plan.legs
+        .where((leg) => leg.kind == TripLegKind.transit)
+        .map((leg) => '${leg.route?.id}:${leg.departureTime.toIso8601String()}')
+        .join('|');
+    unique.putIfAbsent(key, () => plan);
+  }
+  final kept = <TripPlan>[];
+  for (final plan in unique.values) {
+    if (kept.any((other) => _dominates(other, plan))) continue;
+    kept.add(plan);
+  }
+  return kept.take(request.config.resultLimit).toList(growable: false);
+}
+
+bool _dominates(TripPlan first, TripPlan second) =>
+    !first.arrivalTime.isAfter(second.arrivalTime) &&
+    first.transferCount <= second.transferCount &&
+    first.totalWalkingMeters <= second.totalWalkingMeters;
 
 class _ScheduleIndex {
   const _ScheduleIndex._({
@@ -502,6 +683,7 @@ TripPlan _buildPlan({
   required List<_AbsoluteStopTime> firstTimes,
   required double walkingMeters,
   required Map<String, Stop> stopsById,
+  _WalkingLeg? transferWalk,
   _TripInstance? second,
   int? secondBoardIndex,
   int? secondAlightIndex,
@@ -532,12 +714,19 @@ TripPlan _buildPlan({
       secondBoardIndex != null &&
       secondAlightIndex != null &&
       secondTimes != null) {
+    if (transferWalk != null && transferWalk.distanceMeters > 1) {
+      legs.add(transferWalk.toLeg());
+    }
+    final transferArrival =
+        transferWalk?.arrivalTime ?? firstTimes[firstAlightIndex].arrival;
     legs.add(
       TripLeg(
         kind: TripLegKind.waiting,
-        departureTime: firstTimes[firstAlightIndex].arrival,
+        departureTime: transferArrival,
         arrivalTime: secondTimes[secondBoardIndex].departure,
-        fromStop: stopsById[first.times[firstAlightIndex].stopId],
+        fromStop:
+            transferWalk?.toStop ??
+            stopsById[first.times[firstAlightIndex].stopId],
       ),
     );
     legs.add(
@@ -581,18 +770,19 @@ _WalkingLeg _walkingLeg(
   double fromLatitude,
   double fromLongitude,
   DateTime departure,
-  double speed, {
+  PlannerConfig config, {
   Stop? fromStop,
   Stop? toStop,
   required double toLatitude,
   required double toLongitude,
 }) {
-  final meters = _distanceMeters(
+  final straightMeters = _distanceMeters(
     fromLatitude,
     fromLongitude,
     toLatitude,
     toLongitude,
   );
+  final meters = straightMeters * config.detourFactor;
   return _WalkingLeg(
     fromStop: fromStop,
     toStop: toStop,
@@ -602,7 +792,9 @@ _WalkingLeg _walkingLeg(
     toLongitude: toLongitude,
     distanceMeters: meters,
     departureTime: departure,
-    arrivalTime: departure.add(Duration(seconds: (meters / speed).ceil())),
+    arrivalTime: departure.add(
+      Duration(seconds: (meters / config.walkingSpeedMetersPerSecond).ceil()),
+    ),
   );
 }
 
@@ -667,14 +859,20 @@ void _validateRequest(TripRequest request) {
       request.destinationLongitude > 180) {
     throw ArgumentError('Las coordenadas del viaje no son válidas.');
   }
-  if (!request.maximumWalkingMeters.isFinite ||
-      request.maximumWalkingMeters < 0 ||
-      !request.walkingSpeedMetersPerSecond.isFinite ||
-      request.walkingSpeedMetersPerSecond <= 0 ||
-      request.maximumTransfers < 0 ||
-      request.maximumTransfers > 1 ||
-      request.resultLimit < 0 ||
-      request.maximumWait.isNegative) {
+  final config = request.config;
+  if (!config.detourFactor.isFinite ||
+      config.detourFactor < 1 ||
+      !config.walkingSpeedKmh.isFinite ||
+      config.walkingSpeedKmh <= 0 ||
+      !config.maximumWalkingMeters.isFinite ||
+      config.maximumWalkingMeters < 0 ||
+      !config.maximumTransferWalkingMeters.isFinite ||
+      config.maximumTransferWalkingMeters < 0 ||
+      config.minimumTransferTime.isNegative ||
+      config.maximumTransfers < 0 ||
+      config.maximumTransfers > 1 ||
+      config.resultLimit < 0 ||
+      config.maximumWait.isNegative) {
     throw ArgumentError('Los parámetros del viaje no son válidos.');
   }
 }
@@ -737,4 +935,23 @@ class _WalkingLeg {
     toLatitude: toLatitude,
     toLongitude: toLongitude,
   );
+
+  _WalkingLeg copyWithTimes(DateTime departure, DateTime arrival) =>
+      _WalkingLeg(
+        fromStop: fromStop,
+        toStop: toStop,
+        fromLatitude: fromLatitude,
+        fromLongitude: fromLongitude,
+        toLatitude: toLatitude,
+        toLongitude: toLongitude,
+        distanceMeters: distanceMeters,
+        departureTime: departure,
+        arrivalTime: arrival,
+      );
+}
+
+class _TransferTarget {
+  const _TransferTarget(this.stop);
+
+  final Stop stop;
 }

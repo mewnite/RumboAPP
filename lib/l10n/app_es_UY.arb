@@ -294,6 +294,27 @@
       }
     }
   },
+  "tripSortLabel": "Ordenar por",
+  "tripSortFastest": "Más rápido",
+  "tripSortLeastWalking": "Menos caminata",
+  "tripSortFewestTransfers": "Menos transbordos",
+  "tripWalkingLimitLabel": "Caminata máxima",
+  "tripWalkingMeters": "{meters} m",
+  "@tripWalkingMeters": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
+  "tripWalkOnly": "Caminar {meters} m",
+  "@tripWalkOnly": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
   "tripDetailTitle": "Tu recorrido",
   "tripDetailDeparture": "Salida · {origin} · {time}",
   "@tripDetailDeparture": {

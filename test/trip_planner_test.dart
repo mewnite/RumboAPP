@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/stops_and_lines/data/fake_transit_repository.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
+import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
 import 'package:rumbo/features/trip_planner/domain/trip_planner.dart';
 
 void main() {
@@ -132,7 +133,7 @@ void main() {
             destinationLatitude: 0,
             destinationLongitude: .02,
             timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
-            maximumWalkingMeters: 500,
+            config: const PlannerConfig(maximumWalkingMeters: 500),
           ),
         );
 
@@ -146,7 +147,7 @@ void main() {
           )
           .join(' | '),
     );
-    expect(plans.first.arrivalTime, DateTime(2026, 6, 2, 10, 41, 33));
+    expect(plans.first.arrivalTime, DateTime(2026, 6, 2, 10, 41, 49));
     expect(plans.first.transferCount, 1);
     expect(
       plans.first.legs.where((leg) => leg.kind == TripLegKind.transit),
@@ -200,7 +201,7 @@ void main() {
         destinationLatitude: 0,
         destinationLongitude: .01,
         timing: TripTiming.departAt(DateTime(2026, 6, 3, 0, 5)),
-        maximumWalkingMeters: 500,
+        config: const PlannerConfig(maximumWalkingMeters: 500),
       ),
       data: data,
       originStopIds: {'A'},
@@ -366,7 +367,7 @@ void main() {
           destinationLatitude: 0,
           destinationLongitude: 0,
           timing: TripTiming.departAt(travelDay),
-          maximumTransfers: 2,
+          config: const PlannerConfig(maximumTransfers: 2),
         ),
         data: const TransitScheduleData(),
         originStopIds: {'A'},
@@ -392,7 +393,7 @@ void main() {
         destinationLatitude: 0,
         destinationLongitude: .01,
         timing: const TripTiming.departNow(),
-        maximumWalkingMeters: 500,
+        config: const PlannerConfig(maximumWalkingMeters: 500),
       ),
     );
 
@@ -422,7 +423,7 @@ void main() {
         destinationLatitude: 0,
         destinationLongitude: .01,
         timing: TripTiming.arriveBy(DateTime(2026, 6, 2, 10)),
-        maximumWalkingMeters: 500,
+        config: const PlannerConfig(maximumWalkingMeters: 500),
       ),
       data: data,
       originStopIds: {'A'},
@@ -457,7 +458,7 @@ void main() {
         destinationLatitude: 0,
         destinationLongitude: .01,
         timing: TripTiming.arriveBy(DateTime(2026, 6, 2, 8)),
-        maximumWalkingMeters: 500,
+        config: const PlannerConfig(maximumWalkingMeters: 500),
       ),
       data: data,
       originStopIds: {'A'},
@@ -485,7 +486,7 @@ void main() {
         destinationLatitude: 0,
         destinationLongitude: .01,
         timing: TripTiming.departAt(DateTime(2026, 6, 2, 11)),
-        maximumWalkingMeters: 500,
+        config: const PlannerConfig(maximumWalkingMeters: 500),
       ),
       data: data,
       originStopIds: {'A'},
@@ -499,7 +500,7 @@ void main() {
         destinationLatitude: 0,
         destinationLongitude: .01,
         timing: TripTiming.arriveBy(DateTime(2026, 6, 2, 11)),
-        maximumWalkingMeters: 500,
+        config: const PlannerConfig(maximumWalkingMeters: 500),
       ),
       data: data,
       originStopIds: {'A'},
@@ -509,6 +510,340 @@ void main() {
 
     expect(departurePlans, isEmpty);
     expect(arrivalPlans, isEmpty);
+  });
+
+  test('discards an itinerary dominated by an earlier one', () {
+    final data = TransitScheduleData(
+      stops: const [
+        Stop(id: 'A', name: 'A', latitude: 0, longitude: .001),
+        Stop(id: 'B', name: 'B', latitude: 0, longitude: .009),
+      ],
+      routes: const [
+        Route(id: 'fast', shortName: 'F'),
+        Route(id: 'slow', shortName: 'S'),
+      ],
+      variants: const [
+        RouteVariant(
+          id: 'fast-variant',
+          routeId: 'fast',
+          directionId: '0',
+          destination: 'B',
+        ),
+        RouteVariant(
+          id: 'slow-variant',
+          routeId: 'slow',
+          directionId: '0',
+          destination: 'B',
+        ),
+      ],
+      trips: const [
+        Trip(
+          id: 'fast-trip',
+          routeId: 'fast',
+          serviceId: 'daily',
+          variantId: 'fast-variant',
+        ),
+        Trip(
+          id: 'slow-trip',
+          routeId: 'slow',
+          serviceId: 'daily',
+          variantId: 'slow-variant',
+        ),
+      ],
+      stopTimes: [
+        StopTime(
+          tripId: 'fast-trip',
+          stopId: 'A',
+          arrivalSeconds: _seconds(10, 15),
+          departureSeconds: _seconds(10, 15),
+          sequence: 1,
+        ),
+        StopTime(
+          tripId: 'fast-trip',
+          stopId: 'B',
+          arrivalSeconds: _seconds(10, 30),
+          departureSeconds: _seconds(10, 30),
+          sequence: 2,
+        ),
+        StopTime(
+          tripId: 'slow-trip',
+          stopId: 'A',
+          arrivalSeconds: _seconds(10, 20),
+          departureSeconds: _seconds(10, 20),
+          sequence: 1,
+        ),
+        StopTime(
+          tripId: 'slow-trip',
+          stopId: 'B',
+          arrivalSeconds: _seconds(10, 55),
+          departureSeconds: _seconds(10, 55),
+          sequence: 2,
+        ),
+      ],
+      calendars: [dailyCalendar],
+    );
+
+    final plans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+
+    expect(plans, hasLength(1));
+    expect(
+      plans.single.legs
+          .singleWhere((leg) => leg.kind == TripLegKind.transit)
+          .route
+          ?.id,
+      'fast',
+    );
+  });
+
+  test('sorts plans by fastest, least walking and fewest transfers', () {
+    final fastest = _planAt(
+      arrivalMinute: 20,
+      walkingMeters: 100,
+      transfers: 1,
+    );
+    final tiedWalking = _planAt(
+      arrivalMinute: 25,
+      walkingMeters: 100,
+      transfers: 1,
+    );
+    final directAndLong = _planAt(
+      arrivalMinute: 30,
+      walkingMeters: 600,
+      transfers: 0,
+    );
+    final shortWalk = _planAt(
+      arrivalMinute: 40,
+      walkingMeters: 300,
+      transfers: 1,
+    );
+    final plans = [directAndLong, shortWalk, tiedWalking, fastest];
+
+    expect(
+      sortTripPlans(
+        plans,
+        TripPlanSort.fastest,
+      ).map((plan) => plan.arrivalTime.minute),
+      [20, 25, 30, 40],
+    );
+    expect(
+      sortTripPlans(
+        plans,
+        TripPlanSort.leastWalking,
+      ).map((plan) => plan.arrivalTime.minute),
+      [20, 25, 40, 30],
+    );
+    expect(
+      sortTripPlans(
+        plans,
+        TripPlanSort.fewestTransfers,
+      ).map((plan) => plan.arrivalTime.minute),
+      [30, 20, 25, 40],
+    );
+  });
+
+  test('includes a walking-only itinerary for a short trip', () async {
+    final repo = FakeTransitRepository(
+      stops: const [],
+      routes: const [],
+      variants: const [],
+      trips: const [],
+      times: const [],
+      calendars: const [],
+    );
+
+    final plans =
+        await TransitTripPlanner(repo, now: () => DateTime(2026, 6, 2, 9)).plan(
+          TripRequest(
+            originLatitude: 0,
+            originLongitude: 0,
+            destinationLatitude: 0,
+            destinationLongitude: .005,
+            timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+          ),
+        );
+    final farPlans =
+        await TransitTripPlanner(repo, now: () => DateTime(2026, 6, 2, 9)).plan(
+          TripRequest(
+            originLatitude: 0,
+            originLongitude: 0,
+            destinationLatitude: 0,
+            destinationLongitude: .009,
+            timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+          ),
+        );
+
+    expect(plans, hasLength(1));
+    expect(plans.single.legs, hasLength(1));
+    expect(plans.single.legs.single.kind, TripLegKind.walking);
+    expect(plans.single.legs.single.toLatitude, 0);
+    expect(plans.single.legs.single.toLongitude, .005);
+    expect(plans.single.totalWalkingMeters, closeTo(722.8, 1));
+    expect(plans.single.transferCount, 0);
+    expect(plans.single.arrivalTime, DateTime(2026, 6, 2, 10, 9, 3));
+    expect(farPlans, isEmpty);
+  });
+
+  test('allows a 100 m walking transfer between different stops', () {
+    final data = _walkingTransferData(
+      secondStopLongitude: .0109,
+      calendars: [dailyCalendar],
+    );
+
+    final plans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .022,
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+
+    expect(plans, hasLength(1));
+    final transitLegs = plans.single.legs
+        .where((leg) => leg.kind == TripLegKind.transit)
+        .toList();
+    expect(transitLegs.map((leg) => leg.route?.id), ['first', 'second']);
+    final walkingLegs = plans.single.legs
+        .where((leg) => leg.kind == TripLegKind.walking)
+        .toList();
+    expect(walkingLegs, hasLength(3));
+    final transferWalk = walkingLegs[1];
+    expect(transferWalk.fromStop?.id, 'transfer');
+    expect(transferWalk.toStop?.id, 'nearby');
+    expect(transferWalk.distanceMeters, closeTo(130, 1));
+    expect(plans.single.totalWalkingMeters, closeTo(419.2, 2));
+  });
+
+  test('rejects a 200 m walking transfer between different stops', () {
+    final data = _walkingTransferData(
+      secondStopLongitude: .0118,
+      calendars: [dailyCalendar],
+    );
+
+    final plans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .022,
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+
+    expect(plans, isEmpty);
+  });
+
+  test('respects the maximum total walking distance', () {
+    final data = TransitScheduleData(
+      stops: const [
+        Stop(id: 'A', name: 'A', latitude: 0, longitude: .004),
+        Stop(id: 'B', name: 'B', latitude: 0, longitude: .008),
+      ],
+      routes: const [Route(id: 'R', shortName: '10')],
+      variants: const [
+        RouteVariant(id: 'V', routeId: 'R', directionId: '0', destination: 'B'),
+      ],
+      trips: const [
+        Trip(id: 'T', routeId: 'R', serviceId: 'daily', variantId: 'V'),
+      ],
+      stopTimes: [
+        StopTime(
+          tripId: 'T',
+          stopId: 'A',
+          arrivalSeconds: _seconds(10, 15),
+          departureSeconds: _seconds(10, 15),
+          sequence: 1,
+        ),
+        StopTime(
+          tripId: 'T',
+          stopId: 'B',
+          arrivalSeconds: _seconds(10, 30),
+          departureSeconds: _seconds(10, 30),
+          sequence: 2,
+        ),
+      ],
+      calendars: [dailyCalendar],
+    );
+    TripRequest request(PlannerConfig config) => TripRequest(
+      originLatitude: 0,
+      originLongitude: 0,
+      destinationLatitude: 0,
+      destinationLongitude: .012,
+      timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+      config: config,
+    );
+
+    final limited = const TransitRouteSearch().findPlans(
+      request: request(const PlannerConfig()),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+    final extended = const TransitRouteSearch().findPlans(
+      request: request(const PlannerConfig(maximumWalkingMeters: 1200)),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+
+    expect(limited, isEmpty);
+    expect(extended, hasLength(1));
+    expect(extended.single.totalWalkingMeters, closeTo(1156.4, 2));
+  });
+
+  test('rejects a transfer shorter than the minimum transfer time', () {
+    final data = _sameStopTransferData(calendars: [dailyCalendar]);
+    TripRequest request(PlannerConfig config) => TripRequest(
+      originLatitude: 0,
+      originLongitude: 0,
+      destinationLatitude: 0,
+      destinationLongitude: .022,
+      timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+      config: config,
+    );
+
+    final limited = const TransitRouteSearch().findPlans(
+      request: request(const PlannerConfig()),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+    final extended = const TransitRouteSearch().findPlans(
+      request: request(
+        const PlannerConfig(minimumTransferTime: Duration(minutes: 1)),
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+      now: DateTime(2026, 6, 2, 9),
+    );
+
+    expect(limited, isEmpty);
+    expect(extended, hasLength(1));
   });
 }
 
@@ -574,3 +909,168 @@ FakeTransitRepository _singleTripRepository({
 }
 
 int _seconds(int hour, int minute) => hour * 3600 + minute * 60;
+
+TripPlan _planAt({
+  required int arrivalMinute,
+  required double walkingMeters,
+  required int transfers,
+}) => TripPlan(
+  requestedDeparture: DateTime(2026, 6, 2, 10),
+  arrivalTime: DateTime(2026, 6, 2, 10, arrivalMinute),
+  legs: const [],
+  totalWalkingMeters: walkingMeters,
+  transferCount: transfers,
+);
+
+TransitScheduleData _walkingTransferData({
+  required double secondStopLongitude,
+  required List<ServiceCalendar> calendars,
+}) => TransitScheduleData(
+  stops: [
+    const Stop(id: 'A', name: 'A', latitude: 0, longitude: .001),
+    const Stop(id: 'transfer', name: 'Transbordo', latitude: 0, longitude: .01),
+    Stop(
+      id: 'nearby',
+      name: 'Parada cercana',
+      latitude: 0,
+      longitude: secondStopLongitude,
+    ),
+    const Stop(id: 'B', name: 'B', latitude: 0, longitude: .021),
+  ],
+  routes: const [
+    Route(id: 'first', shortName: '1'),
+    Route(id: 'second', shortName: '2'),
+  ],
+  variants: const [
+    RouteVariant(
+      id: 'first-variant',
+      routeId: 'first',
+      directionId: '0',
+      destination: 'Transbordo',
+    ),
+    RouteVariant(
+      id: 'second-variant',
+      routeId: 'second',
+      directionId: '0',
+      destination: 'B',
+    ),
+  ],
+  trips: const [
+    Trip(
+      id: 'first-trip',
+      routeId: 'first',
+      serviceId: 'daily',
+      variantId: 'first-variant',
+    ),
+    Trip(
+      id: 'second-trip',
+      routeId: 'second',
+      serviceId: 'daily',
+      variantId: 'second-variant',
+    ),
+  ],
+  stopTimes: [
+    StopTime(
+      tripId: 'first-trip',
+      stopId: 'A',
+      arrivalSeconds: _seconds(10, 5),
+      departureSeconds: _seconds(10, 5),
+      sequence: 1,
+    ),
+    StopTime(
+      tripId: 'first-trip',
+      stopId: 'transfer',
+      arrivalSeconds: _seconds(10, 20),
+      departureSeconds: _seconds(10, 20),
+      sequence: 2,
+    ),
+    StopTime(
+      tripId: 'second-trip',
+      stopId: 'nearby',
+      arrivalSeconds: _seconds(10, 25),
+      departureSeconds: _seconds(10, 25),
+      sequence: 1,
+    ),
+    StopTime(
+      tripId: 'second-trip',
+      stopId: 'B',
+      arrivalSeconds: _seconds(10, 40),
+      departureSeconds: _seconds(10, 40),
+      sequence: 2,
+    ),
+  ],
+  calendars: calendars,
+);
+
+TransitScheduleData _sameStopTransferData({
+  required List<ServiceCalendar> calendars,
+}) => TransitScheduleData(
+  stops: const [
+    Stop(id: 'A', name: 'A', latitude: 0, longitude: .001),
+    Stop(id: 'transfer', name: 'Transbordo', latitude: 0, longitude: .01),
+    Stop(id: 'B', name: 'B', latitude: 0, longitude: .021),
+  ],
+  routes: const [
+    Route(id: 'first', shortName: '1'),
+    Route(id: 'second', shortName: '2'),
+  ],
+  variants: const [
+    RouteVariant(
+      id: 'first-variant',
+      routeId: 'first',
+      directionId: '0',
+      destination: 'Transbordo',
+    ),
+    RouteVariant(
+      id: 'second-variant',
+      routeId: 'second',
+      directionId: '0',
+      destination: 'B',
+    ),
+  ],
+  trips: const [
+    Trip(
+      id: 'first-trip',
+      routeId: 'first',
+      serviceId: 'daily',
+      variantId: 'first-variant',
+    ),
+    Trip(
+      id: 'second-trip',
+      routeId: 'second',
+      serviceId: 'daily',
+      variantId: 'second-variant',
+    ),
+  ],
+  stopTimes: [
+    StopTime(
+      tripId: 'first-trip',
+      stopId: 'A',
+      arrivalSeconds: _seconds(10, 5),
+      departureSeconds: _seconds(10, 5),
+      sequence: 1,
+    ),
+    StopTime(
+      tripId: 'first-trip',
+      stopId: 'transfer',
+      arrivalSeconds: _seconds(10, 20),
+      departureSeconds: _seconds(10, 20),
+      sequence: 2,
+    ),
+    StopTime(
+      tripId: 'second-trip',
+      stopId: 'transfer',
+      arrivalSeconds: _seconds(10, 22),
+      departureSeconds: _seconds(10, 22),
+      sequence: 1,
+    ),
+    StopTime(
+      tripId: 'second-trip',
+      stopId: 'B',
+      arrivalSeconds: _seconds(10, 35),
+      departureSeconds: _seconds(10, 35),
+      sequence: 2,
+    ),
+  ],
+  calendars: calendars,
+);

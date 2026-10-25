@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
+import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
 import 'package:rumbo/features/trip_planner/domain/trip_planner.dart';
 import 'package:rumbo/features/trip_planner/presentation/trip_plan_details.dart';
 import 'package:rumbo/features/trip_planner/presentation/trip_search_sheet.dart';
@@ -37,7 +38,7 @@ void main() {
             searchPlaces: (query) async => [
               TripEndpoint(name: query, latitude: -34.9, longitude: -56.2),
             ],
-            findPlans: (origin, selectedDestination, timing) async {
+            findPlans: (origin, selectedDestination, timing, config) async {
               plannedOrigin = origin;
               plannedDestination = selectedDestination;
               plannedTiming = timing;
@@ -116,7 +117,7 @@ void main() {
             },
             searchStops: (_) async => [destination],
             searchPlaces: (_) async => const [],
-            findPlans: (origin, selectedDestination, timing) async {
+            findPlans: (origin, selectedDestination, timing, config) async {
               plannedTiming = timing;
               return const [];
             },
@@ -174,7 +175,7 @@ void main() {
             now: () => fixedNow,
             searchStops: (_) async => const [],
             searchPlaces: (_) async => const [],
-            findPlans: (origin, destination, timing) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
           ),
         ),
       ),
@@ -220,7 +221,8 @@ void main() {
             now: () => fixedNow,
             searchStops: (_) async => [destination],
             searchPlaces: (_) async => const [],
-            findPlans: (origin, selectedDestination, timing) async => const [],
+            findPlans: (origin, selectedDestination, timing, config) async =>
+                const [],
           ),
         ),
       ),
@@ -269,7 +271,7 @@ void main() {
                 const TimeOfDay(hour: 8, minute: 0),
             searchStops: (_) async => [destination],
             searchPlaces: (_) async => const [],
-            findPlans: (origin, selectedDestination, timing) async {
+            findPlans: (origin, selectedDestination, timing, config) async {
               planSearches++;
               return const [];
             },
@@ -335,7 +337,7 @@ void main() {
             onPlanSelected: (plan, origin, selectedDestination) {
               selectedPlans.add(plan);
             },
-            findPlans: (origin, selectedDestination, timing) async {
+            findPlans: (origin, selectedDestination, timing, config) async {
               return [
                 TripPlan(
                   requestedDeparture: departure,
@@ -372,6 +374,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Buscar ómnibus'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.textContaining('35 min'));
     await tester.tap(find.textContaining('35 min'));
     await tester.pumpAndSettle();
 
@@ -496,6 +499,102 @@ void main() {
     expect(closedTrip, isTrue);
   });
 
+  testWidgets(
+    'sorts results locally and re-searches with a new walking limit',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const destination = Stop(
+        id: 'destination',
+        name: 'Nuevo Centro',
+        latitude: -34.85,
+        longitude: -56.17,
+      );
+      final departure = DateTime(2026, 10, 24, 12);
+      PlannerConfig? plannedConfig;
+
+      TripPlan plan({
+        required String route,
+        required int durationMinutes,
+        required double walking,
+      }) => TripPlan(
+        requestedDeparture: departure,
+        arrivalTime: departure.add(Duration(minutes: durationMinutes)),
+        legs: [
+          TripLeg(
+            kind: TripLegKind.transit,
+            departureTime: departure,
+            arrivalTime: departure.add(Duration(minutes: durationMinutes)),
+            route: Route(id: route, shortName: route),
+            fromStop: const Stop(
+              id: 'origin',
+              name: 'Tres Cruces',
+              latitude: -34.89,
+              longitude: -56.16,
+            ),
+            toStop: destination,
+          ),
+        ],
+        totalWalkingMeters: walking,
+        transferCount: 0,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('es', 'UY'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: TripSearchSheet(
+              hasCurrentLocation: true,
+              now: () => DateTime(2026, 10, 24, 12),
+              searchStops: (_) async => [destination],
+              searchPlaces: (_) async => const [],
+              findPlans: (origin, selectedDestination, timing, config) async {
+                plannedConfig = config;
+                return [
+                  plan(route: 'RÁPIDA', durationMinutes: 30, walking: 500),
+                  plan(route: 'CORTA', durationMinutes: 45, walking: 100),
+                ];
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField).last, 'Nuevo');
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('trip-endpoint--34.85:-56.17')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('trip-walking-1200')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Buscar ómnibus'));
+      await tester.pumpAndSettle();
+
+      expect(plannedConfig?.maximumWalkingMeters, 1200);
+      expect(find.byKey(const ValueKey('trip-sort-fastest')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('RÁPIDA')).dy,
+        lessThan(tester.getTopLeft(find.text('CORTA')).dy),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('trip-sort-least-walking')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('CORTA')).dy,
+        lessThan(tester.getTopLeft(find.text('RÁPIDA')).dy),
+      );
+    },
+  );
+
   testWidgets('sends an address to place search only after explicit action', (
     tester,
   ) async {
@@ -521,7 +620,7 @@ void main() {
                 ),
               ];
             },
-            findPlans: (origin, destination, timing) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
           ),
         ),
       ),
@@ -561,7 +660,7 @@ void main() {
               remoteSearchCount++;
               return const [];
             },
-            findPlans: (origin, destination, timing) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
           ),
         ),
       ),

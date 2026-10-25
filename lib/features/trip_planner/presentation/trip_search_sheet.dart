@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../features/search/domain/place_search_service.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../domain/planner_config.dart';
 import '../domain/trip_planner.dart';
 
 typedef StopSearch = Future<List<Stop>> Function(String query);
@@ -15,6 +16,7 @@ typedef PlanSearch = Future<List<TripPlan>> Function(
   TripEndpoint? origin,
   TripEndpoint destination,
   TripTiming timing,
+  PlannerConfig config,
 );
 typedef TripPlanSelected = void Function(
   TripPlan plan,
@@ -38,6 +40,7 @@ class TripSearchSheet extends StatefulWidget {
     this.onPlanSelected,
     this.departureTimePicker,
     this.now,
+    this.initialConfig = const PlannerConfig(),
     super.key,
   });
 
@@ -51,6 +54,7 @@ class TripSearchSheet extends StatefulWidget {
   final TripPlanSelected? onPlanSelected;
   final DepartureTimePicker? departureTimePicker;
   final DateTime Function()? now;
+  final PlannerConfig initialConfig;
 
   @override
   State<TripSearchSheet> createState() => _TripSearchSheetState();
@@ -77,6 +81,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   late DateTime _timedDateTime;
   bool _tomorrow = false;
   TripTiming? _lastTiming;
+  late PlannerConfig _config;
+  TripPlanSort _sort = TripPlanSort.fastest;
 
   TextEditingController get _activeController =>
       _searchOrigin ? _originController : _destinationController;
@@ -95,6 +101,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   @override
   void initState() {
     super.initState();
+    _config = widget.initialConfig;
     _timedDateTime = _nextTimeSlot(_now);
     _tomorrow = _isTomorrowDate(_timedDateTime);
     if (widget.initialDestination != null) {
@@ -345,6 +352,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
         _originUsesLocation ? null : _origin,
         destination,
         timing,
+        _config,
       );
       if (mounted) setState(() => _plans = plans);
     } on Exception catch (error) {
@@ -352,6 +360,17 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     } finally {
       if (mounted) setState(() => _planning = false);
     }
+  }
+
+  Future<void> _selectWalkingLimit(double meters) async {
+    if (_config.maximumWalkingMeters == meters) return;
+    final shouldRerun = _lastTiming != null;
+    setState(() {
+      _config = _config.copyWith(maximumWalkingMeters: meters);
+      _plans = null;
+      _planError = null;
+    });
+    if (shouldRerun) await _findPlans();
   }
 
   void _useLocation() {
@@ -372,6 +391,9 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     final canPlan =
         _destination != null &&
         (_originUsesLocation ? widget.hasCurrentLocation : _origin != null);
+    final shownPlans = _plans == null
+        ? const <TripPlan>[]
+        : sortTripPlans(_plans!, _sort);
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -610,6 +632,27 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                 ),
               ),
             const SizedBox(height: 12),
+            Text(
+              l10n.tripWalkingLimitLabel,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final meters in PlannerConfig.walkingOptionsMeters)
+                  ChoiceChip(
+                    key: ValueKey('trip-walking-${meters.round()}'),
+                    label: Text(l10n.tripWalkingMeters(meters.round())),
+                    selected: _config.maximumWalkingMeters == meters,
+                    onSelected: _planning
+                        ? null
+                        : (_) => _selectWalkingLimit(meters),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: canPlan && !_planning ? _findPlans : null,
               icon: _planning
@@ -646,13 +689,46 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                       ? l10n.tripNoArrivalTrips
                       : l10n.tripNoTrips,
                 )
-              else
+              else ...[
+                Text(
+                  l10n.tripSortLabel,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      key: const ValueKey('trip-sort-fastest'),
+                      label: Text(l10n.tripSortFastest),
+                      selected: _sort == TripPlanSort.fastest,
+                      onSelected: (_) =>
+                          setState(() => _sort = TripPlanSort.fastest),
+                    ),
+                    ChoiceChip(
+                      key: const ValueKey('trip-sort-least-walking'),
+                      label: Text(l10n.tripSortLeastWalking),
+                      selected: _sort == TripPlanSort.leastWalking,
+                      onSelected: (_) =>
+                          setState(() => _sort = TripPlanSort.leastWalking),
+                    ),
+                    ChoiceChip(
+                      key: const ValueKey('trip-sort-fewest-transfers'),
+                      label: Text(l10n.tripSortFewestTransfers),
+                      selected: _sort == TripPlanSort.fewestTransfers,
+                      onSelected: (_) =>
+                          setState(() => _sort = TripPlanSort.fewestTransfers),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 280),
                   child: ListView(
                     shrinkWrap: true,
                     children: [
-                      for (final plan in _plans!)
+                      for (final plan in shownPlans)
                         _TripPlanCard(
                           plan: plan,
                           onSelected: widget.onPlanSelected == null
@@ -666,6 +742,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                     ],
                   ),
                 ),
+              ],
             ],
             const SizedBox(height: 8),
             Text(l10n.tripStaticScheduleNotice, textAlign: TextAlign.center),
@@ -705,6 +782,17 @@ class _TripPlanCard extends StatelessWidget {
                 ),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
+              if (transitLegs.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Symbols.directions_walk_rounded, size: 18),
+                      const SizedBox(width: 6),
+                      Text(l10n.tripWalkOnly(plan.totalWalkingMeters.round())),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 8),
               for (final leg in transitLegs)
                 Padding(
