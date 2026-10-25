@@ -10,7 +10,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/config/map_config.dart';
 import '../../../core/config/transit_config.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/line_chip.dart';
 import '../../../features/search/presentation/search_controller.dart';
 import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
 import '../../../features/stops_and_lines/data/sqflite_transit_repository.dart';
@@ -580,7 +579,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             }
             return placeSource.search(query);
           },
-          findPlans: (origin, destination) async {
+          findPlans: (origin, destination, departureTime) async {
             final feed = ref.read(feedUpdateControllerProvider).asData?.value;
             if (feed == null ||
                 feed.status.synthetic ||
@@ -602,7 +601,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   originLongitude: originLongitude,
                   destinationLatitude: destination.latitude,
                   destinationLongitude: destination.longitude,
-                  departureTime: DateTime.now(),
+                  departureTime: departureTime,
                 ),
               );
             } finally {

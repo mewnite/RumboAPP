@@ -871,6 +871,24 @@ abstract class AppLocalizations {
   /// **'Usar mi ubicación'**
   String get tripUseCurrentLocation;
 
+  /// No description provided for @tripDepartureLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salida'**
+  String get tripDepartureLabel;
+
+  /// No description provided for @tripChangeDate.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cambiar fecha'**
+  String get tripChangeDate;
+
+  /// No description provided for @tripChangeTime.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cambiar hora'**
+  String get tripChangeTime;
+
   /// No description provided for @tripNoStops.
   ///
   /// In es_UY, this message translates to:

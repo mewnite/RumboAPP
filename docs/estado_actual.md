@@ -1,11 +1,11 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-24. No se inspeccionaron assets ni el contenido de fixtures. No se ejecutó la app en un emulador.
+Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. No se ejecutó la app en un emulador.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 81 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 97 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: `f39a9be First commit` (único commit disponible).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -24,7 +24,7 @@ Revisión: 2026-10-24. No se inspeccionaron assets ni el contenido de fixtures. 
 | 7. Arribos en vivo por parada | parcial | `TransitArrivalsSource`, `upcomingDepartures` | existe lógica de dominio, pero no pantalla ni integración visible; no se encontró test dedicado |
 | 8. Detalle de parada y línea, recorrido y horarios | parcial | expansiones de parada/línea en `MapScreen` | se puede seleccionar una variante y dibujar su shape; no hay detalle de parada/línea ni horarios visibles |
 | 9. Búsqueda de lugares, paradas y líneas | parcial | `TripSearchSheet`, `LocalTransitSearchSource`, `RemoteGeocodingSource` | tests de búsqueda y de `trip_search_sheet`; está dentro del planificador, no como pantalla independiente |
-| 10. Planificador, resultados y horario | parcial | `TransitTripPlanner`, `TripSearchSheet`, `TripPlanDetails` | `trip_planner_test`, `trip_search_sheet_test`; la salida se fija a `DateTime.now()`, sin selector de horario |
+| 10. Planificador, resultados y horario | parcial | `TransitTripPlanner`, `TripSearchSheet`, `TripPlanDetails` | `trip_planner_test`, `trip_search_sheet_test`; permite elegir fecha y hora de salida (hoy a 60 días); no hay selector de hora de llegada |
 | 11. Detalle y viaje en curso/aviso de bajada | parcial | `TripPlanDetails`, capas de plan en `MapScreen` | se muestra itinerario esquemático; no hay seguimiento activo ni aviso de bajada |
 | 12. Favoritos | solo interfaz/placeholder | `FavoritesScreen` | `theme_navigation_test`; solo muestra estado vacío, no hay acción para guardar |
 | 13. Privacidad y atribuciones | parcial | `_showAttribution` en `MapScreen`, textos ARB | `map_screen_test`; hay atribución y nota de ubicación, no una pantalla de privacidad |
@@ -84,7 +84,7 @@ Al abrir (comportamiento esperado según código; dispositivo no verificado):
 3. Con el GTFS real, completar presentación de paradas cercanas y arribos por parada. Para arribos en vivo hacen falta ETA o una decisión explícita sobre qué significa mostrar un bus detectado en la variante.
 4. Completar detalle de parada y línea con horarios y recorrido. Depende de identificadores, shapes y horarios válidos del feed.
 5. Dibujar buses sobre el mapa y validar el matcher con identificadores oficiales de variante; hoy el polling solo alimenta el panel/lista.
-6. Completar el planificador con selección de hora de salida/llegada y trazados de caminata fiables; necesita horarios GTFS validados y, para rutas a pie, una fuente/decisión de enrutamiento.
+6. Completar el planificador con selección de hora de llegada y trazados de caminata fiables; necesita horarios GTFS validados y, para rutas a pie, una fuente/decisión de enrutamiento.
 7. Implementar viaje activo y aviso de bajada; requiere definir el criterio/umbral del aviso, notificaciones y validación de capacidades/permisos en Android e iOS.
 8. Implementar favoritos persistidos y controles para guardar; falta decidir qué entidades se pueden guardar (paradas, lugares, líneas o viajes).
 9. Crear una pantalla de privacidad que reúna flujos de ubicación, geocodificación y atribución; requiere confirmar proveedor y condiciones del servicio remoto.

@@ -445,6 +445,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripUseCurrentLocation => 'Usar mi ubicación';
 
   @override
+  String get tripDepartureLabel => 'Salida';
+
+  @override
+  String get tripChangeDate => 'Cambiar fecha';
+
+  @override
+  String get tripChangeTime => 'Cambiar hora';
+
+  @override
   String get tripNoStops => 'No encontramos paradas con ese nombre.';
 
   @override
@@ -1061,6 +1070,15 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripUseCurrentLocation => 'Usar mi ubicación';
+
+  @override
+  String get tripDepartureLabel => 'Salida';
+
+  @override
+  String get tripChangeDate => 'Cambiar fecha';
+
+  @override
+  String get tripChangeTime => 'Cambiar hora';
 
   @override
   String get tripNoStops => 'No encontramos paradas con ese nombre.';

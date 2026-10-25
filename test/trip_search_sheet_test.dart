@@ -20,6 +20,7 @@ void main() {
     var searchQuery = '';
     TripEndpoint? plannedOrigin;
     TripEndpoint? plannedDestination;
+    DateTime? plannedDeparture;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -36,9 +37,10 @@ void main() {
             searchPlaces: (query) async => [
               TripEndpoint(name: query, latitude: -34.9, longitude: -56.2),
             ],
-            findPlans: (origin, selectedDestination) async {
+            findPlans: (origin, selectedDestination, departureTime) async {
               plannedOrigin = origin;
               plannedDestination = selectedDestination;
+              plannedDeparture = departureTime;
               return [
                 TripPlan(
                   requestedDeparture: departure,
@@ -81,9 +83,121 @@ void main() {
 
     expect(plannedOrigin, isNull);
     expect(plannedDestination?.stop, destination);
+    expect(plannedDeparture, isNotNull);
+    expect(
+      DateTime.now().difference(plannedDeparture!).inSeconds.abs(),
+      lessThan(60),
+    );
     expect(find.textContaining('35 min'), findsOneWidget);
     expect(find.text('522'), findsOneWidget);
     expect(find.textContaining('horarios programados'), findsOneWidget);
+  });
+
+  testWidgets('plans with the selected departure date and time', (
+    tester,
+  ) async {
+    const destination = Stop(
+      id: 'destination',
+      name: 'Nuevo Centro',
+      latitude: -34.85,
+      longitude: -56.17,
+    );
+    DateTime? plannedDeparture;
+    DateTime? pickedInitialDate;
+    TimeOfDay? pickedInitialTime;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            departureDatePicker:
+                (context, initialDate, firstDate, lastDate) async {
+                  pickedInitialDate = initialDate;
+                  return DateTime(2026, 10, 28);
+                },
+            departureTimePicker: (context, initialTime) async {
+              pickedInitialTime = initialTime;
+              return const TimeOfDay(hour: 18, minute: 30);
+            },
+            searchStops: (_) async => [destination],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, selectedDestination, departureTime) async {
+              plannedDeparture = departureTime;
+              return const [];
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Nuevo');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('trip-endpoint--34.85:-56.17')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-departure-date')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-departure-date')));
+    await tester.pumpAndSettle();
+    expect(pickedInitialDate, isNotNull);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-departure-time')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-departure-time')));
+    await tester.pumpAndSettle();
+    expect(pickedInitialTime, isNotNull);
+    expect(find.text('18:30'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Buscar ómnibus'));
+    await tester.tap(find.text('Buscar ómnibus'));
+    await tester.pumpAndSettle();
+
+    expect(plannedDeparture, DateTime(2026, 10, 28, 18, 30));
+  });
+
+  testWidgets('opens the material departure date and time pickers', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, destination, departureTime) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-departure-date')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-departure-date')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('trip-departure-time')),
+    );
+    await tester.tap(find.byKey(const ValueKey('trip-departure-time')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TimePickerDialog), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('notifies when the user selects a trip option', (tester) async {
@@ -109,7 +223,7 @@ void main() {
             onPlanSelected: (plan, origin, selectedDestination) {
               selectedPlans.add(plan);
             },
-            findPlans: (origin, selectedDestination) async {
+            findPlans: (origin, selectedDestination, departureTime) async {
               return [
                 TripPlan(
                   requestedDeparture: departure,
@@ -295,7 +409,7 @@ void main() {
                 ),
               ];
             },
-            findPlans: (origin, destination) async => const [],
+            findPlans: (origin, destination, departureTime) async => const [],
           ),
         ),
       ),
@@ -335,7 +449,7 @@ void main() {
               remoteSearchCount++;
               return const [];
             },
-            findPlans: (origin, destination) async => const [],
+            findPlans: (origin, destination, departureTime) async => const [],
           ),
         ),
       ),

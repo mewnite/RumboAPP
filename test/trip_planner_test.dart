@@ -215,6 +215,77 @@ void main() {
     );
   });
 
+  test('uses the requested departure time to pick a later trip', () {
+    final data = TransitScheduleData(
+      stops: const [
+        Stop(id: 'A', name: 'A', latitude: 0, longitude: .001),
+        Stop(id: 'B', name: 'B', latitude: 0, longitude: .009),
+      ],
+      routes: const [Route(id: 'R', shortName: '10')],
+      variants: const [
+        RouteVariant(id: 'V', routeId: 'R', directionId: '0', destination: 'B'),
+      ],
+      trips: const [
+        Trip(id: 'morning', routeId: 'R', serviceId: 'daily', variantId: 'V'),
+        Trip(id: 'afternoon', routeId: 'R', serviceId: 'daily', variantId: 'V'),
+      ],
+      stopTimes: const [
+        StopTime(
+          tripId: 'morning',
+          stopId: 'A',
+          arrivalSeconds: 8 * 3600,
+          departureSeconds: 8 * 3600,
+          sequence: 1,
+        ),
+        StopTime(
+          tripId: 'morning',
+          stopId: 'B',
+          arrivalSeconds: 8 * 3600 + 20 * 60,
+          departureSeconds: 8 * 3600 + 20 * 60,
+          sequence: 2,
+        ),
+        StopTime(
+          tripId: 'afternoon',
+          stopId: 'A',
+          arrivalSeconds: 17 * 3600,
+          departureSeconds: 17 * 3600,
+          sequence: 1,
+        ),
+        StopTime(
+          tripId: 'afternoon',
+          stopId: 'B',
+          arrivalSeconds: 17 * 3600 + 20 * 60,
+          departureSeconds: 17 * 3600 + 20 * 60,
+          sequence: 2,
+        ),
+      ],
+      calendars: [dailyCalendar],
+    );
+    final departureTime = DateTime(2026, 6, 2, 16, 30);
+
+    final plans = const TransitRouteSearch().findPlans(
+      request: TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .01,
+        departureTime: departureTime,
+      ),
+      data: data,
+      originStopIds: {'A'},
+      destinationStopIds: {'B'},
+    );
+
+    expect(plans, hasLength(1));
+    expect(plans.single.requestedDeparture, departureTime);
+    expect(
+      plans.single.legs
+          .singleWhere((leg) => leg.kind == TripLegKind.transit)
+          .departureTime,
+      DateTime(2026, 6, 2, 17),
+    );
+  });
+
   test('does not return a route when its service calendar is inactive', () {
     final data = TransitScheduleData(
       stops: const [
