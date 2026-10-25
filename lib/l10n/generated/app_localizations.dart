@@ -271,6 +271,78 @@ abstract class AppLocalizations {
   /// **'No hay líneas asociadas en el horario.'**
   String get mapStopNoRoutes;
 
+  /// No description provided for @mapStopExpandRoutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ver variantes de línea'**
+  String get mapStopExpandRoutes;
+
+  /// No description provided for @mapStopCollapseRoutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ocultar variantes'**
+  String get mapStopCollapseRoutes;
+
+  /// No description provided for @stopDetailCode.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Código: {code}'**
+  String stopDetailCode(String code);
+
+  /// No description provided for @stopDetailRoutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Líneas que pasan'**
+  String get stopDetailRoutes;
+
+  /// No description provided for @stopDetailArrivals.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Próximos ómnibus'**
+  String get stopDetailArrivals;
+
+  /// No description provided for @stopDetailOffline.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Sin conexión. Los horarios disponibles pueden estar desactualizados.'**
+  String get stopDetailOffline;
+
+  /// No description provided for @stopDetailError.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudo cargar el detalle: {message}'**
+  String stopDetailError(String message);
+
+  /// No description provided for @stopDetailNoService.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No hay servicio programado para hoy.'**
+  String get stopDetailNoService;
+
+  /// No description provided for @stopArrivalEstimated.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{minutes} min · estimado'**
+  String stopArrivalEstimated(int minutes);
+
+  /// No description provided for @stopArrivalLiveEstimated.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'≈ {minutes} min · en vivo, estimado'**
+  String stopArrivalLiveEstimated(int minutes);
+
+  /// No description provided for @stopFavoriteComingSoon.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Favorito · Próximamente'**
+  String get stopFavoriteComingSoon;
+
+  /// No description provided for @stopHowToGetThere.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cómo llegar'**
+  String get stopHowToGetThere;
+
   /// No description provided for @mapNoStops.
   ///
   /// In es_UY, this message translates to:
@@ -300,6 +372,18 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'El STM no reporta ómnibus en vivo cerca de este punto.'**
   String get mapLiveEmpty;
+
+  /// No description provided for @mapLiveServiceDown.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'El servicio de ómnibus en vivo no está disponible.'**
+  String get mapLiveServiceDown;
+
+  /// No description provided for @mapBusAge.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'hace {seconds} s'**
+  String mapBusAge(int seconds);
 
   /// No description provided for @mapLiveError.
   ///

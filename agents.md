@@ -89,6 +89,14 @@ Propuesta (a validar):
 
 ### Mapa
 - Estilo claro y de baja saturación para que las rutas destaquen. Ruta en `rumbo`, destino en `lime`. Paradas con marcador cuadrado redondeado.
+- La ubicación precisa se procesa en el dispositivo: Rumbo no la persiste ni la envía a un servidor. Las solicitudes de teselas pueden revelar al proveedor el área aproximada visible; explicarlo junto a la atribución.
+- Las URLs de estilo/teselas, atribución y centro/zoom predeterminados se configuran únicamente en `lib/core/config/map_config.dart`.
+- No descargar áreas de teselas de forma masiva. Se permite solicitar ubicación en segundo plano únicamente para un viaje activo iniciado explícitamente por la persona; procesarla en el dispositivo, mostrar el estado/servicio del sistema, detenerla al finalizar o cancelar el viaje y nunca enviarla a un servidor.
 
 ### Textos
-- Todo el copy en español (es-UY) y en archivos .arb. Las imágenes de referencia tienen textos rotos: son solo guía de layout.# RumboAPP
+- Todo el copy en español (es-UY) y en archivos .arb. Las imágenes de referencia tienen textos rotos: son solo guía de layout.
+### Datos de transporte
+- No inventar URLs, endpoints, paradas ni datos presentados como oficiales; la fuente estática y cualquier endpoint futuro se configuran únicamente en `lib/core/config/transit_config.dart`.
+- El dominio de transporte no depende de GTFS; el parser GTFS es solo un adaptador de importación.
+- Los datos incluidos para probar siempre se identifican como sintéticos y no oficiales.
+- No implementar cliente de red del tiempo real hasta confirmar endpoint oficial y condiciones de uso.

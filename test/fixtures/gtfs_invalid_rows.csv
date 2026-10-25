@@ -1,0 +1,3 @@
+stop_id,stop_name,stop_lat,stop_lon
+S1,Correcta,-34.9,-56.1
+S2,Invalida,not-a-lat

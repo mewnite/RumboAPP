@@ -63,6 +63,7 @@ class LiveBusesState {
     bool? isLoading,
     bool? isPolling,
     String? error,
+    bool clearError = false,
     Duration? retryDelay,
     DateTime? lastUpdatedAt,
   }) {
@@ -74,7 +75,7 @@ class LiveBusesState {
       maxMarkers: maxMarkers ?? this.maxMarkers,
       isLoading: isLoading ?? this.isLoading,
       isPolling: isPolling ?? this.isPolling,
-      error: error,
+      error: clearError ? null : (error ?? this.error),
       retryDelay: retryDelay ?? this.retryDelay,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
     );
@@ -169,14 +170,14 @@ class LiveBusesController extends Notifier<LiveBusesState> {
 
   Future<void> refreshNow() async {
     if (_source == null) return;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final snapshot = await _source!.fetch();
       final shouldContinuePolling = state.isPolling;
       state = state.copyWith(
         positions: snapshot.positions,
         isLoading: false,
-        error: null,
+        clearError: true,
         isPolling: shouldContinuePolling,
         retryDelay: _baseDelay,
         lastUpdatedAt: _clock(),

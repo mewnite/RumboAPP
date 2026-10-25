@@ -36,6 +36,46 @@
     }
   },
   "mapStopNoRoutes": "No hay líneas asociadas en el horario.",
+  "mapStopExpandRoutes": "Ver variantes de línea",
+  "mapStopCollapseRoutes": "Ocultar variantes",
+  "stopDetailCode": "Código: {code}",
+  "@stopDetailCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "stopDetailRoutes": "Líneas que pasan",
+  "stopDetailArrivals": "Próximos ómnibus",
+  "stopDetailOffline": "Sin conexión. Los horarios disponibles pueden estar desactualizados.",
+  "stopDetailError": "No se pudo cargar el detalle: {message}",
+  "@stopDetailError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "stopDetailNoService": "No hay servicio programado para hoy.",
+  "stopArrivalEstimated": "{minutes} min · estimado",
+  "@stopArrivalEstimated": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "stopArrivalLiveEstimated": "≈ {minutes} min · en vivo, estimado",
+  "@stopArrivalLiveEstimated": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "stopFavoriteComingSoon": "Favorito · Próximamente",
+  "stopHowToGetThere": "Cómo llegar",
   "mapNoStops": "No encontramos paradas a menos de 1,5 km. Activá tu ubicación o acercá el mapa.",
   "mapLiveSection": "Ómnibus en vivo",
   "mapLiveNotConfigured": "El tiempo real no está conectado en esta instalación.",

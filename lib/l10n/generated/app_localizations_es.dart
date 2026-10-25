@@ -103,6 +103,51 @@ class AppLocalizationsEs extends AppLocalizations {
   String get mapStopNoRoutes => 'No hay líneas asociadas en el horario.';
 
   @override
+  String get mapStopExpandRoutes => 'Ver variantes de línea';
+
+  @override
+  String get mapStopCollapseRoutes => 'Ocultar variantes';
+
+  @override
+  String stopDetailCode(String code) {
+    return 'Código: $code';
+  }
+
+  @override
+  String get stopDetailRoutes => 'Líneas que pasan';
+
+  @override
+  String get stopDetailArrivals => 'Próximos ómnibus';
+
+  @override
+  String get stopDetailOffline =>
+      'Sin conexión. Los horarios disponibles pueden estar desactualizados.';
+
+  @override
+  String stopDetailError(String message) {
+    return 'No se pudo cargar el detalle: $message';
+  }
+
+  @override
+  String get stopDetailNoService => 'No hay servicio programado para hoy.';
+
+  @override
+  String stopArrivalEstimated(int minutes) {
+    return '$minutes min · estimado';
+  }
+
+  @override
+  String stopArrivalLiveEstimated(int minutes) {
+    return '≈ $minutes min · en vivo, estimado';
+  }
+
+  @override
+  String get stopFavoriteComingSoon => 'Favorito · Próximamente';
+
+  @override
+  String get stopHowToGetThere => 'Cómo llegar';
+
+  @override
   String get mapNoStops =>
       'No encontramos paradas a menos de 1,5 km. Activá tu ubicación o acercá el mapa.';
 
@@ -119,6 +164,15 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get mapLiveEmpty =>
       'El STM no reporta ómnibus en vivo cerca de este punto.';
+
+  @override
+  String get mapLiveServiceDown =>
+      'El servicio de ómnibus en vivo no está disponible.';
+
+  @override
+  String mapBusAge(int seconds) {
+    return 'hace $seconds s';
+  }
 
   @override
   String mapLiveError(String message) {
@@ -667,6 +721,51 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get mapStopNoRoutes => 'No hay líneas asociadas en el horario.';
 
   @override
+  String get mapStopExpandRoutes => 'Ver variantes de línea';
+
+  @override
+  String get mapStopCollapseRoutes => 'Ocultar variantes';
+
+  @override
+  String stopDetailCode(String code) {
+    return 'Código: $code';
+  }
+
+  @override
+  String get stopDetailRoutes => 'Líneas que pasan';
+
+  @override
+  String get stopDetailArrivals => 'Próximos ómnibus';
+
+  @override
+  String get stopDetailOffline =>
+      'Sin conexión. Los horarios disponibles pueden estar desactualizados.';
+
+  @override
+  String stopDetailError(String message) {
+    return 'No se pudo cargar el detalle: $message';
+  }
+
+  @override
+  String get stopDetailNoService => 'No hay servicio programado para hoy.';
+
+  @override
+  String stopArrivalEstimated(int minutes) {
+    return '$minutes min · estimado';
+  }
+
+  @override
+  String stopArrivalLiveEstimated(int minutes) {
+    return '≈ $minutes min · en vivo, estimado';
+  }
+
+  @override
+  String get stopFavoriteComingSoon => 'Favorito · Próximamente';
+
+  @override
+  String get stopHowToGetThere => 'Cómo llegar';
+
+  @override
   String get mapNoStops =>
       'No encontramos paradas a menos de 1,5 km. Activá tu ubicación o acercá el mapa.';
 
@@ -683,6 +782,15 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   @override
   String get mapLiveEmpty =>
       'El STM no reporta ómnibus en vivo cerca de este punto.';
+
+  @override
+  String get mapLiveServiceDown =>
+      'El servicio de ómnibus en vivo no está disponible.';
+
+  @override
+  String mapBusAge(int seconds) {
+    return 'hace $seconds s';
+  }
 
   @override
   String mapLiveError(String message) {

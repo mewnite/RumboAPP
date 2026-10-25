@@ -1,0 +1,254 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "unit-a",
+        "codigoEmpresa": 1,
+        "codigoBus": 1,
+        "variante": 101,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 32,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "unit-b",
+        "codigoEmpresa": 1,
+        "codigoBus": 2,
+        "variante": 102,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 0,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -258.02588,
+          -258.02588
+        ]
+      },
+      "properties": {
+        "id": "bad-coordinate",
+        "codigoEmpresa": 1,
+        "codigoBus": 3,
+        "variante": 103,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 32,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -60,
+          -36
+        ]
+      },
+      "properties": {
+        "id": "outside-uruguay",
+        "codigoEmpresa": 1,
+        "codigoBus": 4,
+        "variante": 104,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 32,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "unit-c",
+        "codigoEmpresa": 1,
+        "codigoBus": 1,
+        "variante": 105,
+        "linea": "14AB",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 32,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "repeat-id",
+        "codigoEmpresa": 1,
+        "codigoBus": 5,
+        "variante": 106,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 32,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "repeat-id",
+        "codigoEmpresa": 1,
+        "codigoBus": 5,
+        "variante": 107,
+        "linea": "R3",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 8,
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "id": "no-geometry"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "missing-field",
+        "codigoEmpresa": 1,
+        "codigoBus": 9,
+        "variante": 109,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "frecuencia": 65535
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -56.1991,
+          -34.9058
+        ]
+      },
+      "properties": {
+        "id": "unknown-variant",
+        "codigoEmpresa": 1,
+        "codigoBus": 10,
+        "variante": 999999,
+        "linea": "R1",
+        "sublinea": "Sintética",
+        "tipoLinea": 1,
+        "tipoLineaDesc": "Prueba",
+        "destino": 12,
+        "destinoDesc": "Destino sintético",
+        "subsistema": 1,
+        "subsistemaDesc": "Prueba",
+        "version": "demo",
+        "velocidad": 32,
+        "frecuencia": 65535
+      }
+    }
+  ]
+}

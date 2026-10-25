@@ -18,6 +18,7 @@ import '../../../features/stops_and_lines/data/transit_database.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../features/stops_and_lines/domain/transit_repository.dart';
 import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
+import '../../../features/stops_and_lines/presentation/stop_details_sheet.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
 import '../../../features/trip_planner/presentation/trip_plan_details.dart';
@@ -25,6 +26,7 @@ import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/connectivity_provider.dart';
 import '../data/map_cache_repository.dart';
+import 'live_bus_chip.dart';
 import 'live_buses_controller.dart';
 import 'map_location_controller.dart';
 
@@ -39,6 +41,7 @@ final nearbyOfficialStopsProvider = FutureProvider<List<Stop>>((ref) async {
   if (feed == null || feed.status.synthetic || feed.status.stopCount == 0) {
     return const [];
   }
+
   final location = ref.watch(mapLocationControllerProvider).location;
   final database = TransitDatabase();
   final db = await database.open();
@@ -103,6 +106,7 @@ class MapScreen extends ConsumerStatefulWidget {
     this.mapBuilder,
     this.mapLoadTimeout,
     @visibleForTesting this.realtimeBusSource,
+    @visibleForTesting this.realtimePollInterval = const Duration(seconds: 10),
   });
 
   @visibleForTesting
@@ -113,6 +117,9 @@ class MapScreen extends ConsumerStatefulWidget {
 
   @visibleForTesting
   final RealtimeBusSource? realtimeBusSource;
+
+  @visibleForTesting
+  final Duration realtimePollInterval;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -143,6 +150,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   TripPlan? _selectedTripPlan;
   String? _selectedTripOriginName;
   String? _selectedTripDestinationName;
+  Stop? _openDetailStop;
 
   @override
   void initState() {
@@ -202,7 +210,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (!_realtimeAttached) {
       controller.attachSource(
         source,
-        pollInterval: const Duration(seconds: 10),
+        pollInterval: widget.realtimePollInterval,
         maxMarkers: 60,
       );
       _realtimeAttached = true;
@@ -345,7 +353,40 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (event is MapEventMoveCamera) {
       _updateMetersPerPixel();
       _updateVisibleBounds();
+    } else if (event is MapEventClick) {
+      unawaited(_showNearestStop(event));
     }
+  }
+
+  Future<void> _showNearestStop(MapEventClick event) async {
+    final stops =
+        ref.read(nearbyOfficialStopsProvider).asData?.value ?? const <Stop>[];
+    final controller = _mapController;
+    if (stops.isEmpty || controller == null) return;
+
+    var metersPerPixel = _metersPerPixel;
+    try {
+      metersPerPixel = controller.getMetersPerPixelAtLatitude(event.point.lat);
+    } on Exception {
+      // Keep the last valid scale if the map is still settling.
+    }
+    final nearest =
+        stops
+            .map(
+              (stop) => (
+                stop: stop,
+                distance: _distanceMeters(
+                  event.point.lat,
+                  event.point.lon,
+                  stop.latitude,
+                  stop.longitude,
+                ),
+              ),
+            )
+            .where((candidate) => candidate.distance <= metersPerPixel * 8)
+            .toList()
+          ..sort((a, b) => a.distance.compareTo(b.distance));
+    if (nearest.isNotEmpty) await _showStopDetails(nearest.first.stop);
   }
 
   void _updateVisibleBounds() {
@@ -373,13 +414,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
     BusPosition bus,
     Set<int> matchedVariantIds,
   ) {
-    final ageSeconds = DateTime.now().difference(bus.receivedAt).inSeconds;
+    final now = DateTime.now();
+    final ageSeconds = now.difference(bus.receivedAt).inSeconds;
     final isStale = ageSeconds > 60;
-    final isMatched = matchedVariantIds.contains(bus.variantId);
-    final color = isMatched
-        ? AppColors.deepBlue
-        : Theme.of(context).colorScheme.surfaceContainerHighest;
     final l10n = AppLocalizations.of(context);
+    final chip = LiveBusChip(
+      bus: bus,
+      matchedVariantIds: matchedVariantIds,
+      now: now,
+    );
 
     return Marker(
       point: Geographic(lon: bus.longitude, lat: bus.latitude),
@@ -401,7 +444,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      LineChip(label: bus.lineLabel, backgroundColor: color),
+                      chip,
                       const SizedBox(height: 12),
                       Text(
                         bus.destinationName,
@@ -414,14 +457,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 ),
               ),
             ),
-            child: Center(
-              child: Opacity(
-                opacity: isStale || !isMatched ? 0.5 : 1,
-                child: FittedBox(
-                  child: LineChip(label: bus.lineLabel, backgroundColor: color),
-                ),
-              ),
-            ),
+            child: Center(child: FittedBox(child: chip)),
           ),
         ),
       ),
@@ -484,7 +520,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  Future<void> _showTripSearch() async {
+  Future<void> _showTripSearch({Stop? destinationStop}) async {
     final l10n = AppLocalizations.of(context);
     final location = ref.read(mapLocationControllerProvider).location;
     final feed = ref.read(feedUpdateControllerProvider).asData?.value;
@@ -507,6 +543,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
         builder: (context) => TripSearchSheet(
           hasCurrentLocation: location != null,
           remotePlaceSearchEnabled: remotePlaceSearchEnabled,
+          initialDestination: destinationStop == null
+              ? null
+              : TripEndpoint.fromStop(destinationStop),
           searchService: searchService,
           onPlanSelected: (plan, origin, destination) {
             didSelectPlan = true;
@@ -624,6 +663,29 @@ class _MapScreenState extends ConsumerState<MapScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _showStopDetails(Stop stop) async {
+    var shouldPlan = false;
+    setState(() => _openDetailStop = stop);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StopDetailsSheet(
+        stop: stop,
+        onHowToGetThere: () {
+          shouldPlan = true;
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+    if (mounted) {
+      setState(() => _openDetailStop = null);
+    }
+    if (mounted && shouldPlan) {
+      await _showTripSearch(destinationStop: stop);
+    }
   }
 
   Future<void> _handleLocationAction(MapLocationStatus status) async {
@@ -868,7 +930,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final selectedRoute = _selectedRoute;
     final selectedRoutes = <String, Route>{
       ...?(selectedRoute == null ? null : {selectedRoute.id: selectedRoute}),
-      for (final stopId in _expandedStopIds)
+      for (final stopId in {
+        ..._expandedStopIds,
+        if (_openDetailStop != null) _openDetailStop!.id,
+      })
         for (final route in routesByStop[stopId] ?? const <Route>[])
           route.id: route,
     };
@@ -1125,14 +1190,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
                             l10n.mapStopsNearby,
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          ...stops
-                              .take(12)
-                              .map(
-                                (stop) => ExpansionTile(
+                          ...stops.take(12).map((stop) {
+                            final routes =
+                                routesByStop[stop.id] ?? const <Route>[];
+                            final expanded = _expandedStopIds.contains(stop.id);
+                            return Column(
+                              children: [
+                                ListTile(
                                   key: ValueKey('stop-${stop.id}'),
-                                  onExpansionChanged: (expanded) =>
-                                      _setNearbyStopsExpanded(stop, expanded),
-                                  tilePadding: EdgeInsets.zero,
+                                  onTap: () =>
+                                      unawaited(_showStopDetails(stop)),
+                                  contentPadding: EdgeInsets.zero,
                                   leading: const Icon(
                                     Symbols.location_on_rounded,
                                     color: AppColors.deepBlue,
@@ -1141,26 +1209,40 @@ class _MapScreenState extends ConsumerState<MapScreen>
                                   subtitle: Text(
                                     stopRoutes.isLoading
                                         ? l10n.mapRoutesLoading
-                                        : routesByStop[stop.id]?.isNotEmpty ==
-                                              true
-                                        ? l10n.mapStopRouteCount(
-                                            routesByStop[stop.id]!.length,
-                                          )
+                                        : routes.isNotEmpty
+                                        ? l10n.mapStopRouteCount(routes.length)
                                         : l10n.mapStopNoRoutes,
                                   ),
-                                  children: [
-                                    for (final route
-                                        in routesByStop[stop.id] ??
-                                            const <Route>[])
-                                      _StopRouteExpansion(
-                                        stop: stop,
-                                        route: route,
-                                        selectedVariantId: _selectedVariantId,
-                                        onSelectVariant: _selectVariant,
-                                      ),
-                                  ],
+                                  trailing: routes.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          tooltip: expanded
+                                              ? l10n.mapStopCollapseRoutes
+                                              : l10n.mapStopExpandRoutes,
+                                          onPressed: () => unawaited(
+                                            _setNearbyStopsExpanded(
+                                              stop,
+                                              !expanded,
+                                            ),
+                                          ),
+                                          icon: Icon(
+                                            expanded
+                                                ? Symbols.expand_less_rounded
+                                                : Symbols.expand_more_rounded,
+                                          ),
+                                        ),
                                 ),
-                              ),
+                                if (expanded)
+                                  for (final route in routes)
+                                    _StopRouteExpansion(
+                                      stop: stop,
+                                      route: route,
+                                      selectedVariantId: _selectedVariantId,
+                                      onSelectVariant: _selectVariant,
+                                    ),
+                              ],
+                            );
+                          }),
                         ],
                         if (transitConfig.url.isEmpty)
                           Text(l10n.mapLiveNotConfigured)
