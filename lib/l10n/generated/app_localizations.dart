@@ -1051,12 +1051,6 @@ abstract class AppLocalizations {
   /// **'No se pudo planificar: {error}'**
   String tripPlanError(String error);
 
-  /// No description provided for @tripPlanSummary.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'{minutes} min · {transfers, plural, =0{sin transbordos} one{1 transbordo} other{{transfers} transbordos}} · llega {arrival}'**
-  String tripPlanSummary(int minutes, int transfers, String arrival);
-
   /// No description provided for @tripSortLabel.
   ///
   /// In es_UY, this message translates to:
@@ -1099,53 +1093,78 @@ abstract class AppLocalizations {
   /// **'Caminar {meters} m'**
   String tripWalkOnly(int meters);
 
+  /// No description provided for @tripPlanTimes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{departure}–{arrival}'**
+  String tripPlanTimes(String departure, String arrival);
+
+  /// No description provided for @tripPlanDuration.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{minutes} min'**
+  String tripPlanDuration(int minutes);
+
+  /// No description provided for @tripPlanWalkingMinutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{minutes} min de caminata'**
+  String tripPlanWalkingMinutes(int minutes);
+
+  /// No description provided for @tripPlanTransfers.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{count, plural, =0{Sin transbordos} one{1 transbordo} other{{count} transbordos}}'**
+  String tripPlanTransfers(int count);
+
+  /// No description provided for @tripPlanNoLines.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'ninguna'**
+  String get tripPlanNoLines;
+
+  /// No description provided for @tripPlanSemantics.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salida {departure}, llegada {arrival}. {minutes} min de viaje, {walking} min de caminata, {transfers, plural, =0{sin transbordos} one{1 transbordo} other{{transfers} transbordos}}. Líneas: {lines}. Horarios programados.'**
+  String tripPlanSemantics(
+    String departure,
+    String arrival,
+    int minutes,
+    int walking,
+    int transfers,
+    String lines,
+  );
+
+  /// No description provided for @tripScheduledTimes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Horarios programados'**
+  String get tripScheduledTimes;
+
+  /// No description provided for @tripEmptySuggestions.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Probá ampliar la caminata máxima o cambiar la hora.'**
+  String get tripEmptySuggestions;
+
+  /// No description provided for @tripEmptyExpandWalking.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ampliar caminata'**
+  String get tripEmptyExpandWalking;
+
+  /// No description provided for @tripEmptyChangeTime.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cambiar hora'**
+  String get tripEmptyChangeTime;
+
   /// No description provided for @tripDetailTitle.
   ///
   /// In es_UY, this message translates to:
   /// **'Tu recorrido'**
   String get tripDetailTitle;
-
-  /// No description provided for @tripDetailDeparture.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Salida · {origin} · {time}'**
-  String tripDetailDeparture(String origin, String time);
-
-  /// No description provided for @tripDetailArrival.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Llegada · {destination} · {time}'**
-  String tripDetailArrival(String destination, String time);
-
-  /// No description provided for @tripDetailWalking.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Caminá {meters} m · {minutes} min'**
-  String tripDetailWalking(int meters, int minutes);
-
-  /// No description provided for @tripDetailWait.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Esperá en {stop} · {minutes} min'**
-  String tripDetailWait(String stop, int minutes);
-
-  /// No description provided for @tripDetailTransfer.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Transbordo en {stop} · {minutes} min'**
-  String tripDetailTransfer(String stop, int minutes);
-
-  /// No description provided for @tripDetailBus.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Ómnibus {line}'**
-  String tripDetailBus(String line);
-
-  /// No description provided for @tripDetailBusDirection.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Ómnibus {line} hacia {direction}'**
-  String tripDetailBusDirection(String line, String direction);
 
   /// No description provided for @tripDetailBetweenStops.
   ///
@@ -1165,10 +1184,58 @@ abstract class AppLocalizations {
   /// **'Parada'**
   String get tripDetailUnknownStop;
 
+  /// No description provided for @tripDetailStart.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Salida'**
+  String get tripDetailStart;
+
+  /// No description provided for @tripDetailEnd.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Llegada'**
+  String get tripDetailEnd;
+
+  /// No description provided for @tripDetailWalkStep.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Caminar {meters} m'**
+  String tripDetailWalkStep(int meters);
+
+  /// No description provided for @tripDetailBoard.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Tomar línea {line} en {stop}'**
+  String tripDetailBoard(String line, String stop);
+
+  /// No description provided for @tripDetailAlight.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Bajar en {stop}'**
+  String tripDetailAlight(String stop);
+
+  /// No description provided for @tripDetailToward.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Hacia {direction}'**
+  String tripDetailToward(String direction);
+
+  /// No description provided for @tripDetailEstimatedTime.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{time} · estimado'**
+  String tripDetailEstimatedTime(String time);
+
+  /// No description provided for @tripDetailWalkingApproximate.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Caminata aproximada, en línea recta.'**
+  String get tripDetailWalkingApproximate;
+
   /// No description provided for @tripDetailScheduleNotice.
   ///
   /// In es_UY, this message translates to:
-  /// **'Horarios programados, no ETA en vivo. La caminata es aproximada y el trazo del ómnibus une paradas de forma esquemática; no es navegación guiada.'**
+  /// **'Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.'**
   String get tripDetailScheduleNotice;
 
   /// No description provided for @tripDetailChangeTrip.

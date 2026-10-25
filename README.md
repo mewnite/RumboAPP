@@ -116,12 +116,14 @@ diseñado para movilidad urbana en Montevideo:
 Al elegir cualquier lugar/dirección el planificador usa sus coordenadas para
 encontrar paradas de acceso y propone alternativas con hasta un transbordo. La
 muestra incluida es sintética y no debe usarse para orientar viajes reales.
-Al elegir una alternativa, el mapa conserva el recorrido y muestra un detalle
-ordenado de salida, caminatas, esperas, ómnibus, transbordos y llegada. Las
-distancias a pie son aproximaciones en línea recta y el trazo del ómnibus une
-paradas de forma esquemática; los horarios son programados, no posiciones ni
-ETA en vivo. La app todavía no brinda guía paso a paso ni seguimiento de
-navegación en tiempo real.
+Cada resultado resume salida, llegada, duración, líneas, caminata y transbordos
+con horarios programados. Al elegir una alternativa, el mapa conserva el
+recorrido y muestra una línea de tiempo de salida, caminata, abordaje, bajada y
+llegada, con las horas estimadas rotuladas. En el mapa, los tramos de ómnibus
+son continuos y los peatonales punteados. Las distancias a pie son
+aproximaciones en línea recta y el trazo del ómnibus une paradas de forma
+esquemática; los horarios son programados, no posiciones ni ETA en vivo. La app
+todavía no brinda guía paso a paso ni seguimiento de navegación en tiempo real.
 
 Para regenerar el ZIP pequeño y el fixture GeoJSON sintético, ejecuta
 `python tool/generate_sample_gtfs.py`. El archivo identifica el feed como prueba;

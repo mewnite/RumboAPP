@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/line_chip.dart';
 import '../../../features/search/domain/place_search_service.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -269,7 +270,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     });
   }
 
-  Future<void> _pickDepartureTime() async {
+  Future<bool> _pickDepartureTime() async {
     final l10n = AppLocalizations.of(context);
     final initialTime = TimeOfDay.fromDateTime(_timedDateTime);
     final selected =
@@ -284,7 +285,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                 child: child!,
               ),
             ));
-    if (!mounted || selected == null) return;
+    if (!mounted || selected == null) return false;
     setState(() {
       _timedDateTime = DateTime(
         _timedDateTime.year,
@@ -295,6 +296,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       );
       _clearResults();
     });
+    return true;
   }
 
   String _departureTimeText(BuildContext context) => _clock(_timedDateTime);
@@ -371,6 +373,35 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       _planError = null;
     });
     if (shouldRerun) await _findPlans();
+  }
+
+  Future<void> _expandWalking() async {
+    for (final meters in PlannerConfig.walkingOptionsMeters) {
+      if (meters > _config.maximumWalkingMeters) {
+        await _selectWalkingLimit(meters);
+        return;
+      }
+    }
+  }
+
+  Future<void> _changeTimeFromEmptyState() async {
+    if (_timingMode == TripTimingMode.departNow) {
+      setState(() {
+        _timingMode = TripTimingMode.departAt;
+        if (!_timedDateTime.isAfter(_now)) {
+          _timedDateTime = _nextTimeSlot(_now);
+        }
+        _tomorrow = _isTomorrowDate(_timedDateTime);
+        _clearResults();
+      });
+    }
+    final picked = await _pickDepartureTime();
+    if (!picked || !mounted) return;
+    final canPlan =
+        _destination != null &&
+        (_originUsesLocation ? widget.hasCurrentLocation : _origin != null);
+    if (!canPlan || _timing.isPast(_now)) return;
+    await _findPlans();
   }
 
   void _useLocation() {
@@ -676,18 +707,38 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
             if (_planError != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  l10n.tripPlanError(_planError.toString()),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                child: _PlanErrorCard(
+                  message: l10n.tripPlanError(_planError.toString()),
+                  onRetry: _findPlans,
+                ),
+              ),
+            if (_planning)
+              Padding(
+                key: const ValueKey('trip-planning'),
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Text(l10n.tripSearchingTrips, textAlign: TextAlign.center),
+                  ],
                 ),
               ),
             if (_plans != null) ...[
               const SizedBox(height: 12),
               if (_plans!.isEmpty)
-                Text(
-                  _lastTiming?.mode == TripTimingMode.arriveBy
+                _PlanEmptyState(
+                  title: _lastTiming?.mode == TripTimingMode.arriveBy
                       ? l10n.tripNoArrivalTrips
                       : l10n.tripNoTrips,
+                  suggestion: l10n.tripEmptySuggestions,
+                  expandWalkingLabel: l10n.tripEmptyExpandWalking,
+                  changeTimeLabel: l10n.tripEmptyChangeTime,
+                  canExpandWalking:
+                      _config.maximumWalkingMeters <
+                      PlannerConfig.walkingOptionsMeters.last,
+                  onExpandWalking: _expandWalking,
+                  onChangeTime: _changeTimeFromEmptyState,
                 )
               else ...[
                 Text(
@@ -753,6 +804,99 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   }
 }
 
+class _PlanErrorCard extends StatelessWidget {
+  const _PlanErrorCard({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Card(
+      key: const ValueKey('trip-plan-error'),
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Row(
+          children: [
+            Icon(
+              Symbols.error_rounded,
+              color: theme.colorScheme.onErrorContainer,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(color: theme.colorScheme.onErrorContainer),
+              ),
+            ),
+            TextButton(
+              key: const ValueKey('trip-plan-retry'),
+              onPressed: onRetry,
+              child: Text(l10n.actionRetry),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanEmptyState extends StatelessWidget {
+  const _PlanEmptyState({
+    required this.title,
+    required this.suggestion,
+    required this.expandWalkingLabel,
+    required this.changeTimeLabel,
+    required this.canExpandWalking,
+    required this.onExpandWalking,
+    required this.onChangeTime,
+  });
+
+  final String title;
+  final String suggestion;
+  final String expandWalkingLabel;
+  final String changeTimeLabel;
+  final bool canExpandWalking;
+  final VoidCallback onExpandWalking;
+  final VoidCallback onChangeTime;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const ValueKey('trip-empty-state'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title),
+        const SizedBox(height: 6),
+        Text(suggestion, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (canExpandWalking)
+              OutlinedButton.icon(
+                key: const ValueKey('trip-empty-expand-walking'),
+                onPressed: onExpandWalking,
+                icon: const Icon(Symbols.directions_walk_rounded),
+                label: Text(expandWalkingLabel),
+              ),
+            OutlinedButton.icon(
+              key: const ValueKey('trip-empty-change-time'),
+              onPressed: onChangeTime,
+              icon: const Icon(Symbols.schedule_rounded),
+              label: Text(changeTimeLabel),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _TripPlanCard extends StatelessWidget {
   const _TripPlanCard({required this.plan, this.onSelected});
 
@@ -762,80 +906,143 @@ class _TripPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final transitLegs = plan.legs
         .where((leg) => leg.kind == TripLegKind.transit)
         .toList(growable: false);
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onSelected,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.tripPlanSummary(
-                  plan.duration.inMinutes,
-                  plan.transferCount,
-                  _clock(plan.arrivalTime),
+    final lines = [for (final leg in transitLegs) _lineLabel(leg)]
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    final walkingMinutes = _walkingMinutes(plan);
+    final departure = _clock(plan.requestedDeparture);
+    final arrival = _clock(plan.arrivalTime);
+    final semanticLabel = l10n.tripPlanSemantics(
+      departure,
+      arrival,
+      plan.duration.inMinutes,
+      walkingMinutes,
+      plan.transferCount,
+      lines.isEmpty ? l10n.tripPlanNoLines : lines.join(', '),
+    );
+
+    return Semantics(
+      container: true,
+      button: onSelected != null,
+      excludeSemantics: true,
+      label: semanticLabel,
+      onTap: onSelected,
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onSelected,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.tripPlanTimes(departure, arrival),
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      l10n.tripPlanDuration(plan.duration.inMinutes),
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ],
                 ),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (transitLegs.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Row(
+                const SizedBox(height: 8),
+                if (lines.isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final line in lines)
+                        LineChip(
+                          label: line,
+                          backgroundColor: AppColors.deepBlue,
+                          compact: true,
+                        ),
+                    ],
+                  )
+                else
+                  Row(
                     children: [
                       const Icon(Symbols.directions_walk_rounded, size: 18),
                       const SizedBox(width: 6),
                       Text(l10n.tripWalkOnly(plan.totalWalkingMeters.round())),
                     ],
                   ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    _PlanFact(
+                      icon: Symbols.directions_walk_rounded,
+                      label: l10n.tripPlanWalkingMinutes(walkingMinutes),
+                    ),
+                    _PlanFact(
+                      icon: Symbols.sync_alt_rounded,
+                      label: l10n.tripPlanTransfers(plan.transferCount),
+                    ),
+                  ],
                 ),
-              const SizedBox(height: 8),
-              for (final leg in transitLegs)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.deepBlue,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            leg.route?.shortName ?? '—',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${leg.fromStop?.name ?? ''} → ${leg.toStop?.name ?? ''}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(_clock(leg.departureTime)),
-                    ],
+                const SizedBox(height: 8),
+                Text(
+                  l10n.tripScheduledTimes,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _PlanFact extends StatelessWidget {
+  const _PlanFact({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(label, style: theme.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+String _lineLabel(TripLeg leg) {
+  final route = leg.route;
+  if (route == null) return '';
+  return route.shortName.isNotEmpty ? route.shortName : route.id;
+}
+
+int _walkingMinutes(TripPlan plan) {
+  var seconds = 0;
+  for (final leg in plan.legs) {
+    if (leg.kind == TripLegKind.walking) {
+      seconds += leg.arrivalTime.difference(leg.departureTime).inSeconds;
+    }
+  }
+  return (seconds / 60).ceil();
 }
 
 String _clock(DateTime time) =>

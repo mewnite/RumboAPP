@@ -244,6 +244,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No hay viajes que lleguen a esa hora'), findsOneWidget);
+    expect(
+      find.text('Probá ampliar la caminata máxima o cambiar la hora.'),
+      findsOneWidget,
+    );
+    expect(find.text('Ampliar caminata'), findsOneWidget);
+    expect(find.text('Cambiar hora'), findsOneWidget);
   });
 
   testWidgets('warns and skips the search when the time is in the past', (
@@ -480,16 +486,66 @@ void main() {
       ),
     );
 
-    expect(find.text('Salida · Mi ubicación · 12:00'), findsOneWidget);
-    expect(find.text('Caminá 200 m · 3 min'), findsOneWidget);
+    expect(find.text('Tu recorrido'), findsOneWidget);
+    expect(find.text('12:00–12:45'), findsOneWidget);
+    expect(find.text('45 min'), findsOneWidget);
+    expect(find.text('8 min de caminata'), findsOneWidget);
+    expect(find.text('1 transbordo'), findsOneWidget);
+
+    expect(find.text('Salida'), findsOneWidget);
+    expect(find.text('Mi ubicación'), findsOneWidget);
+    expect(find.text('12:00'), findsOneWidget);
+
+    expect(find.text('Caminar 200 m'), findsOneWidget);
     expect(find.text('Mi ubicación → Tres Cruces'), findsOneWidget);
-    expect(find.text('Esperá en Tres Cruces · 5 min'), findsOneWidget);
-    expect(find.text('Ómnibus 522 hacia Ciudad Vieja'), findsOneWidget);
-    expect(find.text('Transbordo en Centro · 5 min'), findsOneWidget);
-    expect(find.text('Ómnibus 103'), findsOneWidget);
-    expect(find.text('Llegada · Plaza Independencia · 12:45'), findsOneWidget);
+    expect(find.text('12:03 · estimado'), findsOneWidget);
+
+    expect(find.text('Tomar línea 522 en Tres Cruces'), findsOneWidget);
+    expect(find.text('Hacia Ciudad Vieja'), findsOneWidget);
+    expect(find.text('12:08'), findsOneWidget);
+
+    expect(find.text('Bajar en Centro'), findsOneWidget);
+    expect(find.text('12:25 · estimado'), findsOneWidget);
+
+    expect(find.text('Tomar línea 103 en Centro'), findsOneWidget);
+    expect(find.text('12:30'), findsOneWidget);
+
+    expect(find.text('Bajar en Plaza'), findsOneWidget);
+    expect(find.text('12:40 · estimado'), findsOneWidget);
+
+    expect(find.text('Caminar 350 m'), findsOneWidget);
     expect(find.text('Plaza → Plaza Independencia'), findsOneWidget);
+    expect(find.text('12:45 · estimado'), findsNWidgets(2));
+
+    expect(find.text('Llegada'), findsOneWidget);
+    expect(find.text('Plaza Independencia'), findsOneWidget);
+    expect(find.text('Caminata total: 550 m'), findsOneWidget);
+    expect(find.text('Caminata aproximada, en línea recta.'), findsOneWidget);
+    expect(find.textContaining('sin ETA en vivo'), findsOneWidget);
     expect(find.textContaining('no es navegación guiada'), findsOneWidget);
+
+    expect(
+      tester.getTopLeft(find.text('Salida')).dy,
+      lessThan(tester.getTopLeft(find.text('Caminar 200 m')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Caminar 200 m')).dy,
+      lessThan(
+        tester.getTopLeft(find.text('Tomar línea 522 en Tres Cruces')).dy,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.text('Tomar línea 522 en Tres Cruces')).dy,
+      lessThan(tester.getTopLeft(find.text('Bajar en Centro')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Bajar en Centro')).dy,
+      lessThan(tester.getTopLeft(find.text('Tomar línea 103 en Centro')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Tomar línea 103 en Centro')).dy,
+      lessThan(tester.getTopLeft(find.text('Llegada')).dy),
+    );
 
     await tester.ensureVisible(find.text('Cambiar viaje'));
     await tester.tap(find.text('Cambiar viaje'));
@@ -497,6 +553,113 @@ void main() {
     await tester.tap(find.byTooltip('Cerrar recorrido'));
     expect(changedTrip, isTrue);
     expect(closedTrip, isTrue);
+  });
+
+  testWidgets('shows all scheduled data on the result card', (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+
+    const destination = Stop(
+      id: 'destination',
+      name: 'Nuevo Centro',
+      latitude: -34.85,
+      longitude: -56.17,
+    );
+    const transferStop = Stop(
+      id: 'transfer',
+      name: 'Centro',
+      latitude: -34.9,
+      longitude: -56.19,
+    );
+    final departure = DateTime(2026, 10, 24, 12);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            now: () => DateTime(2026, 10, 24, 12),
+            searchStops: (_) async => [destination],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, selectedDestination, timing, config) async => [
+              TripPlan(
+                requestedDeparture: departure,
+                arrivalTime: departure.add(const Duration(minutes: 45)),
+                legs: [
+                  TripLeg(
+                    kind: TripLegKind.walking,
+                    departureTime: departure,
+                    arrivalTime: departure.add(const Duration(minutes: 3)),
+                    distanceMeters: 200,
+                    fromLatitude: -34.891,
+                    fromLongitude: -56.161,
+                    toStop: const Stop(
+                      id: 'first',
+                      name: 'Tres Cruces',
+                      latitude: -34.89,
+                      longitude: -56.16,
+                    ),
+                  ),
+                  TripLeg(
+                    kind: TripLegKind.transit,
+                    departureTime: departure.add(const Duration(minutes: 5)),
+                    arrivalTime: departure.add(const Duration(minutes: 25)),
+                    route: const Route(id: 'r1', shortName: '522'),
+                    fromStop: const Stop(
+                      id: 'first',
+                      name: 'Tres Cruces',
+                      latitude: -34.89,
+                      longitude: -56.16,
+                    ),
+                    toStop: transferStop,
+                  ),
+                  TripLeg(
+                    kind: TripLegKind.transit,
+                    departureTime: departure.add(const Duration(minutes: 30)),
+                    arrivalTime: departure.add(const Duration(minutes: 45)),
+                    route: const Route(id: 'r2', shortName: '103'),
+                    fromStop: transferStop,
+                    toStop: destination,
+                  ),
+                ],
+                totalWalkingMeters: 200,
+                transferCount: 1,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Nuevo');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('trip-endpoint--34.85:-56.17')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buscar ómnibus'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('12:00–12:45'), findsOneWidget);
+    expect(find.text('45 min'), findsOneWidget);
+    expect(find.text('522'), findsOneWidget);
+    expect(find.text('103'), findsOneWidget);
+    expect(find.text('3 min de caminata'), findsOneWidget);
+    expect(find.text('1 transbordo'), findsOneWidget);
+    expect(find.text('Horarios programados'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(
+        'Salida 12:00, llegada 12:45. 45 min de viaje, 3 min de caminata, '
+        '1 transbordo. Líneas: 522, 103. Horarios programados.',
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 
   testWidgets(

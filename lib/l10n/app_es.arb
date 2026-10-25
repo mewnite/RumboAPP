@@ -280,20 +280,6 @@
       }
     }
   },
-  "tripPlanSummary": "{minutes} min · {transfers, plural, =0{sin transbordos} one{1 transbordo} other{{transfers} transbordos}} · llega {arrival}",
-  "@tripPlanSummary": {
-    "placeholders": {
-      "minutes": {
-        "type": "int"
-      },
-      "transfers": {
-        "type": "int"
-      },
-      "arrival": {
-        "type": "String"
-      }
-    }
-  },
   "tripSortLabel": "Ordenar por",
   "tripSortFastest": "Más rápido",
   "tripSortLeastWalking": "Menos caminata",
@@ -315,81 +301,70 @@
       }
     }
   },
+  "tripPlanTimes": "{departure}–{arrival}",
+  "@tripPlanTimes": {
+    "placeholders": {
+      "departure": {
+        "type": "String"
+      },
+      "arrival": {
+        "type": "String"
+      }
+    }
+  },
+  "tripPlanDuration": "{minutes} min",
+  "@tripPlanDuration": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripPlanWalkingMinutes": "{minutes} min de caminata",
+  "@tripPlanWalkingMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripPlanTransfers": "{count, plural, =0{Sin transbordos} one{1 transbordo} other{{count} transbordos}}",
+  "@tripPlanTransfers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tripPlanNoLines": "ninguna",
+  "tripPlanSemantics": "Salida {departure}, llegada {arrival}. {minutes} min de viaje, {walking} min de caminata, {transfers, plural, =0{sin transbordos} one{1 transbordo} other{{transfers} transbordos}}. Líneas: {lines}. Horarios programados.",
+  "@tripPlanSemantics": {
+    "placeholders": {
+      "departure": {
+        "type": "String"
+      },
+      "arrival": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      },
+      "walking": {
+        "type": "int"
+      },
+      "transfers": {
+        "type": "int"
+      },
+      "lines": {
+        "type": "String"
+      }
+    }
+  },
+  "tripScheduledTimes": "Horarios programados",
+  "tripEmptySuggestions": "Probá ampliar la caminata máxima o cambiar la hora.",
+  "tripEmptyExpandWalking": "Ampliar caminata",
+  "tripEmptyChangeTime": "Cambiar hora",
   "tripDetailTitle": "Tu recorrido",
-  "tripDetailDeparture": "Salida · {origin} · {time}",
-  "@tripDetailDeparture": {
-    "placeholders": {
-      "origin": {
-        "type": "String"
-      },
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "tripDetailArrival": "Llegada · {destination} · {time}",
-  "@tripDetailArrival": {
-    "placeholders": {
-      "destination": {
-        "type": "String"
-      },
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "tripDetailWalking": "Caminá {meters} m · {minutes} min",
-  "@tripDetailWalking": {
-    "placeholders": {
-      "meters": {
-        "type": "int"
-      },
-      "minutes": {
-        "type": "int"
-      }
-    }
-  },
-  "tripDetailWait": "Esperá en {stop} · {minutes} min",
-  "@tripDetailWait": {
-    "placeholders": {
-      "stop": {
-        "type": "String"
-      },
-      "minutes": {
-        "type": "int"
-      }
-    }
-  },
-  "tripDetailTransfer": "Transbordo en {stop} · {minutes} min",
-  "@tripDetailTransfer": {
-    "placeholders": {
-      "stop": {
-        "type": "String"
-      },
-      "minutes": {
-        "type": "int"
-      }
-    }
-  },
-  "tripDetailBus": "Ómnibus {line}",
-  "@tripDetailBus": {
-    "placeholders": {
-      "line": {
-        "type": "String"
-      }
-    }
-  },
-  "tripDetailBusDirection": "Ómnibus {line} hacia {direction}",
-  "@tripDetailBusDirection": {
-    "placeholders": {
-      "line": {
-        "type": "String"
-      },
-      "direction": {
-        "type": "String"
-      }
-    }
-  },
   "tripDetailBetweenStops": "{from} → {to}",
   "@tripDetailBetweenStops": {
     "placeholders": {
@@ -410,7 +385,53 @@
     }
   },
   "tripDetailUnknownStop": "Parada",
-  "tripDetailScheduleNotice": "Horarios programados, no ETA en vivo. La caminata es aproximada y el trazo del ómnibus une paradas de forma esquemática; no es navegación guiada.",
+  "tripDetailStart": "Salida",
+  "tripDetailEnd": "Llegada",
+  "tripDetailWalkStep": "Caminar {meters} m",
+  "@tripDetailWalkStep": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
+  "tripDetailBoard": "Tomar línea {line} en {stop}",
+  "@tripDetailBoard": {
+    "placeholders": {
+      "line": {
+        "type": "String"
+      },
+      "stop": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailAlight": "Bajar en {stop}",
+  "@tripDetailAlight": {
+    "placeholders": {
+      "stop": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailToward": "Hacia {direction}",
+  "@tripDetailToward": {
+    "placeholders": {
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailEstimatedTime": "{time} · estimado",
+  "@tripDetailEstimatedTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tripDetailWalkingApproximate": "Caminata aproximada, en línea recta.",
+  "tripDetailScheduleNotice": "Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.",
   "tripDetailChangeTrip": "Cambiar viaje",
   "tripDetailClose": "Cerrar recorrido",
   "searchHint": "Buscá una calle, esquina, parada o lugar…",

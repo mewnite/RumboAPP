@@ -25,7 +25,10 @@ class TripPlanDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final legs = plan.legs;
+    final steps = _timelineSteps(l10n);
+    final secondaryStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -45,54 +48,60 @@ class TripPlanDetails extends StatelessWidget {
             ),
           ],
         ),
-        Text(
-          l10n.tripPlanSummary(
-            plan.duration.inMinutes,
-            plan.transferCount,
-            _clock(plan.arrivalTime),
-          ),
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        _TripEndpointTile(
-          icon: Symbols.trip_origin_rounded,
-          title: l10n.tripDetailDeparture(
-            originName,
-            _clock(plan.requestedDeparture),
-          ),
-        ),
-        for (var index = 0; index < legs.length; index++)
-          _legTile(
-            context,
-            l10n,
-            legs[index],
-            index == 0 ? null : legs[index - 1],
-            originName,
-            destinationName,
-          ),
-        _TripEndpointTile(
-          icon: Symbols.location_on_rounded,
-          title: l10n.tripDetailArrival(
-            destinationName,
-            _clock(plan.arrivalTime),
-          ),
-          isDestination: true,
-        ),
-        if (plan.totalWalkingMeters > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 8),
-            child: Text(
-              l10n.tripDetailWalkingTotal(plan.totalWalkingMeters.round()),
-              style: theme.textTheme.bodyMedium,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                l10n.tripPlanTimes(
+                  _clock(plan.requestedDeparture),
+                  _clock(plan.arrivalTime),
+                ),
+                style: theme.textTheme.titleMedium,
+              ),
             ),
-          ),
-        const SizedBox(height: 4),
-        Text(
-          l10n.tripDetailScheduleNotice,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+            const SizedBox(width: 8),
+            Text(
+              l10n.tripPlanDuration(plan.duration.inMinutes),
+              style: theme.textTheme.titleMedium,
+            ),
+          ],
         ),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            _SummaryFact(
+              icon: Symbols.directions_walk_rounded,
+              label: l10n.tripPlanWalkingMinutes(_walkingMinutes(plan)),
+            ),
+            _SummaryFact(
+              icon: Symbols.sync_alt_rounded,
+              label: l10n.tripPlanTransfers(plan.transferCount),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        for (var index = 0; index < steps.length; index++)
+          _TimelineStepTile(
+            step: steps[index],
+            isLast: index == steps.length - 1,
+            timeLabel: steps[index].estimated
+                ? l10n.tripDetailEstimatedTime(_clock(steps[index].time))
+                : _clock(steps[index].time),
+          ),
+        if (plan.totalWalkingMeters > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.tripDetailWalkingTotal(plan.totalWalkingMeters.round()),
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text(l10n.tripDetailWalkingApproximate, style: secondaryStyle),
+        const SizedBox(height: 4),
+        Text(l10n.tripDetailScheduleNotice, style: secondaryStyle),
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: onChangeTrip,
@@ -103,113 +112,218 @@ class TripPlanDetails extends StatelessWidget {
     );
   }
 
-  Widget _legTile(
-    BuildContext context,
-    AppLocalizations l10n,
-    TripLeg leg,
-    TripLeg? previousLeg,
-    String originName,
-    String destinationName,
-  ) {
-    final theme = Theme.of(context);
-    final minutes = leg.arrivalTime.difference(leg.departureTime).inMinutes;
-    final stopName =
-        leg.toStop?.name ?? leg.fromStop?.name ?? l10n.tripDetailUnknownStop;
+  List<_TimelineStep> _timelineSteps(AppLocalizations l10n) {
+    final steps = <_TimelineStep>[
+      _TimelineStep(
+        icon: Symbols.trip_origin_rounded,
+        title: l10n.tripDetailStart,
+        subtitle: originName,
+        time: plan.requestedDeparture,
+        isOrigin: true,
+      ),
+    ];
 
-    switch (leg.kind) {
-      case TripLegKind.walking:
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Symbols.directions_walk_rounded),
-          title: Text(
-            l10n.tripDetailWalking(leg.distanceMeters.round(), minutes),
-          ),
-          subtitle: Text(
-            l10n.tripDetailBetweenStops(
-              leg.fromStop?.name ??
-                  (leg.fromLatitude != null
-                      ? originName
-                      : l10n.tripDetailUnknownStop),
-              leg.toStop?.name ??
-                  (leg.toLatitude != null
-                      ? destinationName
-                      : l10n.tripDetailUnknownStop),
+    for (final leg in plan.legs) {
+      switch (leg.kind) {
+        case TripLegKind.walking:
+          steps.add(
+            _TimelineStep(
+              icon: Symbols.directions_walk_rounded,
+              title: l10n.tripDetailWalkStep(leg.distanceMeters.round()),
+              subtitle: _walkingSubtitle(l10n, leg),
+              time: leg.arrivalTime,
+              estimated: true,
             ),
-          ),
-        );
-      case TripLegKind.waiting:
-        final isTransfer = previousLeg?.kind == TripLegKind.transit;
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            isTransfer ? Symbols.sync_alt_rounded : Symbols.schedule_rounded,
-          ),
-          title: Text(
-            isTransfer
-                ? l10n.tripDetailTransfer(stopName, minutes)
-                : l10n.tripDetailWait(stopName, minutes),
-          ),
-          subtitle: Text(
-            '${_clock(leg.departureTime)} – ${_clock(leg.arrivalTime)}',
-          ),
-        );
-      case TripLegKind.transit:
-        final line = leg.route?.shortName ?? l10n.tripDetailUnknownStop;
-        final direction = leg.headsign.trim();
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.deepBlue,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Text(
-                line,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: AppColors.white,
-                ),
+          );
+        case TripLegKind.waiting:
+          break;
+        case TripLegKind.transit:
+          steps.add(
+            _TimelineStep(
+              icon: Symbols.directions_bus_rounded,
+              title: l10n.tripDetailBoard(
+                _lineLabel(l10n, leg),
+                leg.fromStop?.name ?? l10n.tripDetailUnknownStop,
               ),
+              subtitle: leg.headsign.trim().isEmpty
+                  ? null
+                  : l10n.tripDetailToward(leg.headsign.trim()),
+              time: leg.departureTime,
             ),
-          ),
-          title: Text(
-            direction.isEmpty
-                ? l10n.tripDetailBus(line)
-                : l10n.tripDetailBusDirection(line, direction),
-          ),
-          subtitle: Text(
-            l10n.tripDetailBetweenStops(
-              leg.fromStop?.name ?? l10n.tripDetailUnknownStop,
-              leg.toStop?.name ?? l10n.tripDetailUnknownStop,
+          );
+          steps.add(
+            _TimelineStep(
+              icon: Symbols.flag_rounded,
+              title: l10n.tripDetailAlight(
+                leg.toStop?.name ?? l10n.tripDetailUnknownStop,
+              ),
+              time: leg.arrivalTime,
+              estimated: true,
             ),
-          ),
-          trailing: Text(
-            '${_clock(leg.departureTime)}\n${_clock(leg.arrivalTime)}',
-            textAlign: TextAlign.end,
-          ),
-        );
+          );
+      }
     }
+
+    steps.add(
+      _TimelineStep(
+        icon: Symbols.location_on_rounded,
+        title: l10n.tripDetailEnd,
+        subtitle: destinationName,
+        time: plan.arrivalTime,
+        estimated: true,
+        isDestination: true,
+      ),
+    );
+    return steps;
+  }
+
+  String _walkingSubtitle(AppLocalizations l10n, TripLeg leg) {
+    final from =
+        leg.fromStop?.name ??
+        (leg.fromLatitude != null ? originName : l10n.tripDetailUnknownStop);
+    final to =
+        leg.toStop?.name ??
+        (leg.toLatitude != null ? destinationName : l10n.tripDetailUnknownStop);
+    return l10n.tripDetailBetweenStops(from, to);
+  }
+
+  String _lineLabel(AppLocalizations l10n, TripLeg leg) {
+    final route = leg.route;
+    if (route == null) return l10n.tripDetailUnknownStop;
+    return route.shortName.isNotEmpty ? route.shortName : route.id;
   }
 }
 
-class _TripEndpointTile extends StatelessWidget {
-  const _TripEndpointTile({
+class _TimelineStep {
+  const _TimelineStep({
     required this.icon,
     required this.title,
+    required this.time,
+    this.subtitle,
+    this.estimated = false,
+    this.isOrigin = false,
     this.isDestination = false,
   });
 
   final IconData icon;
   final String title;
+  final String? subtitle;
+  final DateTime time;
+  final bool estimated;
+  final bool isOrigin;
   final bool isDestination;
+}
+
+class _TimelineStepTile extends StatelessWidget {
+  const _TimelineStepTile({
+    required this.step,
+    required this.isLast,
+    required this.timeLabel,
+  });
+
+  final _TimelineStep step;
+  final bool isLast;
+  final String timeLabel;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: Icon(icon, color: isDestination ? AppColors.deepBlue : null),
-    title: Text(title),
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final markerColor = step.isDestination
+        ? AppColors.deepBlue
+        : step.isOrigin
+        ? AppColors.ink
+        : theme.colorScheme.primary;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Column(
+              children: [
+                Icon(step.icon, size: 20, color: markerColor),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          step.title,
+                          style: theme.textTheme.titleSmall,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        timeLabel,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (step.subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        step.subtitle!,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryFact extends StatelessWidget {
+  const _SummaryFact({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(label, style: theme.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+int _walkingMinutes(TripPlan plan) {
+  var seconds = 0;
+  for (final leg in plan.legs) {
+    if (leg.kind == TripLegKind.walking) {
+      seconds += leg.arrivalTime.difference(leg.departureTime).inSeconds;
+    }
+  }
+  return (seconds / 60).ceil();
 }
 
 String _clock(DateTime time) =>

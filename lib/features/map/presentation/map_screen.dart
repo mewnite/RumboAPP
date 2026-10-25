@@ -798,10 +798,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
           Geographic(lon: toLon, lat: toLat),
         ]),
       );
-      if (leg.kind == TripLegKind.walking) {
-        walkingPoints.add(segment);
-      } else {
-        transitPoints.add(segment);
+      switch (leg.kind) {
+        case TripLegKind.walking:
+          walkingPoints.add(segment);
+        case TripLegKind.transit:
+          transitPoints.add(segment);
+        case TripLegKind.waiting:
+          break;
       }
     }
 
@@ -810,8 +813,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
       layers.add(
         PolylineLayer(
           polylines: walkingPoints,
-          color: AppColors.lime.withValues(alpha: 0.92),
+          color: AppColors.deepBlue.withValues(alpha: 0.72),
           width: 4,
+          dashArray: const [1, 2],
         ),
       );
     }
@@ -819,12 +823,54 @@ class _MapScreenState extends ConsumerState<MapScreen>
       layers.add(
         PolylineLayer(
           polylines: transitPoints,
-          color: AppColors.deepBlue.withValues(alpha: 0.96),
+          color: AppColors.deepBlue,
           width: 6,
         ),
       );
     }
+
+    final origin = _tripPlanEndpoint(plan, first: true);
+    if (origin != null) {
+      layers.add(
+        CircleLayer(
+          points: [Feature<Point>(geometry: Point(origin))],
+          radius: 7,
+          color: AppColors.ink,
+          strokeWidth: 3,
+          strokeColor: AppColors.white,
+        ),
+      );
+    }
+    final destination = _tripPlanEndpoint(plan, first: false);
+    if (destination != null) {
+      layers.add(
+        CircleLayer(
+          points: [Feature<Point>(geometry: Point(destination))],
+          radius: 8,
+          color: AppColors.lime,
+          strokeWidth: 3,
+          strokeColor: AppColors.ink,
+        ),
+      );
+    }
     return layers;
+  }
+
+  Geographic? _tripPlanEndpoint(TripPlan plan, {required bool first}) {
+    if (plan.legs.isEmpty) return null;
+    final legs = first ? plan.legs : plan.legs.reversed;
+    for (final leg in legs) {
+      final latitude = first
+          ? leg.fromLatitude ?? leg.fromStop?.latitude
+          : leg.toLatitude ?? leg.toStop?.latitude;
+      final longitude = first
+          ? leg.fromLongitude ?? leg.fromStop?.longitude
+          : leg.toLongitude ?? leg.toStop?.longitude;
+      if (latitude != null && longitude != null) {
+        return Geographic(lon: longitude, lat: latitude);
+      }
+    }
+    return null;
   }
 
   Future<void> _focusOnTripPlan(TripPlan plan) async {
@@ -979,11 +1025,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
             WidgetLayer(
               allowInteraction: true,
               markers: [
-                for (final bus in liveBuses.filteredPositions(
-                  selectedLines: selectedLines,
-                  selectedVariantIds: selectedVariantIds,
-                ))
-                  _busMarker(context, bus, selectedVariantIds),
+                if (_selectedTripPlan == null)
+                  for (final bus in liveBuses.filteredPositions(
+                    selectedLines: selectedLines,
+                    selectedVariantIds: selectedVariantIds,
+                  ))
+                    _busMarker(context, bus, selectedVariantIds),
               ],
             ),
           ],

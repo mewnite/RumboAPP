@@ -551,18 +551,6 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String tripPlanSummary(int minutes, int transfers, String arrival) {
-    String _temp0 = intl.Intl.pluralLogic(
-      transfers,
-      locale: localeName,
-      other: '$transfers transbordos',
-      one: '1 transbordo',
-      zero: 'sin transbordos',
-    );
-    return '$minutes min · $_temp0 · llega $arrival';
-  }
-
-  @override
   String get tripSortLabel => 'Ordenar por';
 
   @override
@@ -588,42 +576,69 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String tripPlanTimes(String departure, String arrival) {
+    return '$departure–$arrival';
+  }
+
+  @override
+  String tripPlanDuration(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String tripPlanWalkingMinutes(int minutes) {
+    return '$minutes min de caminata';
+  }
+
+  @override
+  String tripPlanTransfers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count transbordos',
+      one: '1 transbordo',
+      zero: 'Sin transbordos',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tripPlanNoLines => 'ninguna';
+
+  @override
+  String tripPlanSemantics(
+    String departure,
+    String arrival,
+    int minutes,
+    int walking,
+    int transfers,
+    String lines,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      transfers,
+      locale: localeName,
+      other: '$transfers transbordos',
+      one: '1 transbordo',
+      zero: 'sin transbordos',
+    );
+    return 'Salida $departure, llegada $arrival. $minutes min de viaje, $walking min de caminata, $_temp0. Líneas: $lines. Horarios programados.';
+  }
+
+  @override
+  String get tripScheduledTimes => 'Horarios programados';
+
+  @override
+  String get tripEmptySuggestions =>
+      'Probá ampliar la caminata máxima o cambiar la hora.';
+
+  @override
+  String get tripEmptyExpandWalking => 'Ampliar caminata';
+
+  @override
+  String get tripEmptyChangeTime => 'Cambiar hora';
+
+  @override
   String get tripDetailTitle => 'Tu recorrido';
-
-  @override
-  String tripDetailDeparture(String origin, String time) {
-    return 'Salida · $origin · $time';
-  }
-
-  @override
-  String tripDetailArrival(String destination, String time) {
-    return 'Llegada · $destination · $time';
-  }
-
-  @override
-  String tripDetailWalking(int meters, int minutes) {
-    return 'Caminá $meters m · $minutes min';
-  }
-
-  @override
-  String tripDetailWait(String stop, int minutes) {
-    return 'Esperá en $stop · $minutes min';
-  }
-
-  @override
-  String tripDetailTransfer(String stop, int minutes) {
-    return 'Transbordo en $stop · $minutes min';
-  }
-
-  @override
-  String tripDetailBus(String line) {
-    return 'Ómnibus $line';
-  }
-
-  @override
-  String tripDetailBusDirection(String line, String direction) {
-    return 'Ómnibus $line hacia $direction';
-  }
 
   @override
   String tripDetailBetweenStops(String from, String to) {
@@ -639,8 +654,43 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripDetailUnknownStop => 'Parada';
 
   @override
+  String get tripDetailStart => 'Salida';
+
+  @override
+  String get tripDetailEnd => 'Llegada';
+
+  @override
+  String tripDetailWalkStep(int meters) {
+    return 'Caminar $meters m';
+  }
+
+  @override
+  String tripDetailBoard(String line, String stop) {
+    return 'Tomar línea $line en $stop';
+  }
+
+  @override
+  String tripDetailAlight(String stop) {
+    return 'Bajar en $stop';
+  }
+
+  @override
+  String tripDetailToward(String direction) {
+    return 'Hacia $direction';
+  }
+
+  @override
+  String tripDetailEstimatedTime(String time) {
+    return '$time · estimado';
+  }
+
+  @override
+  String get tripDetailWalkingApproximate =>
+      'Caminata aproximada, en línea recta.';
+
+  @override
   String get tripDetailScheduleNotice =>
-      'Horarios programados, no ETA en vivo. La caminata es aproximada y el trazo del ómnibus une paradas de forma esquemática; no es navegación guiada.';
+      'Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.';
 
   @override
   String get tripDetailChangeTrip => 'Cambiar viaje';
@@ -1240,18 +1290,6 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   }
 
   @override
-  String tripPlanSummary(int minutes, int transfers, String arrival) {
-    String _temp0 = intl.Intl.pluralLogic(
-      transfers,
-      locale: localeName,
-      other: '$transfers transbordos',
-      one: '1 transbordo',
-      zero: 'sin transbordos',
-    );
-    return '$minutes min · $_temp0 · llega $arrival';
-  }
-
-  @override
   String get tripSortLabel => 'Ordenar por';
 
   @override
@@ -1277,42 +1315,69 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   }
 
   @override
+  String tripPlanTimes(String departure, String arrival) {
+    return '$departure–$arrival';
+  }
+
+  @override
+  String tripPlanDuration(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String tripPlanWalkingMinutes(int minutes) {
+    return '$minutes min de caminata';
+  }
+
+  @override
+  String tripPlanTransfers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count transbordos',
+      one: '1 transbordo',
+      zero: 'Sin transbordos',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tripPlanNoLines => 'ninguna';
+
+  @override
+  String tripPlanSemantics(
+    String departure,
+    String arrival,
+    int minutes,
+    int walking,
+    int transfers,
+    String lines,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      transfers,
+      locale: localeName,
+      other: '$transfers transbordos',
+      one: '1 transbordo',
+      zero: 'sin transbordos',
+    );
+    return 'Salida $departure, llegada $arrival. $minutes min de viaje, $walking min de caminata, $_temp0. Líneas: $lines. Horarios programados.';
+  }
+
+  @override
+  String get tripScheduledTimes => 'Horarios programados';
+
+  @override
+  String get tripEmptySuggestions =>
+      'Probá ampliar la caminata máxima o cambiar la hora.';
+
+  @override
+  String get tripEmptyExpandWalking => 'Ampliar caminata';
+
+  @override
+  String get tripEmptyChangeTime => 'Cambiar hora';
+
+  @override
   String get tripDetailTitle => 'Tu recorrido';
-
-  @override
-  String tripDetailDeparture(String origin, String time) {
-    return 'Salida · $origin · $time';
-  }
-
-  @override
-  String tripDetailArrival(String destination, String time) {
-    return 'Llegada · $destination · $time';
-  }
-
-  @override
-  String tripDetailWalking(int meters, int minutes) {
-    return 'Caminá $meters m · $minutes min';
-  }
-
-  @override
-  String tripDetailWait(String stop, int minutes) {
-    return 'Esperá en $stop · $minutes min';
-  }
-
-  @override
-  String tripDetailTransfer(String stop, int minutes) {
-    return 'Transbordo en $stop · $minutes min';
-  }
-
-  @override
-  String tripDetailBus(String line) {
-    return 'Ómnibus $line';
-  }
-
-  @override
-  String tripDetailBusDirection(String line, String direction) {
-    return 'Ómnibus $line hacia $direction';
-  }
 
   @override
   String tripDetailBetweenStops(String from, String to) {
@@ -1328,8 +1393,43 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripDetailUnknownStop => 'Parada';
 
   @override
+  String get tripDetailStart => 'Salida';
+
+  @override
+  String get tripDetailEnd => 'Llegada';
+
+  @override
+  String tripDetailWalkStep(int meters) {
+    return 'Caminar $meters m';
+  }
+
+  @override
+  String tripDetailBoard(String line, String stop) {
+    return 'Tomar línea $line en $stop';
+  }
+
+  @override
+  String tripDetailAlight(String stop) {
+    return 'Bajar en $stop';
+  }
+
+  @override
+  String tripDetailToward(String direction) {
+    return 'Hacia $direction';
+  }
+
+  @override
+  String tripDetailEstimatedTime(String time) {
+    return '$time · estimado';
+  }
+
+  @override
+  String get tripDetailWalkingApproximate =>
+      'Caminata aproximada, en línea recta.';
+
+  @override
   String get tripDetailScheduleNotice =>
-      'Horarios programados, no ETA en vivo. La caminata es aproximada y el trazo del ómnibus une paradas de forma esquemática; no es navegación guiada.';
+      'Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.';
 
   @override
   String get tripDetailChangeTrip => 'Cambiar viaje';
