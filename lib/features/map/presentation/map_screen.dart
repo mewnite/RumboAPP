@@ -564,7 +564,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
             if (feed == null ||
                 feed.status.synthetic ||
                 feed.status.stopCount == 0) {
-              throw Exception(l10n.tripOfficialDataUnavailable);
+              // Without an official feed there are no stops to search, but
+              // address search must remain available. Planning will still
+              // report the missing feed when the person tries to search trips.
+              return const [];
             }
             final db = await TransitDatabase().open();
             try {

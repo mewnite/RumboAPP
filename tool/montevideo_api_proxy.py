@@ -31,6 +31,17 @@ PLACE_SEARCH_URL = os.environ.get(
     "https://nominatim.openstreetmap.org/search",
 )
 RUMBO_USER_AGENT = "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)"
+# Accepted from the app's place sources. The proxy builds its own upstream
+# query, so these only describe the client request and never reach Nominatim
+# verbatim.
+PLACE_QUERY_PARAMETERS = {
+    "q",
+    "countrycodes",
+    "format",
+    "limit",
+    "bias_lat",
+    "bias_lon",
+}
 
 
 class ApiError(Exception):
@@ -161,11 +172,40 @@ class ApiProxy:
 
     def _validate_place_query(self, query: str) -> str:
         values = self._query_values(query)
-        if set(values) != {"q"} or len(values["q"]) != 1:
+        if (
+            set(values) - PLACE_QUERY_PARAMETERS
+            or len(values.get("q", [])) != 1
+        ):
             raise ApiError(400, "Se requiere una única búsqueda de lugar.")
         search = values["q"][0].strip()
         if not 3 <= len(search) <= 160:
             raise ApiError(400, "La búsqueda debe tener entre 3 y 160 caracteres.")
+        if values.get("countrycodes", ["uy"]) != ["uy"]:
+            raise ApiError(400, "El país de búsqueda debe ser Uruguay.")
+        if values.get("format", ["jsonv2"]) != ["jsonv2"]:
+            raise ApiError(400, "El formato de búsqueda no está permitido.")
+        if "limit" in values:
+            try:
+                limit = int(values["limit"][0])
+            except ValueError:
+                raise ApiError(400, "El límite de búsqueda no es válido.") from None
+            if not 1 <= limit <= 10:
+                raise ApiError(
+                    400, "El límite de búsqueda debe estar entre 1 y 10."
+                )
+        if ("bias_lat" in values) != ("bias_lon" in values):
+            raise ApiError(400, "La referencia de búsqueda está incompleta.")
+        if "bias_lat" in values:
+            try:
+                latitude = float(values["bias_lat"][0])
+                longitude = float(values["bias_lon"][0])
+            except ValueError:
+                raise ApiError(400, "La referencia de búsqueda no es válida.") from None
+            if (
+                not -90 <= latitude <= 90
+                or not -180 <= longitude <= 180
+            ):
+                raise ApiError(400, "La referencia de búsqueda está fuera de rango.")
         return search
 
     def _search_places(self, search: str) -> tuple[int, str, bytes]:

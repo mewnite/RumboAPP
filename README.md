@@ -193,7 +193,8 @@ flutter run -d <ID-del-dispositivo> --dart-define=RUMBO_API_BASE_URL=http://127.
 
 En el emulador Android alcanza con `flutter run -d emulator-5554`; la app usa
 `10.0.2.2` para llegar al proxy del host. La primera actualización descarga el ZIP GTFS oficial y lo importa a SQLite;
-puede tardar según el teléfono. Permití ubicación desde el botón del mapa para
+puede tardar según el teléfono. En el emulador de prueba tardó alrededor de
+10 minutos para 4.930 paradas y 2.221.437 horarios. Permití ubicación desde el botón del mapa para
 centrarlo. Los buses se descargan sin enviar coordenadas y se filtran en el
 teléfono alrededor de esa posición. Si el panel informa que no hay unidades,
 puede que no haya buses reportando en ese instante; la API también puede
@@ -201,13 +202,16 @@ devolver `[]` sin que sea un error de autenticación. En debug se habilita HTTP
 solo para este proxy local; una compilación de producción debe usar un backend
 HTTPS propio y revisar antes las condiciones de uso del feed y de la API.
 
-La prueba aislada midió 325 ms para parsear desde disco e importar a SQLite el
+La prueba aislada midió 1.171 ms para parsear desde disco e importar a SQLite el
 ZIP sintético de 2.202 bytes (18 paradas, 3 líneas, 6 variantes y 48 horarios)
 en este equipo. No representa un feed real.
+En el emulador Android de prueba se importó el feed oficial servido por el
+proxy: 4.930 paradas, 325 líneas, 37.451 viajes, 2.221.437 horarios y 332.505
+puntos de shape. La base resultante ocupa 168,5 MB y el proceso completo tardó
+alrededor de 10 minutos.
 En Android/iOS la descarga estática se escribe a disco; un isolate descomprime
 `stop_times.txt` a un archivo temporal, lo lee en bloques de 64 KiB y emite
-filas JSONL. SQLite las importa en lotes de 500 dentro de una transacción. El ZIP
-y la tabla completa de horarios no se retienen en memoria, pero las tablas GTFS
-restantes sí se parsean en memoria. No se midió un feed oficial ni un archivo con
-millones de horarios, por lo que su tiempo total y memoria siguen pendientes de
-medición con una fuente confirmada.
+filas JSONL. SQLite importa todas las tablas en lotes de 500 dentro de una
+transacción. El ZIP y la tabla completa de horarios no se retienen en memoria,
+pero las tablas GTFS restantes sí se parsean en memoria. El tiempo y la memoria
+en un teléfono físico con el feed completo todavía no se midieron.

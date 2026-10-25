@@ -47,8 +47,33 @@ class Trip {
     required this.serviceId,
     required this.variantId,
     this.headsign = '',
+    this.patternId,
+    this.startSecs,
   });
   final String id, routeId, serviceId, variantId, headsign;
+  final String? patternId;
+  final int? startSecs;
+}
+
+class TripPatternStop {
+  const TripPatternStop({
+    required this.ordinal,
+    required this.stopId,
+    required this.arrivalOffsetSecs,
+    required this.departureOffsetSecs,
+  });
+
+  final int ordinal;
+  final String stopId;
+  final int arrivalOffsetSecs;
+  final int departureOffsetSecs;
+}
+
+class TripPattern {
+  const TripPattern({required this.id, required this.stops});
+
+  final String id;
+  final List<TripPatternStop> stops;
 }
 
 class StopTime {
@@ -86,10 +111,9 @@ class ServiceCalendar {
     this.addedDates = const {},
     this.removedDates = const {},
   });
+
   final String serviceId;
   final DateTime startDate, endDate;
-
-  /// DateTime.weekday values (Monday=1 … Sunday=7).
   final Set<int> weekdays;
   final Set<DateTime> addedDates, removedDates;
 
@@ -102,6 +126,8 @@ class ServiceCalendar {
         weekdays.contains(day.weekday);
   }
 }
+
+typedef Calendar = ServiceCalendar;
 
 class FeedInfo {
   const FeedInfo({
@@ -117,6 +143,8 @@ class FeedInfo {
   final DateTime? startDate, endDate;
   final bool synthetic;
 }
+
+typedef GtfsFeedInfo = FeedInfo;
 
 class UpcomingDeparture {
   const UpcomingDeparture({

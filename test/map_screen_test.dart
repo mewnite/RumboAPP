@@ -73,8 +73,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.textContaining('El GTFS oficial todavía no está disponible.'),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(find.text('No encontramos paradas con ese nombre.'), findsOneWidget);
   });
 
   testWidgets(

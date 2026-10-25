@@ -25,7 +25,7 @@ class TransitDatabase {
     return _factory.openDatabase(
       p.join(dir.path, 'rumbo_transit.db'),
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, _) => _schema(db),
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -58,6 +58,13 @@ class TransitDatabase {
               'ALTER TABLE feed_metadata ADD COLUMN synthetic INTEGER DEFAULT 0',
             );
           }
+          if (oldVersion < 5) {
+            await db.execute('DROP TABLE IF EXISTS stop_times');
+            await db.execute('DROP TABLE IF EXISTS trips');
+            await db.execute('DROP TABLE IF EXISTS trip_patterns');
+            await db.execute('DROP TABLE IF EXISTS pattern_stops');
+            await _schema(db);
+          }
         },
       ),
     );
@@ -77,16 +84,34 @@ class TransitDatabase {
     final db = await _factory.openDatabase(
       temp,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, _) => _schema(db),
       ),
     );
     var databaseClosed = false;
     try {
       await db.transaction((txn) async {
-        final batch = txn.batch();
+        var batch = txn.batch();
+        var pendingRows = 0;
+
+        Future<void> commitBatch() async {
+          if (pendingRows == 0) return;
+          await batch.commit(noResult: true);
+          batch = txn.batch();
+          pendingRows = 0;
+        }
+
+        Future<void> insertRow(
+          String table,
+          Map<String, Object?> values,
+        ) async {
+          batch.insert(table, values);
+          pendingRows++;
+          if (pendingRows >= _importBatchSize) await commitBatch();
+        }
+
         for (final s in feed.stops) {
-          batch.insert('stops', {
+          await insertRow('stops', {
             'id': s.id,
             'name': s.name,
             'lat': s.latitude,
@@ -95,7 +120,7 @@ class TransitDatabase {
           });
         }
         for (final r in feed.routes) {
-          batch.insert('routes', {
+          await insertRow('routes', {
             'id': r.id,
             'short_name': r.shortName,
             'long_name': r.longName,
@@ -104,7 +129,7 @@ class TransitDatabase {
           });
         }
         for (final v in feed.variants) {
-          batch.insert('variants', {
+          await insertRow('variants', {
             'id': v.id,
             'route_id': v.routeId,
             'direction_id': v.directionId,
@@ -114,26 +139,43 @@ class TransitDatabase {
           });
         }
         for (final t in feed.trips) {
-          batch.insert('trips', {
+          await insertRow('trips', {
             'id': t.id,
             'route_id': t.routeId,
             'service_id': t.serviceId,
             'variant_id': t.variantId,
             'headsign': t.headsign,
+            'pattern_id': t.patternId,
+            'start_secs': t.startSecs,
           });
         }
-        for (final t in feed.stopTimes) {
-          batch.insert('stop_times', {
-            'trip_id': t.tripId,
-            'stop_id': t.stopId,
-            'arrival': t.arrivalSeconds,
-            'departure': t.departureSeconds,
-            'sequence': t.sequence,
-          });
+        if (feed.patterns != null) {
+          for (final p in feed.patterns!) {
+            await insertRow('trip_patterns', {'pattern_id': p.id});
+            for (final ps in p.stops) {
+              await insertRow('pattern_stops', {
+                'pattern_id': p.id,
+                'ordinal': ps.ordinal,
+                'stop_id': ps.stopId,
+                'arrival_offset_secs': ps.arrivalOffsetSecs,
+                'departure_offset_secs': ps.departureOffsetSecs,
+              });
+            }
+          }
+        } else {
+          for (final t in feed.stopTimes) {
+            await insertRow('stop_times', {
+              'trip_id': t.tripId,
+              'stop_id': t.stopId,
+              'arrival': t.arrivalSeconds,
+              'departure': t.departureSeconds,
+              'sequence': t.sequence,
+            });
+          }
         }
         for (final s in feed.shapes) {
           for (final point in s.points) {
-            batch.insert('shapes', {
+            await insertRow('shapes', {
               'shape_id': s.id,
               'lat': point.latitude,
               'lon': point.longitude,
@@ -142,28 +184,28 @@ class TransitDatabase {
           }
         }
         for (final c in feed.calendars) {
-          batch.insert('calendars', {
+          await insertRow('calendars', {
             'service_id': c.serviceId,
             'start_date': c.startDate.toIso8601String(),
             'end_date': c.endDate.toIso8601String(),
             'weekdays': c.weekdays.join(','),
           });
           for (final date in c.addedDates) {
-            batch.insert('calendar_exceptions', {
+            await insertRow('calendar_exceptions', {
               'service_id': c.serviceId,
               'date': date.toIso8601String(),
               'type': 1,
             });
           }
           for (final date in c.removedDates) {
-            batch.insert('calendar_exceptions', {
+            await insertRow('calendar_exceptions', {
               'service_id': c.serviceId,
               'date': date.toIso8601String(),
               'type': 2,
             });
           }
         }
-        batch.insert('feed_metadata', {
+        await insertRow('feed_metadata', {
           'source': sourceName,
           'version': feed.feedInfo.version,
           'downloaded_at': (downloadedAt ?? DateTime.now()).toIso8601String(),
@@ -183,19 +225,10 @@ class TransitDatabase {
           'warning_count': feed.warningCount,
           'synthetic': feed.feedInfo.synthetic ? 1 : 0,
         });
-        await batch.commit(noResult: true);
+        await commitBatch();
 
         final spoolPath = feed.stopTimesFilePath;
         if (spoolPath != null) {
-          var timeBatch = txn.batch();
-          var pendingRows = 0;
-          Future<void> commitTimeBatch() async {
-            if (pendingRows == 0) return;
-            await timeBatch.commit(noResult: true);
-            timeBatch = txn.batch();
-            pendingRows = 0;
-          }
-
           final lines = File(spoolPath)
               .openRead()
               .transform(utf8.decoder)
@@ -203,17 +236,15 @@ class TransitDatabase {
           await for (final line in lines) {
             if (line.isEmpty) continue;
             final row = jsonDecode(line) as List<Object?>;
-            timeBatch.insert('stop_times', {
+            await insertRow('stop_times', {
               'trip_id': row[0],
               'stop_id': row[1],
               'arrival': row[2],
               'departure': row[3],
               'sequence': row[4],
             });
-            pendingRows++;
-            if (pendingRows >= 500) await commitTimeBatch();
           }
-          await commitTimeBatch();
+          await commitBatch();
         }
       });
       await db.close();
@@ -246,9 +277,19 @@ class TransitDatabase {
           }
         }
       }
-    } catch (_) {
-      if (!databaseClosed) await db.close();
-      await _factory.deleteDatabase(temp);
+    } catch (error, stackTrace) {
+      if (!databaseClosed) {
+        try {
+          await db.close();
+        } catch (_) {
+          // Preserve the import error; a failure to close is secondary.
+        }
+      }
+      try {
+        await _factory.deleteDatabase(temp);
+      } catch (_) {
+        // The failed import remains discarded even if cleanup fails.
+      }
       if (feed.stopTimesFilePath != null) {
         final spool = File(feed.stopTimesFilePath!);
         if (await spool.exists()) {
@@ -259,10 +300,12 @@ class TransitDatabase {
           }
         }
       }
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 }
+
+const _importBatchSize = 500;
 
 DateTime? _latestEndDate(GtfsParseResult feed) {
   if (feed.calendars.isEmpty) return null;
@@ -286,15 +329,22 @@ Future<void> _schema(DatabaseExecutor db) async {
   await db.execute(
     'CREATE INDEX variants_external_id ON variants(external_variant_id)',
   );
+  await db.execute('CREATE TABLE trip_patterns(pattern_id TEXT PRIMARY KEY)');
   await db.execute(
-    'CREATE TABLE trips(id TEXT PRIMARY KEY,route_id TEXT,service_id TEXT,variant_id TEXT,headsign TEXT)',
+    'CREATE TABLE pattern_stops(pattern_id TEXT,ordinal INTEGER,stop_id TEXT,arrival_offset_secs INTEGER,departure_offset_secs INTEGER,PRIMARY KEY(pattern_id,ordinal))',
+  );
+  await db.execute(
+    'CREATE INDEX pattern_stops_stop_id ON pattern_stops(stop_id)',
+  );
+  await db.execute(
+    'CREATE INDEX pattern_stops_pattern_ordinal ON pattern_stops(pattern_id,ordinal)',
+  );
+  await db.execute(
+    'CREATE TABLE trips(id TEXT PRIMARY KEY,route_id TEXT,service_id TEXT,variant_id TEXT,headsign TEXT,pattern_id TEXT,start_secs INTEGER)',
   );
   await db.execute('CREATE INDEX trips_route ON trips(route_id)');
   await db.execute(
-    'CREATE TABLE stop_times(trip_id TEXT,stop_id TEXT,arrival INTEGER,departure INTEGER,sequence INTEGER)',
-  );
-  await db.execute(
-    'CREATE INDEX stop_times_stop_departure ON stop_times(stop_id,departure,trip_id)',
+    'CREATE INDEX trips_pattern_service_start ON trips(pattern_id,service_id,start_secs)',
   );
   await db.execute(
     'CREATE TABLE shapes(shape_id TEXT,lat REAL,lon REAL,sequence INTEGER)',

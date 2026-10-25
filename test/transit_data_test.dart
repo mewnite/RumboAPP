@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:rumbo/features/stops_and_lines/data/fake_transit_repository.dart';
 import 'package:rumbo/features/stops_and_lines/data/fake_realtime_bus_source.dart';
 import 'package:rumbo/features/stops_and_lines/data/gtfs_csv.dart';
@@ -81,6 +83,31 @@ void main() {
     });
     expect(isFeedNotModified(304), isTrue);
     expect(isFeedNotModified(200), isFalse);
+  });
+
+  test(
+    'feed source allows the Android emulator local proxy over HTTP',
+    () async {
+      final client = MockClient((request) async {
+        expect(request.url.host, '10.0.2.2');
+        expect(request.url.path, '/gtfs/latest');
+        return http.Response.bytes(const [1, 2, 3], 200);
+      });
+      final source = GtfsZipSource(
+        'http://10.0.2.2:8765/gtfs/latest',
+        client: client,
+      );
+
+      final download = await source.download();
+
+      expect(download.bytes, const [1, 2, 3]);
+    },
+  );
+
+  test('feed source rejects plain HTTP outside local development hosts', () {
+    final source = GtfsZipSource('http://example.test/gtfs/latest');
+
+    expect(source.download(), throwsFormatException);
   });
 
   test('feed expiry and offline errors preserve explicit states', () {

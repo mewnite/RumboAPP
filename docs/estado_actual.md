@@ -1,11 +1,11 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. No se ejecutó la app en un emulador.
+Revisión: 2026-10-25. Se ejecutó la app debug en un emulador Android y se importó el feed oficial servido por el proxy local. No se inspeccionaron assets ni el contenido de fixtures.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 131 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 133 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -16,10 +16,10 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 | Función | Estado | Archivos o clases principales | Cómo se comprobó |
 |---|---|---|---|
 | 1. Navegación, temas y `es-UY` | completa y probada | `app_shell.dart`, `app_router.dart`, `settings_screen.dart`, `app_es_UY.arb` | `navigation_test`, `theme_navigation_test`, `theme_preference_test` |
-| 2. Mapa, teselas, atribución, controles y panel | completa y probada | `MapScreen`, `map_config.dart` | `map_config_test`, `map_screen_test`; ejecución real no verificada |
+| 2. Mapa, teselas, atribución, controles y panel | completa y probada | `MapScreen`, `map_config.dart` | `map_config_test`, `map_screen_test`; mapa y búsqueda verificados en emulador Android |
 | 3. Ubicación, permisos, estados y punto azul | completa y probada | `MapLocationController`, `GeolocatorLocationRepository` | `map_location_controller_test`; permisos en dispositivo no verificados |
-| 4. GTFS, SQLite y repositorio | completa y probada (con datos sintéticos) | `gtfs_parser.dart`, `transit_database.dart`, `sqflite_transit_repository.dart` | `transit_data_test`, `gtfs_performance_test` |
-| 5. Paradas y próximos ómnibus en el panel | completa y probada (datos sintéticos) | `MapScreen`, `StopDetailsSheet`, `_stopLayers`, `_nearbyBuses` | `map_screen_test`, `stop_details_sheet_test`; ejecución real no verificada |
+| 4. GTFS, SQLite y repositorio | completa y probada (sintéticos y feed oficial en emulador) | `gtfs_parser.dart`, `transit_database.dart`, `sqflite_transit_repository.dart` | `transit_data_test`, `gtfs_performance_test`; feed oficial importado: 4.930 paradas, 325 líneas, 2.221.437 horarios y 332.505 puntos de shape |
+| 5. Paradas y próximos ómnibus en el panel | completa y probada (datos sintéticos) | `MapScreen`, `StopDetailsSheet`, `_stopLayers`, `_nearbyBuses` | `map_screen_test`, `stop_details_sheet_test`; lista de paradas cercanas verificada en emulador con feed oficial |
 | 6. Tiempo real: parser, matcher, HTTP, polling y mapa | completa y probada (datos sintéticos) | `stm_online_geojson_parser.dart`, `RealtimeMatcher`, `MontevideoRealtimeBusSource`, `LiveBusesController`, `MapScreen` | `montevideo_realtime_bus_source_test`, `live_buses_controller_test`, `live_bus_layer_test`, `map_screen_test`; feed oficial no verificado |
 | 7. Arribos en vivo por parada | completa y probada (datos sintéticos) | `TransitArrivalsSource`, `StopDetailsSheet`, `upcomingDepartures` | `transit_data_test`, `transit_arrivals_source_test`, `stop_details_sheet_test`; ETA local calculado en el dispositivo, sin endpoint de arribos |
 | 8. Detalle de parada y línea, recorrido y horarios | parcial | `StopDetailsSheet`, expansiones de parada/línea en `MapScreen` | hoja de parada con nombre, código, líneas, hasta 8 arribos y acción «Cómo llegar»; la línea solo dibuja su shape, sin hoja de detalle ni horarios por línea |
@@ -32,7 +32,8 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 
 ## 3. Datos y servicios
 
-- La app carga primero `assets/sample_gtfs/sample_gtfs.zip`, identificado por el código como sintético. En Android/iOS lo importa a SQLite. En debug, la configuración también intenta actualizar desde un proxy local; el acceso a un feed real depende de que ese proxy esté disponible y configurado. En release la URL queda vacía salvo `RUMBO_API_BASE_URL`. No se verificó ningún feed oficial real.
+- La app carga primero `assets/sample_gtfs/sample_gtfs.zip`, identificado por el código como sintético. En Android/iOS lo importa a SQLite. En debug, la configuración también intenta actualizar desde un proxy local; el acceso a un feed real depende de que ese proxy esté disponible y configurado. En release la URL queda vacía salvo `RUMBO_API_BASE_URL`.
+- En el emulador Android se verificó la descarga y la importación del feed oficial servido por el proxy: versión 1.1, 4.930 paradas, 325 líneas, 1.089 variantes, 37.451 viajes, 2.221.437 horarios y 332.505 puntos de shape. La base resultante ocupa 168,5 MB y el proceso completo tardó alrededor de 10 minutos. La licencia y las condiciones de uso del feed para producción siguen sin confirmar.
 - `lib/core/config/map_config.dart`: estilos `https://tiles.openfreemap.org/styles/positron` y `https://tiles.openfreemap.org/styles/dark`. Configurados, pero no probados en ejecución.
 - `lib/core/config/transit_config.dart`: `http://10.0.2.2:8765` en Android y `http://127.0.0.1:8765` en otras plataformas (debug). Compone `/gtfs/latest`, `/api/buses?format=geojson` y `/geocode`; son rutas del proxy local, no URLs oficiales confirmadas.
 - `lib/features/map/data/montevideo_realtime_bus_source.dart` compone `/buses?format=geojson` sobre la base `.../api`. El proxy del repo implementa `/api/buses`; la documentación `docs/api/montevideo_publictransport.md` describe la ruta del proxy como `/api/buses`.
@@ -47,7 +48,7 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 ## 4. Problemas y deuda
 
 - `TODO`/`FIXME`: no se encontraron coincidencias en `lib/`, `test/` ni `docs/`.
-- Los tests y el análisis no reportaron fallos. No se ejecutó la app en dispositivo; fallos de red, mapas, permisos, tema oscuro y escala de fuente quedan no verificados.
+- Los tests y el análisis no reportaron fallos. Se ejecutó la app en un emulador Android: se verificaron el mapa, la búsqueda de direcciones, la importación del feed oficial y el estado en Ajustes. Permisos de ubicación, tema oscuro, escala de fuente y un teléfono físico quedan sin verificar.
 - El ETA en vivo usa la proyección sobre el shape y una velocidad de 18 km/h cuando el dato reportado es menor a 8 km/h; no se validó contra arribos oficiales ni contra el comportamiento real de la flota.
 - El detalle de parada se calcula al abrirlo: no se refresca periódicamente mientras la hoja permanece visible.
 - El planificador traza segmentos rectos/esquemáticos entre puntos; su propio detalle aclara que no es navegación peatonal ni ETA en vivo.
@@ -69,7 +70,7 @@ dart format .
 
 Para una fuente real en debug, el README indica iniciar `python tool/montevideo_api_proxy.py`; en teléfono USB requiere `adb reverse tcp:8765 tcp:8765` y `--dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765`. El proxy y sus credenciales son solo de desarrollo.
 
-Al abrir (comportamiento esperado según código; dispositivo no verificado):
+Al abrir (comportamiento verificado en emulador Android):
 1. Mapa centrado en Montevideo, barra de búsqueda, botón de ubicación y atribución.
 2. Panel inferior “Paradas y ómnibus”; sin proxy disponible muestra estado/error de datos oficiales y sugerencia de proxy.
 3. La ubicación solo se solicita al tocar el control y aceptar la explicación.
@@ -81,12 +82,12 @@ Al abrir (comportamiento esperado según código; dispositivo no verificado):
 
 ## 6. Qué falta, en orden de dependencias
 
-1. Confirmar feed GTFS oficial, licencia, vigencia y proxy desplegable. Sin datos reales no hay paradas, líneas ni horarios de servicio verificados.
+1. Confirmar la licencia, las condiciones de uso y la vigencia del feed oficial para producción. La importación en emulador ya se verificó, pero no reemplaza esa confirmación legal/operativa.
 2. Confirmar/documentar contratos, rutas y límites del proxy para GTFS, flota, geocodificación y —si existe— arribos. No hay endpoint de arribos documentado; el ETA local debe validarse con datos reales. Las rutas actuales son configurables/de desarrollo, no un contrato oficial verificado.
-3. Validar en dispositivo el mapa, los marcadores de buses, la hoja de parada, los estados sin conexión/servicio caído y el comportamiento del polling en segundo plano.
-4. Validar el matcher de variantes y el ETA local con identificadores y shapes del feed oficial. Depende de datos reales y de confirmar la frecuencia de actualización.
+3. Validar en un teléfono físico el mapa, los marcadores de buses, la hoja de parada, los estados sin conexión/servicio caído y el comportamiento del polling en segundo plano.
+4. Validar el matcher de variantes y el ETA local con identificadores y shapes del feed oficial. El feed ya está importado; falta contrastar el ETA contra datos reales y confirmar la frecuencia de actualización.
 5. Completar el detalle de línea con recorrido y horarios; hoy solo se puede dibujar el shape de una variante.
-6. Validar el planificador con horarios GTFS reales y definir trazados peatonales fiables; hoy la caminata es una estimación en línea recta.
+6. Validar el planificador con el feed oficial ya importado y definir trazados peatonales fiables; hoy la caminata es una estimación en línea recta.
 7. Implementar viaje activo y aviso de bajada; requiere definir el criterio/umbral del aviso, notificaciones y validación de capacidades/permisos en Android e iOS.
 8. Crear una pantalla de privacidad que reúna flujos de ubicación, geocodificación y atribución; requiere confirmar proveedor y condiciones del servicio remoto.
 

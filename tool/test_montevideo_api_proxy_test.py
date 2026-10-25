@@ -46,13 +46,28 @@ class ApiProxyTest(unittest.TestCase):
         self.assertIn("countrycodes=uy", request.full_url)
         self.assertEqual(request.get_header("User-agent"), "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)")
 
-    def test_place_search_rejects_extra_parameters_and_short_queries(self):
-        with self.assertRaises(ApiError) as context:
-            self.proxy.handle("/geocode?q=Centro&format=json")
-        self.assertEqual(context.exception.status, 400)
-        with self.assertRaises(ApiError) as context:
-            self.proxy.handle("/geocode?q=UY")
-        self.assertEqual(context.exception.status, 400)
+    def test_place_search_accepts_app_parameters_and_rejects_unknown_ones(self):
+        payload = (200, "application/json", b"[]")
+        with patch.object(
+            self.proxy, "_search_places", return_value=payload
+        ) as search:
+            self.assertEqual(
+                self.proxy.handle(
+                    "/geocode?q=Centro&countrycodes=uy&format=jsonv2"
+                    "&limit=5&bias_lat=-34.9&bias_lon=-56.2"
+                ),
+                (*payload, {}),
+            )
+            search.assert_called_once_with("Centro")
+        for path in (
+            "/geocode?q=Centro&viewbox=1",
+            "/geocode?q=Centro&format=json",
+            "/geocode?q=Centro&bias_lat=-34.9",
+            "/geocode?q=UY",
+        ):
+            with self.assertRaises(ApiError) as context:
+                self.proxy.handle(path)
+            self.assertEqual(context.exception.status, 400)
 
     def test_geo_request_validates_bounds_and_normalizes_query(self):
         result = (200, "application/json", b"[]")

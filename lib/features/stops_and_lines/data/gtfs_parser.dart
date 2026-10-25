@@ -18,9 +18,11 @@ class GtfsParseResult {
     this.stopTimesFilePath,
     required this.shapes,
     required this.calendars,
+    this.calendarExceptions = const [],
     required this.feedInfo,
     required this.warningCount,
     required this.warnings,
+    this.patterns,
   });
   final List<Stop> stops;
   final List<Route> routes;
@@ -30,10 +32,12 @@ class GtfsParseResult {
   final int stopTimeCount;
   final String? stopTimesFilePath;
   final List<Shape> shapes;
-  final List<ServiceCalendar> calendars;
-  final FeedInfo feedInfo;
+  final List<Calendar> calendars;
+  final List calendarExceptions;
+  final GtfsFeedInfo feedInfo;
   final int warningCount;
   final List<String> warnings;
+  final List<TripPattern>? patterns;
 }
 
 GtfsParseResult parseGtfsZip(Uint8List bytes) {
@@ -398,7 +402,7 @@ GtfsParseResult _parseGtfsFiles(
     final latestDate = calendars
         .map((calendar) => calendar.endDate)
         .reduce((a, b) => a.isAfter(b) ? a : b);
-    info = FeedInfo(
+    info = GtfsFeedInfo(
       publisherName: info.publisherName,
       publisherUrl: info.publisherUrl,
       version: info.version,
@@ -425,6 +429,7 @@ GtfsParseResult _parseGtfsFiles(
     stopTimesFilePath: stopTimesFilePath,
     shapes: shapes,
     calendars: calendars,
+    calendarExceptions: const [],
     feedInfo: info,
     warningCount: warnings.length,
     warnings: warnings,
