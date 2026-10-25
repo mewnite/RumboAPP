@@ -159,10 +159,8 @@ class _ArrivalRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final minutes = arrival.departureTime
-        .difference(DateTime.now())
-        .inMinutes
-        .clamp(0, 999);
+    final seconds = arrival.departureTime.difference(DateTime.now()).inSeconds;
+    final minutes = (seconds / 60).ceil().clamp(0, 999);
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
