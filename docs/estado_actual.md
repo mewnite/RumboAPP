@@ -6,7 +6,7 @@ Revisión: 2026-10-25. No se inspeccionaron assets ni el contenido de fixtures. 
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
 - `flutter test`: 112 pruebas pasan, 0 fallan. Fallidas: ninguna.
-- `git log --oneline -15`: 7 commits; el más reciente es el de presentación de resultados y detalle del planificador (B3).
+- `git log --oneline -15`: 9 commits; los más recientes son los de presentación de resultados y detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
 - En las dependencias directas no hay SDK de publicidad, analítica ni tracking; no se auditó cada dependencia transitiva.

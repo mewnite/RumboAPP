@@ -502,13 +502,13 @@ void main() {
 
     expect(find.text('Tomar línea 522 en Tres Cruces'), findsOneWidget);
     expect(find.text('Hacia Ciudad Vieja'), findsOneWidget);
-    expect(find.text('12:08'), findsOneWidget);
+    expect(find.text('12:08 · estimado'), findsOneWidget);
 
     expect(find.text('Bajar en Centro'), findsOneWidget);
     expect(find.text('12:25 · estimado'), findsOneWidget);
 
     expect(find.text('Tomar línea 103 en Centro'), findsOneWidget);
-    expect(find.text('12:30'), findsOneWidget);
+    expect(find.text('12:30 · estimado'), findsOneWidget);
 
     expect(find.text('Bajar en Plaza'), findsOneWidget);
     expect(find.text('12:40 · estimado'), findsOneWidget);

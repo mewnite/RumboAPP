@@ -149,6 +149,7 @@ class TripPlanDetails extends StatelessWidget {
                   ? null
                   : l10n.tripDetailToward(leg.headsign.trim()),
               time: leg.departureTime,
+              estimated: true,
             ),
           );
           steps.add(
