@@ -28,6 +28,12 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Rumbo usa tu ubicación para centrar el mapa mientras usás la app. La ubicación se procesa en este dispositivo.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Rumbo usa tu ubicación en segundo plano solo durante un viaje activo iniciado por vos para avisarte cuándo acercarte a bajar. Se procesa en este dispositivo.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

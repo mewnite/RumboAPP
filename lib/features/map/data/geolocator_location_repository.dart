@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../domain/location_repository.dart';
@@ -14,6 +15,20 @@ class GeolocatorLocationRepository implements LocationRepository {
   @override
   Future<LocationPermissionStatus> requestPermission() async =>
       _mapPermission(await Geolocator.requestPermission());
+
+  @override
+  Future<bool> hasBackgroundPermission() async =>
+      await Geolocator.checkPermission() == LocationPermission.always;
+
+  @override
+  Future<bool> requestBackgroundPermission() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+    }
+    return permission == LocationPermission.always;
+  }
 
   @override
   Future<DeviceLocation> getCurrentLocation() async {
@@ -39,6 +54,46 @@ class GeolocatorLocationRepository implements LocationRepository {
       }
       throw const LocationRepositoryException(LocationFailure.unknown);
     }
+  }
+
+  @override
+  Stream<DeviceLocation> watchActiveTripLocation({
+    required String notificationTitle,
+    required String notificationText,
+  }) {
+    final LocationSettings settings = switch (defaultTargetPlatform) {
+      TargetPlatform.android => AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 20,
+        intervalDuration: const Duration(seconds: 5),
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationTitle: notificationTitle,
+          notificationText: notificationText,
+          notificationChannelName: notificationTitle,
+          enableWakeLock: false,
+          setOngoing: true,
+        ),
+      ),
+      TargetPlatform.iOS => AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        activityType: ActivityType.fitness,
+        distanceFilter: 20,
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+      ),
+      _ => const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 20,
+      ),
+    };
+    return Geolocator.getPositionStream(locationSettings: settings).map(
+      (position) => DeviceLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracy,
+      ),
+    );
   }
 
   @override

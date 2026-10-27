@@ -12,6 +12,10 @@ class TripPlanDetails extends StatelessWidget {
     required this.destinationName,
     required this.onChangeTrip,
     required this.onCloseTrip,
+    this.activeTripIsActive = false,
+    this.activeTripStopsRemaining,
+    this.onStartActiveTrip,
+    this.onStopActiveTrip,
     super.key,
   });
 
@@ -20,6 +24,10 @@ class TripPlanDetails extends StatelessWidget {
   final String destinationName;
   final VoidCallback onChangeTrip;
   final VoidCallback onCloseTrip;
+  final bool activeTripIsActive;
+  final int? activeTripStopsRemaining;
+  final VoidCallback? onStartActiveTrip;
+  final VoidCallback? onStopActiveTrip;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +111,35 @@ class TripPlanDetails extends StatelessWidget {
         const SizedBox(height: 4),
         Text(l10n.tripDetailScheduleNotice, style: secondaryStyle),
         const SizedBox(height: 12),
+        if (activeTripIsActive && activeTripStopsRemaining != null)
+          Card(
+            child: ListTile(
+              leading: const Icon(Symbols.notifications_active_rounded),
+              title: Text(l10n.activeTripNotificationTitle),
+              subtitle: Text(
+                l10n.activeTripStopsRemaining(
+                  activeTripStopsRemaining!,
+                  destinationName,
+                ),
+              ),
+            ),
+          ),
+        if (onStartActiveTrip != null || onStopActiveTrip != null)
+          FilledButton.icon(
+            onPressed: activeTripIsActive
+                ? onStopActiveTrip
+                : onStartActiveTrip,
+            icon: Icon(
+              activeTripIsActive
+                  ? Symbols.stop_circle_rounded
+                  : Symbols.notifications_active_rounded,
+            ),
+            label: Text(
+              activeTripIsActive ? l10n.activeTripFinish : l10n.activeTripStart,
+            ),
+          ),
+        if (onStartActiveTrip != null || onStopActiveTrip != null)
+          const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: onChangeTrip,
           icon: const Icon(Symbols.edit_road_rounded),

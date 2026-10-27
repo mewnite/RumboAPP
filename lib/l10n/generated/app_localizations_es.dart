@@ -840,6 +840,72 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripEmptyChangeTime => 'Cambiar hora';
 
   @override
+  String get activeTripStart => 'Iniciar viaje con avisos';
+
+  @override
+  String get activeTripFinish => 'Finalizar viaje';
+
+  @override
+  String get activeTripNoTransit =>
+      'Este plan no tiene tramos en ómnibus para activar avisos.';
+
+  @override
+  String get activeTripRouteUnavailable =>
+      'No están disponibles las paradas de esta variante.';
+
+  @override
+  String get activeTripUnsupported =>
+      'El viaje activo solo está disponible en Android y iOS.';
+
+  @override
+  String get activeTripLocationDisabled =>
+      'Activá la ubicación para iniciar el seguimiento.';
+
+  @override
+  String get activeTripNotificationsRequired =>
+      'Habilitá las notificaciones de Rumbo para recibir avisos de bajada.';
+
+  @override
+  String get activeTripPermissionTitle =>
+      'Permiso de ubicación en segundo plano';
+
+  @override
+  String get activeTripPermissionBody =>
+      'Para avisarte cuándo acercarte a bajar aunque uses otras aplicaciones, habilitá «Permitir siempre» en los ajustes. La ubicación se procesa en este dispositivo y el seguimiento se detiene al finalizar el viaje.';
+
+  @override
+  String get activeTripOpenSettings => 'Abrir ajustes';
+
+  @override
+  String get activeTripStarted =>
+      'Seguimiento activo. Podés usar otras aplicaciones; Rumbo te avisará cuándo bajar.';
+
+  @override
+  String get activeTripNotificationTitle => 'Rumbo · viaje activo';
+
+  @override
+  String activeTripNotificationProgress(String stops, String stop) {
+    return 'Quedan $stops paradas hasta $stop';
+  }
+
+  @override
+  String activeTripStopsRemaining(int stops, String stop) {
+    return 'Quedan $stops paradas hasta $stop';
+  }
+
+  @override
+  String get activeTripAlertTitle => 'Próxima parada';
+
+  @override
+  String activeTripAlertBody(String stop) {
+    return 'Acercate a bajar en $stop.';
+  }
+
+  @override
+  String get activeTripBackgroundNotice =>
+      'Rumbo está siguiendo tu viaje en este dispositivo.';
+
+  @override
   String get tripDetailTitle => 'Tu recorrido';
 
   @override
@@ -1849,6 +1915,72 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripEmptyChangeTime => 'Cambiar hora';
+
+  @override
+  String get activeTripStart => 'Iniciar viaje con avisos';
+
+  @override
+  String get activeTripFinish => 'Finalizar viaje';
+
+  @override
+  String get activeTripNoTransit =>
+      'Este plan no tiene tramos en ómnibus para activar avisos.';
+
+  @override
+  String get activeTripRouteUnavailable =>
+      'No están disponibles las paradas de esta variante.';
+
+  @override
+  String get activeTripUnsupported =>
+      'El viaje activo solo está disponible en Android y iOS.';
+
+  @override
+  String get activeTripLocationDisabled =>
+      'Activá la ubicación para iniciar el seguimiento.';
+
+  @override
+  String get activeTripNotificationsRequired =>
+      'Habilitá las notificaciones de Rumbo para recibir avisos de bajada.';
+
+  @override
+  String get activeTripPermissionTitle =>
+      'Permiso de ubicación en segundo plano';
+
+  @override
+  String get activeTripPermissionBody =>
+      'Para avisarte cuándo acercarte a bajar aunque uses otras aplicaciones, habilitá «Permitir siempre» en los ajustes. La ubicación se procesa en este dispositivo y el seguimiento se detiene al finalizar el viaje.';
+
+  @override
+  String get activeTripOpenSettings => 'Abrir ajustes';
+
+  @override
+  String get activeTripStarted =>
+      'Seguimiento activo. Podés usar otras aplicaciones; Rumbo te avisará cuándo bajar.';
+
+  @override
+  String get activeTripNotificationTitle => 'Rumbo · viaje activo';
+
+  @override
+  String activeTripNotificationProgress(String stops, String stop) {
+    return 'Quedan $stops paradas hasta $stop';
+  }
+
+  @override
+  String activeTripStopsRemaining(int stops, String stop) {
+    return 'Quedan $stops paradas hasta $stop';
+  }
+
+  @override
+  String get activeTripAlertTitle => 'Próxima parada';
+
+  @override
+  String activeTripAlertBody(String stop) {
+    return 'Acercate a bajar en $stop.';
+  }
+
+  @override
+  String get activeTripBackgroundNotice =>
+      'Rumbo está siguiendo tu viaje en este dispositivo.';
 
   @override
   String get tripDetailTitle => 'Tu recorrido';

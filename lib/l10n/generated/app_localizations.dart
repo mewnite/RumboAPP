@@ -1514,6 +1514,108 @@ abstract class AppLocalizations {
   /// **'Cambiar hora'**
   String get tripEmptyChangeTime;
 
+  /// No description provided for @activeTripStart.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Iniciar viaje con avisos'**
+  String get activeTripStart;
+
+  /// No description provided for @activeTripFinish.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Finalizar viaje'**
+  String get activeTripFinish;
+
+  /// No description provided for @activeTripNoTransit.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Este plan no tiene tramos en ómnibus para activar avisos.'**
+  String get activeTripNoTransit;
+
+  /// No description provided for @activeTripRouteUnavailable.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No están disponibles las paradas de esta variante.'**
+  String get activeTripRouteUnavailable;
+
+  /// No description provided for @activeTripUnsupported.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'El viaje activo solo está disponible en Android y iOS.'**
+  String get activeTripUnsupported;
+
+  /// No description provided for @activeTripLocationDisabled.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Activá la ubicación para iniciar el seguimiento.'**
+  String get activeTripLocationDisabled;
+
+  /// No description provided for @activeTripNotificationsRequired.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Habilitá las notificaciones de Rumbo para recibir avisos de bajada.'**
+  String get activeTripNotificationsRequired;
+
+  /// No description provided for @activeTripPermissionTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Permiso de ubicación en segundo plano'**
+  String get activeTripPermissionTitle;
+
+  /// No description provided for @activeTripPermissionBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Para avisarte cuándo acercarte a bajar aunque uses otras aplicaciones, habilitá «Permitir siempre» en los ajustes. La ubicación se procesa en este dispositivo y el seguimiento se detiene al finalizar el viaje.'**
+  String get activeTripPermissionBody;
+
+  /// No description provided for @activeTripOpenSettings.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Abrir ajustes'**
+  String get activeTripOpenSettings;
+
+  /// No description provided for @activeTripStarted.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Seguimiento activo. Podés usar otras aplicaciones; Rumbo te avisará cuándo bajar.'**
+  String get activeTripStarted;
+
+  /// No description provided for @activeTripNotificationTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Rumbo · viaje activo'**
+  String get activeTripNotificationTitle;
+
+  /// No description provided for @activeTripNotificationProgress.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Quedan {stops} paradas hasta {stop}'**
+  String activeTripNotificationProgress(String stops, String stop);
+
+  /// No description provided for @activeTripStopsRemaining.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Quedan {stops} paradas hasta {stop}'**
+  String activeTripStopsRemaining(int stops, String stop);
+
+  /// No description provided for @activeTripAlertTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Próxima parada'**
+  String get activeTripAlertTitle;
+
+  /// No description provided for @activeTripAlertBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Acercate a bajar en {stop}.'**
+  String activeTripAlertBody(String stop);
+
+  /// No description provided for @activeTripBackgroundNotice.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Rumbo está siguiendo tu viaje en este dispositivo.'**
+  String get activeTripBackgroundNotice;
+
   /// No description provided for @tripDetailTitle.
   ///
   /// In es_UY, this message translates to:

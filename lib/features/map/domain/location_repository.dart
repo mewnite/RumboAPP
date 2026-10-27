@@ -17,7 +17,13 @@ abstract interface class LocationRepository {
   Future<bool> isLocationServiceEnabled();
   Future<LocationPermissionStatus> checkPermission();
   Future<LocationPermissionStatus> requestPermission();
+  Future<bool> hasBackgroundPermission();
+  Future<bool> requestBackgroundPermission();
   Future<DeviceLocation> getCurrentLocation();
+  Stream<DeviceLocation> watchActiveTripLocation({
+    required String notificationTitle,
+    required String notificationText,
+  });
   Future<bool> openAppSettings();
   Future<bool> openLocationSettings();
 }

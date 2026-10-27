@@ -452,7 +452,40 @@
   "tripEmptySuggestions": "Probá ampliar la caminata máxima o cambiar la hora.",
   "tripEmptyExpandWalking": "Ampliar caminata",
   "tripEmptyChangeTime": "Cambiar hora",
-  "tripDetailTitle": "Tu recorrido",
+  "activeTripStart": "Iniciar viaje con avisos",
+  "activeTripFinish": "Finalizar viaje",
+  "activeTripNoTransit": "Este plan no tiene tramos en ómnibus para activar avisos.",
+  "activeTripRouteUnavailable": "No están disponibles las paradas de esta variante.",
+  "activeTripUnsupported": "El viaje activo solo está disponible en Android y iOS.",
+  "activeTripLocationDisabled": "Activá la ubicación para iniciar el seguimiento.",
+  "activeTripNotificationsRequired": "Habilitá las notificaciones de Rumbo para recibir avisos de bajada.",
+  "activeTripPermissionTitle": "Permiso de ubicación en segundo plano",
+  "activeTripPermissionBody": "Para avisarte cuándo acercarte a bajar aunque uses otras aplicaciones, habilitá «Permitir siempre» en los ajustes. La ubicación se procesa en este dispositivo y el seguimiento se detiene al finalizar el viaje.",
+  "activeTripOpenSettings": "Abrir ajustes",
+  "activeTripStarted": "Seguimiento activo. Podés usar otras aplicaciones; Rumbo te avisará cuándo bajar.",
+  "activeTripNotificationTitle": "Rumbo · viaje activo",
+  "activeTripNotificationProgress": "Quedan {stops} paradas hasta {stop}",
+  "@activeTripNotificationProgress": {
+    "placeholders": {
+      "stops": { "type": "String" },
+      "stop": { "type": "String" }
+    }
+  },
+  "activeTripStopsRemaining": "Quedan {stops} paradas hasta {stop}",
+  "@activeTripStopsRemaining": {
+    "placeholders": {
+      "stops": { "type": "int" },
+      "stop": { "type": "String" }
+    }
+  },
+  "activeTripAlertTitle": "Próxima parada",
+  "activeTripAlertBody": "Acercate a bajar en {stop}.",
+  "@activeTripAlertBody": {
+    "placeholders": {
+      "stop": { "type": "String" }
+    }
+  },
+  "activeTripBackgroundNotice": "Rumbo está siguiendo tu viaje en este dispositivo.",  "tripDetailTitle": "Tu recorrido",
   "tripDetailBetweenStops": "{from} → {to}",
   "@tripDetailBetweenStops": {
     "placeholders": {

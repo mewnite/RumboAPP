@@ -131,7 +131,7 @@ llegada, con las horas estimadas rotuladas. En el mapa, los tramos de ómnibus
 son continuos y los peatonales punteados. Las distancias a pie son
 aproximaciones en línea recta y el trazo del ómnibus une paradas de forma
 esquemática; los horarios son programados, no posiciones ni ETA en vivo. La app
-todavía no brinda guía paso a paso ni seguimiento de navegación en tiempo real.
+no brinda guía paso a paso; el viaje activo avisa cuándo acercarse a la parada de bajada.
 
 Para regenerar el ZIP pequeño y el fixture GeoJSON sintético, ejecuta
 `python tool/generate_sample_gtfs.py`. El archivo identifica el feed como prueba;
@@ -148,8 +148,16 @@ El cliente de tiempo real consume `GET /api/buses?format=geojson` a través del
 proxy local (que reenvía a `/buses` del upstream); no usa `/buses/geo`, marcado
 como obsoleto en el manual de la API.
 El parser asigna la hora local de recepción y conserva `frecuencia`/`version`
-como campos raw sin interpretar. El mapa dibuja hasta 60 marcadores de la
-línea o parada seleccionada, filtrados por la zona visible en el dispositivo.
+como campos raw sin interpretar. El mapa dibuja hasta 60 marcadores de buses visibles de la API; con GTFS cargado prioriza las líneas de las paradas del área. El filtrado de zona ocurre localmente en el dispositivo.
+
+### Viaje activo y avisos de bajada
+
+Al abrir un plan con tramos de ómnibus, toca **Iniciar viaje con avisos**. Rumbo
+solicita el permiso de ubicación en segundo plano y notificaciones en ese momento.
+En Android, la notificación persistente muestra las paradas restantes; en iOS,
+Rumbo actualiza avisos locales y usa el indicador del sistema para ubicación en
+segundo plano. La posición se procesa localmente; el seguimiento termina al
+finalizar el viaje, cambiar el plan o cerrar el detalle.
 
 ### Verificar acceso de desarrollador a Montevideo API
 

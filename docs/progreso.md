@@ -40,3 +40,11 @@
 - La acción de limpiar datos elimina favoritos, búsquedas recientes y caché ambiente del mapa; no borra preferencias de tema.
 - Sin dependencias nuevas; la ubicación precisa sigue en el dispositivo y las búsquedas remotas requieren consentimiento y acción por consulta.
 - Tests específicos: preferencia de buses entre aperturas, descarte de fetch al desactivar y borrado local/cache; conjunto total: 150 en verde.
+
+## Fase 5: viaje activo y aviso de bajada (implementado; validación física pendiente)
+- Un plan con variante GTFS permite iniciar seguimiento desde su detalle; la ubicación se solicita solo al tocar «Iniciar viaje con avisos» y requiere permiso en segundo plano y notificaciones.
+- Geolocator usa ubicación procesada solo en el dispositivo: Android mantiene servicio/notificación persistente y actualiza paradas restantes; iOS usa Location Updates y avisos locales.
+- El aviso se activa al estar a 300 m del destino o quedar a dos paradas, lo que ocurra primero; el contador usa el orden de paradas de la variante.
+- «Finalizar viaje», cambiar recorrido o cerrar el detalle cancela la suscripción y las notificaciones; al desactivar servicios se detiene.
+- Sin dependencias nuevas: se reutilizan `geolocator` y `flutter_local_notifications`. No se envía ubicación al proxy ni a geocodificación.
+- Unit/widget tests: 150 en verde; `flutter analyze` sin issues; APK debug Android compilado y `flutter run -d chrome` conectado. No probado en dispositivo físico ni iOS. Chrome muestra avisos de recursos opcionales del estilo MapLibre (PMTiles/imagen `wood-pattern`); queda pendiente confirmar visualmente teselas y marcadores en un navegador.

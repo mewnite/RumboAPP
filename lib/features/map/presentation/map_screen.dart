@@ -25,6 +25,7 @@ import '../../../features/stops_and_lines/presentation/stop_details_sheet.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
 import '../../../features/trip_planner/presentation/trip_plan_details.dart';
+import '../../../features/trip_detail/presentation/active_trip_controller.dart';
 import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/connectivity_provider.dart';
@@ -643,6 +644,92 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
+  Future<void> _startActiveTrip(TripPlan plan) async {
+    final l10n = AppLocalizations.of(context);
+    final transitLegs = plan.legs
+        .where((leg) => leg.kind == TripLegKind.transit)
+        .toList(growable: false);
+    if (transitLegs.isEmpty) {
+      _showMessage(l10n.activeTripNoTransit);
+      return;
+    }
+    final finalLeg = transitLegs.last;
+    final destinationStop = finalLeg.toStop;
+    final variant = finalLeg.variant;
+    if (destinationStop == null || variant == null) {
+      _showMessage(l10n.activeTripRouteUnavailable);
+      return;
+    }
+    late final List<Stop> variantStops;
+    try {
+      variantStops = await ref.read(variantStopsProvider(variant.id).future);
+    } on Exception {
+      if (mounted) _showMessage(l10n.activeTripRouteUnavailable);
+      return;
+    }
+    if (!mounted) return;
+    final result = await ref
+        .read(activeTripControllerProvider.notifier)
+        .start(
+          variantStops: variantStops,
+          destinationStop: destinationStop,
+          progressTitle: l10n.activeTripNotificationTitle,
+          progressBody: l10n.activeTripNotificationProgress(
+            '{stops}',
+            '{stop}',
+          ),
+          alertTitle: l10n.activeTripAlertTitle,
+          alertBody: l10n.activeTripAlertBody('{stop}'),
+          backgroundNotificationText: l10n.activeTripBackgroundNotice,
+        );
+    if (!mounted) return;
+    switch (result) {
+      case ActiveTripStartResult.started:
+        _showMessage(l10n.activeTripStarted);
+      case ActiveTripStartResult.alreadyActive:
+        break;
+      case ActiveTripStartResult.unsupportedPlatform:
+        _showMessage(l10n.activeTripUnsupported);
+      case ActiveTripStartResult.serviceDisabled:
+        _showMessage(l10n.activeTripLocationDisabled);
+      case ActiveTripStartResult.backgroundPermissionRequired:
+        await _showBackgroundPermissionHelp();
+      case ActiveTripStartResult.notificationsPermissionRequired:
+        _showMessage(l10n.activeTripNotificationsRequired);
+      case ActiveTripStartResult.invalidRoute:
+        _showMessage(l10n.activeTripRouteUnavailable);
+    }
+  }
+
+  Future<void> _showBackgroundPermissionHelp() async {
+    final l10n = AppLocalizations.of(context);
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.activeTripPermissionTitle),
+        content: Text(l10n.activeTripPermissionBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.actionCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.activeTripOpenSettings),
+          ),
+        ],
+      ),
+    );
+    if (openSettings == true && mounted) {
+      await ref.read(locationRepositoryProvider).openAppSettings();
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _showAttribution() async {
     final l10n = AppLocalizations.of(context);
     await showModalBottomSheet<void>(
@@ -1115,6 +1202,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final routesByStop =
         stopRoutes.asData?.value ?? const <String, List<Route>>{};
     final liveBuses = ref.watch(liveBusesControllerProvider);
+    final activeTrip = ref.watch(activeTripControllerProvider);
     final selectedRoute = _selectedRoute;
     final selectedRoutes = <String, Route>{
       ...?(selectedRoute == null ? null : {selectedRoute.id: selectedRoute}),
@@ -1397,7 +1485,36 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           destinationName:
                               _selectedTripDestinationName ??
                               l10n.tripDetailUnknownStop,
+                          activeTripIsActive: activeTrip.isActive,
+                          activeTripStopsRemaining: activeTrip.stopsRemaining,
+                          onStartActiveTrip:
+                              _selectedTripPlan!.legs.any(
+                                (leg) =>
+                                    leg.kind == TripLegKind.transit &&
+                                    leg.variant != null &&
+                                    leg.toStop != null,
+                              )
+                              ? () => unawaited(
+                                  _startActiveTrip(_selectedTripPlan!),
+                                )
+                              : null,
+                          onStopActiveTrip: activeTrip.isActive
+                              ? () => unawaited(
+                                  ref
+                                      .read(
+                                        activeTripControllerProvider.notifier,
+                                      )
+                                      .stop(),
+                                )
+                              : null,
                           onChangeTrip: () {
+                            if (activeTrip.isActive) {
+                              unawaited(
+                                ref
+                                    .read(activeTripControllerProvider.notifier)
+                                    .stop(),
+                              );
+                            }
                             setState(() {
                               _selectedTripPlan = null;
                               _selectedTripOriginName = null;
@@ -1406,6 +1523,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
                             unawaited(_showTripSearch());
                           },
                           onCloseTrip: () {
+                            if (activeTrip.isActive) {
+                              unawaited(
+                                ref
+                                    .read(activeTripControllerProvider.notifier)
+                                    .stop(),
+                              );
+                            }
                             setState(() {
                               _selectedTripPlan = null;
                               _selectedTripOriginName = null;

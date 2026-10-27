@@ -16,14 +16,15 @@
 - La muestra de paleta y tipografía solo se registra y se enlaza en builds de debug.
 - No se agregaron dependencias de anuncios, analíticas, tracking, identificadores publicitarios ni fuentes remotas.
 - `maplibre` 0.3.7 — renderiza estilos vectoriales en Android, iOS y web; se eligió frente a `maplibre_gl` por su API de caché ambiental con tope en bytes, necesaria para limitar el almacenamiento local. Es una reescritura reciente y requiere validar los toolchains nativos al actualizarlo ([paquete y plataformas](https://pub.dev/packages/maplibre), [alternativa](https://pub.dev/packages/maplibre_gl)).
-- `geolocator` — solicita ubicación foreground solo después de una acción del usuario y expone permisos/servicios sin enviar coordenadas a un backend propio.
+- `geolocator` — solicita ubicación en primer plano por acción explícita y ofrece seguimiento en segundo plano solo durante un viaje activo iniciado por la persona; las coordenadas se procesan localmente.
+- `flutter_local_notifications` — reutiliza las notificaciones locales existentes para mostrar progreso y aviso de bajada; no se agregó un SDK de tracking.
 - `connectivity_plus` — informa desconexión para presentar el estado offline; no registra ni envía telemetría.
 - `OpenFreeMap` — proveedor vectorial sin clave y con estilos claro/oscuro; sus términos públicos ofrecen el servicio “as-is”, sin SLA, y permiten interrumpirlo. No fijan un máximo de solicitudes de visualización, pero las descargas offline sí se limitan a 3.000 teselas o 50 MB por descarga, hasta 4 solicitudes en paralelo y User-Agent que identifique la app ([términos](https://openfreemap.org/tos/)). Es la opción configurada por ser más adecuada para publicar que el servidor comunitario raster, aunque no garantiza disponibilidad para una operación grande.
 - `OpenStreetMap Carto` (`tile.openstreetmap.org`) — alternativa raster para desarrollo con atribución visible. Su política exige User-Agent identificado, Referer web, caché de al menos 7 días si no hay cabeceras, prohíbe descargas masivas/prefetch, puede bloquear el uso y no ofrece SLA ([política](https://operations.osmfoundation.org/policies/tiles/)); por eso no se publica como proveedor predeterminado.
 - Las teselas son datos de OpenStreetMap y OpenMapTiles; la atribución accesible aparece en el mapa y en su panel de información. El origen, estilo, atribución, centro y zoom están centralizados en `lib/core/config/map_config.dart`.
 - El modo oscuro usa el estilo oscuro ofrecido por el mismo proveedor. En web, la integración requiere MapLibre GL JS/CSS cargados por la página; las fuentes de texto Inter permanecen locales.
 - Se limita la caché ambiental nativa a 50 MiB cuando la plataforma implementa el `OfflineManager`; web utiliza su caché del navegador. No se descargan regiones ni áreas completas.
-- El permiso se solicita luego de aceptar una explicación; Android usa ubicación aproximada/precisa en primer plano e iOS `WhenInUse`. No se configura ubicación `Always` o en segundo plano.
+- Para centrar el mapa, el permiso foreground se solicita después de aceptar una explicación. El viaje activo es la única función que pide ubicación `Always`/segundo plano, y solo tras tocar iniciar; finalizarlo cancela la suscripción.
 - Rumbo no guarda ni manda la coordenada GPS. Al centrar el mapa, las peticiones de teselas sí pueden permitir al proveedor inferir la zona visible aproximada; la interfaz lo explica junto a la atribución.
 - `http` — descarga el feed estático y consulta el cliente GeoJSON detrás del proxy OAuth de desarrollo; las credenciales nunca se envían desde la app.
 - `archive` — valida y lee el ZIP GTFS sin ejecutar herramientas externas; se mantiene como adaptador de datos.
@@ -149,3 +150,10 @@ autorizado).
 - Desactivar posiciones en vivo detiene el polling, limpia ubicaciones de buses en memoria y descarta respuestas que concluyan después de apagar el control.
 - Limpiar datos locales elimina favoritos, búsquedas recientes y caché ambiente de teselas; conserva el tema y permisos de preferencias.
 - La búsqueda de lugares presenta el campo `name` del proveedor cuando existe, y usa `display_name` como fallback, para que los POIs no aparezcan como una dirección extensa.
+
+## Viaje activo en segundo plano
+- El botón de seguimiento solo aparece para planes que tienen una variante y parada final identificadas. La persona lo inicia explícitamente; se requiere ubicación «Permitir siempre» y permiso de notificaciones.
+- `geolocator` usa en Android `AndroidSettings` con servicio foreground, actualización cada 5 s y filtro de 20 m; la notificación persistente acompaña al servicio y el aviso local se actualiza con las paradas restantes.
+- En iOS se usan `AppleSettings.allowBackgroundLocationUpdates`, modo `UIBackgroundModes=location` y texto de autorización dedicado. iOS no ofrece un aviso persistente equivalente al servicio Android; se publican avisos locales al cambiar el contador y al acercarse.
+- La ubicación se procesa en el teléfono y no se envía a servidores. El criterio de bajada combina distancia recta ≤300 m con progreso ≤2 paradas en la secuencia GTFS, y evita duplicar el aviso.
+- «Finalizar viaje», cambiar el plan o cerrar el detalle cancela la suscripción y notificaciones. Sin dependencias nuevas: se reutilizan `geolocator` y `flutter_local_notifications`; no se incorpora SDK de tracking.

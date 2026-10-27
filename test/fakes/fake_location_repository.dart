@@ -11,6 +11,7 @@ class FakeLocationRepository implements LocationRepository {
     accuracyMeters: 18,
   );
   LocationRepositoryException? locationFailure;
+  bool backgroundPermissionGranted = true;
 
   int serviceChecks = 0;
   int permissionChecks = 0;
@@ -38,12 +39,25 @@ class FakeLocationRepository implements LocationRepository {
   }
 
   @override
+  Future<bool> hasBackgroundPermission() async => backgroundPermissionGranted;
+
+  @override
+  Future<bool> requestBackgroundPermission() async =>
+      backgroundPermissionGranted;
+
+  @override
   Future<DeviceLocation> getCurrentLocation() async {
     locationReads++;
     final failure = locationFailure;
     if (failure != null) throw failure;
     return location;
   }
+
+  @override
+  Stream<DeviceLocation> watchActiveTripLocation({
+    required String notificationTitle,
+    required String notificationText,
+  }) => const Stream<DeviceLocation>.empty();
 
   @override
   Future<bool> openAppSettings() async {
