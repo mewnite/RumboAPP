@@ -23,6 +23,7 @@ Flujo recomendado:
 - El proxy local de desarrollo lee `CLIENT_ID` y `CLIENT_SECRET` desde configuración local.
 - El proxy obtiene un access token fuera del cliente móvil.
 - La app solo consume el proxy local y no conoce secretos.
+- El proxy puede iniciarse sin esas variables para servir únicamente búsqueda de lugares; las rutas GTFS y STM responden que falta autenticación hasta configurarlas.
 
 No se imprime ni se persiste el token. El mismo patrón aplica al feed GTFS y al tiempo real.
 
@@ -48,7 +49,7 @@ Uso:
 
 - Descarga el feed GTFS actual.
 - Se cachea localmente por un período configurable.
-- Si no hay proxy o no se configura la URL, la app usa un feed sintético de demostración.
+- Si no hay proxy o no se configura la URL, la app muestra el estado sin datos oficiales; el feed sintético solo se carga en modo demo explícito (`RUMBO_DEMO_MODE=true`).
 
 Notas:
 

@@ -47,6 +47,11 @@ GtfsParseResult parseGtfsZip(Uint8List bytes) {
   return _parseGtfsZip(bytes);
 }
 
+/// Parses GTFS compactly for web: keep trip patterns, not millions of raw
+/// stop-time rows, in browser memory.
+GtfsParseResult parseGtfsZipCompact(Uint8List bytes) =>
+    _parseGtfsZip(bytes, retainStopTimes: false);
+
 /// Parses in an isolate and writes valid stop-time rows to a temporary JSONL
 /// file instead of returning millions of Dart objects across the isolate port.
 GtfsParseResult parseGtfsZipToFile(Map<String, Object> input) {
@@ -102,7 +107,11 @@ GtfsParseResult parseGtfsZipFileToFile(Map<String, Object> input) {
   }
 }
 
-GtfsParseResult _parseGtfsZip(Uint8List bytes, {String? stopTimesFilePath}) {
+GtfsParseResult _parseGtfsZip(
+  Uint8List bytes, {
+  String? stopTimesFilePath,
+  bool retainStopTimes = true,
+}) {
   final archive = ZipDecoder().decodeBytes(bytes, verify: true);
   final files = <String, String>{};
   for (final item in archive.files) {
@@ -115,13 +124,18 @@ GtfsParseResult _parseGtfsZip(Uint8List bytes, {String? stopTimesFilePath}) {
       );
     }
   }
-  return _parseGtfsFiles(files, stopTimesFilePath: stopTimesFilePath);
+  return _parseGtfsFiles(
+    files,
+    stopTimesFilePath: stopTimesFilePath,
+    retainStopTimes: retainStopTimes,
+  );
 }
 
 GtfsParseResult _parseGtfsFiles(
   Map<String, String> files, {
   String? stopTimesFilePath,
   String? stopTimesCsvPath,
+  bool retainStopTimes = true,
 }) {
   const required = ['stops.txt', 'routes.txt', 'trips.txt', 'stop_times.txt'];
   final absent = required
@@ -424,9 +438,9 @@ GtfsParseResult _parseGtfsFiles(
         ),
       );
       timeCount++;
-      if (spool == null) {
+      if (spool == null && retainStopTimes) {
         times.add(currentStops.last);
-      } else {
+      } else if (spool != null) {
         spool.writeStringSync(
           '${jsonEncode([tripId, v(r, 'stop_id'), arr, dep, seq])}\n',
         );

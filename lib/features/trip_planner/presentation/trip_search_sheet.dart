@@ -36,6 +36,7 @@ class TripSearchSheet extends StatefulWidget {
     required this.findPlans,
     required this.hasCurrentLocation,
     this.remotePlaceSearchEnabled = false,
+    this.onRemotePlaceSearchConsentRequested,
     this.searchService,
     this.initialDestination,
     this.onPlanSelected,
@@ -51,6 +52,7 @@ class TripSearchSheet extends StatefulWidget {
   final PlanSearch findPlans;
   final bool hasCurrentLocation;
   final bool remotePlaceSearchEnabled;
+  final Future<bool> Function()? onRemotePlaceSearchConsentRequested;
   final PlaceSearchService? searchService;
   final TripEndpoint? initialDestination;
   final TripPlanSelected? onPlanSelected;
@@ -80,6 +82,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   bool _originUsesLocation = true;
   bool _searchOrigin = false;
   bool _hasSearchedPlaces = false;
+  late bool _remoteSearchEnabled;
   TripTimingMode _timingMode = TripTimingMode.departNow;
   late DateTime _timedDateTime;
   bool _tomorrow = false;
@@ -105,6 +108,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   void initState() {
     super.initState();
     _config = widget.initialConfig;
+    _remoteSearchEnabled = widget.remotePlaceSearchEnabled;
     _timedDateTime = _nextTimeSlot(_now);
     _tomorrow = _isTomorrowDate(_timedDateTime);
     if (widget.initialDestination != null) {
@@ -163,9 +167,14 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   }
 
   Future<void> _searchPlaces() async {
-    if (!widget.remotePlaceSearchEnabled) return;
     final query = _activeController.text.trim();
     if (query.length < 3) return;
+    if (!_remoteSearchEnabled) {
+      final requestConsent = widget.onRemotePlaceSearchConsentRequested;
+      if (requestConsent == null || !await requestConsent()) return;
+      if (!mounted) return;
+      setState(() => _remoteSearchEnabled = true);
+    }
     _debounce?.cancel();
     setState(() {
       _searching = true;
@@ -576,8 +585,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   },
                 ),
               ),
-            if (widget.remotePlaceSearchEnabled &&
-                _activeController.text.trim().length >= 3 &&
+            if (_activeController.text.trim().length >= 3 &&
                 (_originFocus.hasFocus || _destinationFocus.hasFocus)) ...[
               const SizedBox(height: 8),
               OutlinedButton.icon(

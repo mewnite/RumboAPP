@@ -693,7 +693,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripChangeTime => 'Cambiar hora';
 
   @override
-  String get tripNoStops => 'No encontramos paradas con ese nombre.';
+  String get tripNoStops =>
+      'No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».';
 
   @override
   String get tripNoPlaces =>
@@ -732,6 +733,19 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripSearchPlaces => 'Buscar lugares o direcciones';
+
+  @override
+  String get tripGeocodingConsentTitle => 'Buscar lugares en línea';
+
+  @override
+  String get tripGeocodingConsentBody =>
+      'Para encontrar shoppings, terminales y otros lugares, se enviará el texto que escribiste al servicio de búsqueda. El proveedor verá la consulta y la IP de conexión; tu ubicación GPS no se envía.';
+
+  @override
+  String get tripGeocodingConsentAction => 'Habilitar y buscar';
+
+  @override
+  String get cancel => 'Cancelar';
 
   @override
   String get tripPlaceResult => 'Lugar o dirección · OpenStreetMap';
@@ -1770,7 +1784,8 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripChangeTime => 'Cambiar hora';
 
   @override
-  String get tripNoStops => 'No encontramos paradas con ese nombre.';
+  String get tripNoStops =>
+      'No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».';
 
   @override
   String get tripNoPlaces =>
@@ -1809,6 +1824,19 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripSearchPlaces => 'Buscar lugares o direcciones';
+
+  @override
+  String get tripGeocodingConsentTitle => 'Buscar lugares en línea';
+
+  @override
+  String get tripGeocodingConsentBody =>
+      'Para encontrar shoppings, terminales y otros lugares, se enviará el texto que escribiste al servicio de búsqueda. El proveedor verá la consulta y la IP de conexión; tu ubicación GPS no se envía.';
+
+  @override
+  String get tripGeocodingConsentAction => 'Habilitar y buscar';
+
+  @override
+  String get cancel => 'Cancelar';
 
   @override
   String get tripPlaceResult => 'Lugar o dirección · OpenStreetMap';

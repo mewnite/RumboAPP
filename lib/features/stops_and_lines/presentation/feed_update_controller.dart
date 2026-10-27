@@ -64,25 +64,22 @@ final feedUpdateControllerProvider =
 class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
   FeedUpdateState? _lastGood;
   @override
-  Future<FeedUpdateState> build() => _loadSample();
+  Future<FeedUpdateState> build() => _loadData();
 
-  Future<FeedUpdateState> _loadSample() async {
+  Future<FeedUpdateState> _loadData() async {
     state = const AsyncData(
-      FeedUpdateState(
-        phase: FeedUpdatePhase.processing,
-        stage: 'procesando',
-        progress: .1,
-      ),
+      FeedUpdateState(phase: FeedUpdatePhase.downloading, stage: 'conectando'),
     );
     try {
-      if (!kIsWeb) {
+      if (!transitConfig.demoMode && !kIsWeb) {
         final database = TransitDatabase();
         final cachedDatabase = await database.open();
         final cachedStatus = await SqfliteTransitRepository(
           () async => cachedDatabase,
         ).feedStatus();
         await cachedDatabase.close();
-        if (cachedStatus.stopCount > 0 || cachedStatus.routeCount > 0) {
+        if (!cachedStatus.synthetic &&
+            (cachedStatus.stopCount > 0 || cachedStatus.routeCount > 0)) {
           final cached = FeedUpdateState(
             phase: FeedUpdatePhase.updated,
             progress: 1,
@@ -95,17 +92,60 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
           return cached;
         }
       }
+      if (transitConfig.demoMode) {
+        return await _loadBundledDemo();
+      }
+      if (transitConfig.url.isEmpty) {
+        const unavailable = FeedUpdateState(
+          phase: FeedUpdatePhase.offline,
+          message: 'No hay una fuente GTFS oficial configurada.',
+        );
+        state = const AsyncData(unavailable);
+        return unavailable;
+      }
+      const empty = FeedUpdateState(
+        phase: FeedUpdatePhase.noData,
+        status: FeedStatus(),
+      );
+      await _refresh(empty);
+      return state.asData?.value ?? empty;
+    } catch (e, stackTrace) {
+      final stale = _lastGood;
+      final result = FeedUpdateState(
+        phase: stale?.feed == null
+            ? FeedUpdatePhase.noData
+            : FeedUpdatePhase.errorWithOldData,
+        message: e.toString(),
+        feed: stale?.feed,
+        status: stale?.status ?? const FeedStatus(),
+      );
+      state = AsyncData(result);
+      Error.throwWithStackTrace(e, stackTrace);
+    }
+  }
+
+  Future<FeedUpdateState> _loadBundledDemo() async {
+    state = const AsyncData(
+      FeedUpdateState(
+        phase: FeedUpdatePhase.processing,
+        stage: 'procesando_demo',
+        progress: .1,
+      ),
+    );
+    try {
       final data = await rootBundle.load('assets/sample_gtfs/sample_gtfs.zip');
       final bytes = data.buffer.asUint8List(
         data.offsetInBytes,
         data.lengthInBytes,
       );
-      final parsed = await GtfsZipSource(transitConfig.url)
-          .parse(bytes, streamStopTimes: !kIsWeb);
+      final source = GtfsZipSource(transitConfig.url);
+      final parsed = kIsWeb
+          ? await source.parseCompact(bytes)
+          : await source.parse(bytes, streamStopTimes: true);
       if (!kIsWeb) {
         await TransitDatabase().replaceFeed(
           parsed,
-          sourceName: transitConfig.sourceName,
+          sourceName: 'Datos sintéticos de prueba',
         );
       }
       final result = FeedUpdateState(
@@ -135,7 +175,6 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
       );
       state = AsyncData(result);
       _lastGood = result;
-      await _checkForUpdate(result);
       return result;
     } catch (e, stackTrace) {
       final stale = _lastGood;
@@ -263,11 +302,13 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
       }
 
       final parsed = downloaded.filePath == null
-          ? await source.parse(
-              downloaded.bytes,
-              streamStopTimes: !kIsWeb,
-              onProgress: reportProgress,
-            )
+          ? kIsWeb
+                ? await source.parseCompact(downloaded.bytes)
+                : await source.parse(
+                    downloaded.bytes,
+                    streamStopTimes: true,
+                    onProgress: reportProgress,
+                  )
           : await source.parseFile(
               downloaded.filePath!,
               onProgress: reportProgress,

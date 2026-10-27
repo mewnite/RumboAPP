@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tool.montevideo_api_proxy import ApiError, ApiProxy, load_env
+from tool.montevideo_api_proxy import ApiError, ApiProxy, Handler, load_env
 
 
 class ApiProxyTest(unittest.TestCase):
@@ -19,6 +19,26 @@ class ApiProxyTest(unittest.TestCase):
             self.proxy.handle("/health"),
             (200, "application/json", b'{"status":"ok"}', {}),
         )
+
+    def test_browser_cors_allows_only_loopback_origins(self):
+        handler = object.__new__(Handler)
+        handler.headers = {"Origin": "http://localhost:54321"}
+        self.assertEqual(
+            handler._local_cors_headers()["Access-Control-Allow-Origin"],
+            "http://localhost:54321",
+        )
+        handler.headers = {"Origin": "http://127.0.0.1:8123"}
+        self.assertEqual(
+            handler._local_cors_headers()["Access-Control-Allow-Origin"],
+            "http://127.0.0.1:8123",
+        )
+        for origin in (
+            "https://localhost:54321",
+            "http://localhost.evil.test",
+            "https://example.com",
+        ):
+            handler.headers = {"Origin": origin}
+            self.assertEqual(handler._local_cors_headers(), {})
 
     def test_place_search_is_validated_cached_and_identifies_rumbo(self):
         payload = (200, "application/json", b'[]')

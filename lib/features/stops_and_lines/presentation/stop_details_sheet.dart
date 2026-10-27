@@ -12,10 +12,9 @@ import '../../../features/map/data/connectivity_provider.dart';
 import '../../../features/map/presentation/live_buses_controller.dart';
 import '../../../features/settings/presentation/privacy_preferences.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import '../data/sqflite_transit_repository.dart';
 import '../data/transit_arrivals_source.dart';
-import '../data/transit_database.dart';
 import '../domain/transit_models.dart';
+import 'transit_repository_provider.dart';
 
 class StopDetailsData {
   const StopDetailsData({required this.routes, required this.arrivals});
@@ -28,27 +27,20 @@ final stopDetailsProvider = FutureProvider.family<StopDetailsData, String>((
   ref,
   stopId,
 ) async {
-  final database = TransitDatabase();
-  final db = await database.open();
-  try {
-    final repository = SqfliteTransitRepository(() async => db);
-    final routes = await repository.routesForStop(stopId);
-    // Recompute arrivals when fresh bus positions arrive while the stop sheet is open.
-    // Scheduled GTFS departures remain estimates, not live data.
-    final liveState = ref.watch(liveBusesControllerProvider);
-    final liveEnabled =
-        ref.watch(liveBusesEnabledProvider).asData?.value ?? true;
-    final livePositions = !liveEnabled || liveState.lastUpdatedAt == null
-        ? null
-        : liveState.positions;
-    final arrivals = await TransitArrivalsSource(
-      repository,
-      livePositions: livePositions,
-    ).arrivalsForStop(stopId, DateTime.now(), limit: 8);
-    return StopDetailsData(routes: routes, arrivals: arrivals);
-  } finally {
-    await db.close();
-  }
+  final repository = ref.watch(transitRepositoryProvider);
+  final routes = await repository.routesForStop(stopId);
+  // Recompute arrivals when fresh bus positions arrive while the stop sheet is open.
+  // Scheduled GTFS departures remain estimates, not live data.
+  final liveState = ref.watch(liveBusesControllerProvider);
+  final liveEnabled = ref.watch(liveBusesEnabledProvider).asData?.value ?? true;
+  final livePositions = !liveEnabled || liveState.lastUpdatedAt == null
+      ? null
+      : liveState.positions;
+  final arrivals = await TransitArrivalsSource(
+    repository,
+    livePositions: livePositions,
+  ).arrivalsForStop(stopId, DateTime.now(), limit: 8);
+  return StopDetailsData(routes: routes, arrivals: arrivals);
 });
 
 class StopDetailsSheet extends ConsumerWidget {

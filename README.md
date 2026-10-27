@@ -88,28 +88,36 @@ planifica usando sus coordenadas y el GTFS local.
 
 ## Datos de transporte
 
-La URL, el nombre de fuente, la atribución, la licencia y el intervalo mínimo
-se declaran en `lib/core/config/transit_config.dart`. En debug Android, la URL
-apunta por defecto al host del emulador `10.0.2.2:8765`; en otras plataformas
-usa `127.0.0.1:8765`. El proxy debe estar ejecutándose. En un teléfono físico
+La URL, el nombre de fuente, la atribución y el intervalo mínimo se declaran en
+`lib/core/config/transit_config.dart`. En debug Android, la URL apunta por
+defecto al host del emulador `10.0.2.2:8765`; en Chrome y otras plataformas usa
+`127.0.0.1:8765`. Iniciá el proxy antes de abrir la app. En un teléfono físico
 conectado por USB, usá `adb reverse tcp:8765 tcp:8765` y configurá
-`--dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765`. En release no se
-configura una API ni se incluyen credenciales. Sin proxy
-configurado, la app carga `assets/sample_gtfs/sample_gtfs.zip`, un feed
-sintético de demostración que no representa los servicios, paradas u horarios
-reales del STM. El feed oficial y el tiempo real se habilitan solo para
-desarrollo mediante el proxy local; las credenciales nunca se incluyen en
-Flutter ni en el APK.
+`--dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765`. Si el proxy no está
+disponible, Rumbo muestra el estado de conexión y no sustituye los datos reales
+con recorridos inventados.
+
+El GTFS oficial aporta paradas, recorridos, variantes y horarios; Android/iOS
+lo guardan en SQLite. En Chrome se consulta el mismo feed, se indexan sus
+patrones en memoria y se usan para paradas, recorridos y planificación, ya que
+SQLite no está disponible allí. Los buses y las consultas de arribos son otra
+parte: se obtienen por la API STM a través del proxy. Las credenciales nunca se
+incluyen en Flutter ni en el APK.
+
+La muestra sintética se usa solo cuando se pide explícitamente para revisar la
+interfaz: `flutter run -d chrome --dart-define=RUMBO_DEMO_MODE=true`. No
+representa servicios, paradas ni horarios reales del STM.
 
 El buscador de destinos (`lib/features/search/`) es un motor híbrido inteligente
 diseñado para movilidad urbana en Montevideo:
-- **Búsqueda local instantánea:** Consulta la base SQLite de paradas y líneas GTFS
-  en <10 ms por código de parada (ej. `4021`), nombre de parada o línea (`522`, `G`).
+- **Búsqueda local:** Consulta paradas y líneas del GTFS oficial, en SQLite en
+  Android/iOS y desde el índice compacto en memoria en Chrome.
 - **Geocodificador remoto con gateway y caché:** Consulta direcciones completas con
   número de puerta, esquinas e intersecciones (`18 de Julio y Ejido`), POIs (facultades,
   hospitales, terminales) y barrios mediante un gateway configurable (`/geocode`).
-  Dispone de debounce de 200 ms, cancelación de consultas obsoletas para evitar carreras
-  y caché LRU en memoria.
+  La búsqueda en línea de shoppings, terminales, direcciones y barrios se ofrece
+  desde el campo de destino y pide consentimiento antes de enviar la consulta.
+  Dispone de debounce y cancelación de consultas obsoletas.
 - **Normalizador montevideano:** Parser puro (`MontevideoQueryParser`) con expansión de
   abreviaturas rioplatenses (`Av.`, `Bvar.`, `Cno.`, `Gral.`, `Dr.`), plegado de tildes
   y detección de intención (`stopCode`, `intersection`, `addressWithNumber`, `routeCode`).
@@ -179,7 +187,8 @@ no debe confundirse con un límite oficial publicado por la Intendencia.
 
 ### Probar GTFS oficial y buses en vivo en un Android conectado por USB
 
-El proxy de desarrollo escucha solo en `127.0.0.1:8765`. Lee `CLIENT_ID` y
+El proxy de desarrollo escucha solo en `127.0.0.1:8765`. La búsqueda de lugares
+puede usarse sin credenciales STM. Para GTFS y buses, lee `CLIENT_ID` y
 `CLIENT_SECRET` del `.env`, obtiene y renueva el token OAuth sin imprimirlo, y
 descarga/cacha el GTFS por 24 horas. Para la flota en vivo impone un máximo
 global de una consulta cada 10 segundos y limita los parámetros/endpoints
@@ -195,7 +204,7 @@ En otra terminal:
 
 ```powershell
 adb devices -l
-
+adb reverse tcp:8765 tcp:8765
 flutter run -d <ID-del-dispositivo> --dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765
 ```
 

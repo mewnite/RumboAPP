@@ -75,7 +75,10 @@ void main() {
       find.textContaining('El GTFS oficial todavía no está disponible.'),
       findsNothing,
     );
-    expect(find.text('No encontramos paradas con ese nombre.'), findsOneWidget);
+    expect(
+      find.textContaining('No encontramos paradas o líneas locales'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

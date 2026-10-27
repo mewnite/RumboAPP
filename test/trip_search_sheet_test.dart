@@ -804,9 +804,12 @@ void main() {
     );
   });
 
-  testWidgets('hides remote search when it is disabled', (tester) async {
+  testWidgets('offers remote places after explicit consent when disabled', (
+    tester,
+  ) async {
     var localSearchCount = 0;
     var remoteSearchCount = 0;
+    var consentRequestCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('es', 'UY'),
@@ -815,6 +818,10 @@ void main() {
         home: Scaffold(
           body: TripSearchSheet(
             hasCurrentLocation: true,
+            onRemotePlaceSearchConsentRequested: () async {
+              consentRequestCount++;
+              return false;
+            },
             searchStops: (_) async {
               localSearchCount++;
               return const [];
@@ -835,6 +842,10 @@ void main() {
 
     expect(localSearchCount, 1);
     expect(remoteSearchCount, 0);
-    expect(find.text('Buscar lugares o direcciones'), findsNothing);
+    expect(find.text('Buscar lugares o direcciones'), findsOneWidget);
+    await tester.tap(find.text('Buscar lugares o direcciones'));
+    await tester.pumpAndSettle();
+    expect(consentRequestCount, 1);
+    expect(remoteSearchCount, 0);
   });
 }

@@ -48,3 +48,12 @@
 - «Finalizar viaje», cambiar recorrido o cerrar el detalle cancela la suscripción y las notificaciones; al desactivar servicios se detiene.
 - Sin dependencias nuevas: se reutilizan `geolocator` y `flutter_local_notifications`. No se envía ubicación al proxy ni a geocodificación.
 - Unit/widget tests: 150 en verde; `flutter analyze` sin issues; APK debug Android compilado y `flutter run -d chrome` conectado. No probado en dispositivo físico ni iOS. Chrome muestra avisos de recursos opcionales del estilo MapLibre (PMTiles/imagen `wood-pattern`); queda pendiente confirmar visualmente teselas y marcadores en un navegador.
+
+## Corrección web: feed real y búsqueda de destinos
+- La app dejaba visible el GTFS sintético al no tener proxy, y las consultas web usaban SQLite, que no está disponible en Chrome; esto impedía buscar paradas y calcular recorridos con el feed descargado.
+- El demo ahora requiere `RUMBO_DEMO_MODE=true`. En el flujo normal se consulta GTFS por el proxy y se muestra el estado sin conexión si no responde.
+- Chrome mantiene los patrones GTFS compactos en memoria y los usa en mapa, búsqueda local, detalle de parada/línea y planificador; Android/iOS siguen con SQLite.
+- El acceso a POIs siempre ofrece «Buscar lugares o direcciones» y pide consentimiento explícito antes de enviar la consulta; puede usarse aunque el feed aún no esté listo.
+- El proxy local atiende CORS para `localhost`, `127.0.0.1` y `::1` en HTTP, para permitir Flutter web desde un puerto de desarrollo; no habilita orígenes externos.
+- El proxy puede arrancar sin credenciales STM para que la búsqueda de shoppings/terminales funcione; el feed y los buses muestran error de autenticación hasta configurar el acceso.
+- Verificación: 151 tests Flutter, 10 tests del proxy, `flutter analyze` sin issues y `flutter run -d chrome` conectado. No se inició el proxy con credenciales durante esta corrección.

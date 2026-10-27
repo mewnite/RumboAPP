@@ -27,14 +27,15 @@
 - Para centrar el mapa, el permiso foreground se solicita después de aceptar una explicación. El viaje activo es la única función que pide ubicación `Always`/segundo plano, y solo tras tocar iniciar; finalizarlo cancela la suscripción.
 - Rumbo no guarda ni manda la coordenada GPS. Al centrar el mapa, las peticiones de teselas sí pueden permitir al proveedor inferir la zona visible aproximada; la interfaz lo explica junto a la atribución.
 - `http` — descarga el feed estático y consulta el cliente GeoJSON detrás del proxy OAuth de desarrollo; las credenciales nunca se envían desde la app.
+- El proxy permite CORS solo para orígenes HTTP loopback (`localhost`, `127.0.0.1`, `::1`) en desarrollo web; no publica wildcard ni permite credenciales en solicitudes del navegador.
 - `archive` — valida y lee el ZIP GTFS sin ejecutar herramientas externas; se mantiene como adaptador de datos.
-- `sqflite` y `path_provider` — guardan el dominio en SQLite en Android/iOS y sitúan la base bajo almacenamiento privado de la app; la compilación web evita invocar SQLite.
+- `sqflite` y `path_provider` — guardan el GTFS compacto en SQLite en Android/iOS y sitúan la base bajo almacenamiento privado; Chrome usa `InMemoryTransitRepository` sobre los mismos patrones GTFS porque SQLite no está disponible.
 - `path` — construye rutas de archivos de base de forma portable.
 - GTFS se convierte a modelos Dart independientes del estándar. Las variantes actuales se derivan de la tupla `route_id + direction_id + shape_id`; esta agrupación evita mezclar sentidos/recorridos distintos, pero no sustituye identificadores oficiales de variante.
 - `StopTime` guarda segundos desde el inicio del día de servicio, permitiendo valores como 25:10:00; los arribos posteriores a medianoche se reconstruyen desde el día de servicio anterior.
 - En Android/iOS, la descarga estática se escribe a disco; un isolate lee el ZIP desde archivo, descomprime `stop_times.txt` a disco, recorre CSV por bloques de 64 KiB y escribe JSONL. SQLite importa todas las tablas en lotes de 500 dentro de la transacción de reemplazo; el ZIP y la tabla completa de horarios no se mantienen en memoria. Si la importación falla, se conserva el error original aunque también falle el cierre o la limpieza de la base temporal.
 - SQLite usa tablas e índices geográficos, por parada/horario y por shape; los feeds se escriben en una base temporal en transacción y se renombran al finalizar para conservar la base anterior frente a fallos.
-- El feed de ejemplo es sintético, pequeño y marcado como no oficial. Sus paradas son puntos de demostración alrededor del centro de Montevideo, no paradas reales ni horarios del STM.
+- El feed sintético solo se carga con `RUMBO_DEMO_MODE=true`; por defecto un proxy ausente produce estado sin conexión y no datos que parezcan rutas del STM.
 - El vencimiento se deriva de `feed_info.txt` cuando está disponible; si no hay fecha final, el estado no se marca vencido. La app no declara condiciones de licencia no verificadas.
 ## Migración de horarios (completada — Fase 1)
 

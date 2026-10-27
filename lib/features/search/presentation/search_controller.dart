@@ -1,8 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/transit_config.dart';
 import '../../../features/stops_and_lines/data/transit_database.dart';
+import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
+import '../../../features/stops_and_lines/presentation/transit_repository_provider.dart';
+import '../data/in_memory_transit_search_source.dart';
 import '../data/local_transit_search_source.dart';
 import '../data/remote_geocoding_source.dart';
 import '../data/search_history_repository_impl.dart';
@@ -14,7 +18,11 @@ import 'search_state.dart';
 
 final searchServiceProvider = Provider<PlaceSearchService>((ref) {
   final endpoint = transitConfig.placeSearchEndpoint;
-  final localSource = LocalTransitSearchSource(() => TransitDatabase().open());
+  final feed = ref.watch(feedUpdateControllerProvider).asData?.value.feed;
+  final repository = ref.watch(transitRepositoryProvider);
+  final localSource = kIsWeb
+      ? InMemoryTransitSearchSource(feed, repository)
+      : LocalTransitSearchSource(() => TransitDatabase().open());
   final remoteSource = RemoteGeocodingSource(
     endpoint: endpoint.isNotEmpty ? endpoint : defaultTargetPlatformUrl,
   );

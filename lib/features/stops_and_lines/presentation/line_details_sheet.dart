@@ -12,14 +12,10 @@ import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/map/data/connectivity_provider.dart';
 import '../../../features/map/presentation/live_buses_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import '../data/sqflite_transit_repository.dart';
-import '../data/transit_database.dart';
 import '../domain/transit_models.dart';
-import '../domain/transit_repository.dart';
+import 'transit_repository_provider.dart';
 
-final transitRepositoryProvider = Provider<TransitRepository>((ref) {
-  return SqfliteTransitRepository(() => TransitDatabase().open());
-});
+export 'transit_repository_provider.dart' show transitRepositoryProvider;
 
 final lineVariantsProvider = FutureProvider.family<List<RouteVariant>, String>((
   ref,

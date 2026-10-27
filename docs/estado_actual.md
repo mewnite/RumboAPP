@@ -1,11 +1,11 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 150 tests pasan, APK Android debug compila y `flutter run -d chrome` inicia la app. No hay emulador Android/iOS disponible en esta sesión. Chrome informa que no pudo cargar el protocolo opcional PMTiles y la imagen `wood-pattern` del estilo; falta inspección visual del mapa.
+Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 151 tests pasan, 10 tests del proxy pasan, APK Android debug compila y `flutter run -d chrome` inicia la app. No hay emulador Android/iOS disponible en esta sesión. Chrome informa que no pudo cargar el protocolo opcional PMTiles y la imagen `wood-pattern` del estilo; falta inspección visual del mapa.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 150 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 151 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -16,7 +16,7 @@ Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 150 tes
 | Función | Estado | Archivos o clases principales | Cómo se comprobó |
 |---|---|---|---|
 | 1. Navegación, temas y `es-UY` | completa y probada | `app_shell.dart`, `app_router.dart`, `settings_screen.dart`, `app_es_UY.arb` | `navigation_test`, `theme_navigation_test`, `theme_preference_test` |
-| 2. Mapa, teselas, atribución, controles y panel | completa y probada | `MapScreen`, `map_config.dart` | `map_config_test`, `map_screen_test`; mapa y búsqueda verificados en emulador Android |
+| 2. Mapa, teselas, atribución, controles y panel | implementado; falta inspección visual web | `MapScreen`, `map_config.dart` | `map_config_test`, `map_screen_test`; Chrome inicia, pero su consola informa recursos opcionales del estilo no cargados |
 | 3. Ubicación, permisos, estados y punto azul | completa y probada | `MapLocationController`, `GeolocatorLocationRepository` | `map_location_controller_test`; permisos en dispositivo no verificados |
 | 4. GTFS, SQLite y repositorio | completa y probada (sintéticos y feed oficial en emulador) | `gtfs_parser.dart`, `transit_database.dart`, `sqflite_transit_repository.dart` | `transit_data_test`, `gtfs_performance_test`; feed oficial importado: 4.930 paradas, 325 líneas, 2.221.437 horarios y 332.505 puntos de shape |
 | 5. Paradas y próximos ómnibus en el panel | completa y probada (datos sintéticos) | `MapScreen`, `StopDetailsSheet`, `_stopLayers`, `_nearbyBuses` | `map_screen_test`, `stop_details_sheet_test`; lista de paradas cercanas verificada en emulador con feed oficial |
@@ -32,12 +32,12 @@ Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 150 tes
 
 ## 3. Datos y servicios
 
-- La app carga primero `assets/sample_gtfs/sample_gtfs.zip`, identificado por el código como sintético. En Android/iOS lo importa a SQLite. En debug, la configuración también intenta actualizar desde un proxy local; el acceso a un feed real depende de que ese proxy esté disponible y configurado. En release la URL queda vacía salvo `RUMBO_API_BASE_URL`.
+- La app no carga datos sintéticos por defecto. Android/iOS reutilizan un GTFS oficial cacheado en SQLite y, si no hay uno, intentan descargarlo desde el proxy configurado. Chrome mantiene el GTFS oficial compacto en memoria, ya que `sqflite` no funciona en web. El feed sintético solo se carga con `--dart-define=RUMBO_DEMO_MODE=true`.
 - En el emulador Android se verificó la descarga y la importación del feed oficial servido por el proxy: versión 1.1, 4.930 paradas, 325 líneas, 1.089 variantes, 37.451 viajes, 2.221.437 horarios y 332.505 puntos de shape. La base resultante ocupa 168,5 MB y el proceso completo tardó alrededor de 10 minutos. La licencia y las condiciones de uso del feed para producción siguen sin confirmar.
 - `lib/core/config/map_config.dart`: estilos `https://tiles.openfreemap.org/styles/positron` y `https://tiles.openfreemap.org/styles/dark`. Configurados, pero no probados en ejecución.
 - `lib/core/config/transit_config.dart`: `http://10.0.2.2:8765` en Android y `http://127.0.0.1:8765` en otras plataformas (debug). Compone `/gtfs/latest`, `/api/buses?format=geojson` y `/geocode`; son rutas del proxy local, no URLs oficiales confirmadas.
 - `lib/features/map/data/montevideo_realtime_bus_source.dart` compone `/buses?format=geojson` sobre la base `.../api`. El proxy del repo implementa `/api/buses`; la documentación `docs/api/montevideo_publictransport.md` describe la ruta del proxy como `/api/buses`.
-- `lib/features/stops_and_lines/data/transit_arrivals_source.dart` combina `upcomingDepartures` con un ETA local por bus: proyecta la posición sobre el shape de la variante, descarta los buses que ya pasaron la parada y usa la velocidad reportada si es de 8 km/h o más, o 18 km/h por defecto. Un arribo en vivo reemplaza la próxima salida programada de su variante; si no hay bus en vivo, se conservan los horarios programados.
+- `lib/features/stops_and_lines/data/transit_arrivals_source.dart` combina horarios GTFS con una proyección local de las posiciones observadas: proyecta cada bus sobre el shape de la variante y estima su llegada usando su velocidad reportada o una velocidad de respaldo. Esa proyección no equivale al ETA oficial de la API. La app aún no interpreta `upcomingbuses` porque el esquema público de respuesta no identifica los campos de ETA.
 - `lib/features/search/presentation/search_controller.dart` conserva el fallback `http://127.0.0.1:8765/geocode`. `lib/features/search/data/remote_geocoding_source.dart` y `lib/features/trip_planner/data/open_street_map_place_source.dart` incluyen `https://github.com/mewnite/RumboAPP` solo en el encabezado User-Agent, no como destino de una petición.
 - `lib/features/favorites/` guarda una lista JSON en `shared_preferences` bajo `favorites_v1`, sin red. Las paradas y líneas se identifican por su id; Casa y Trabajo usan las ranuras `place-home` y `place-work`, con nombre y coordenadas del lugar elegido. Una entrada dañada se omite al cargar sin invalidar el resto; si todo el JSON está dañado, se empieza con una lista vacía.
 - En web, `web/index.html` carga `https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.js` y `https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.css`.

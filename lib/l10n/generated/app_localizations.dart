@@ -1312,7 +1312,7 @@ abstract class AppLocalizations {
   /// No description provided for @tripNoStops.
   ///
   /// In es_UY, this message translates to:
-  /// **'No encontramos paradas con ese nombre.'**
+  /// **'No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».'**
   String get tripNoStops;
 
   /// No description provided for @tripNoPlaces.
@@ -1374,6 +1374,30 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'Buscar lugares o direcciones'**
   String get tripSearchPlaces;
+
+  /// No description provided for @tripGeocodingConsentTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Buscar lugares en línea'**
+  String get tripGeocodingConsentTitle;
+
+  /// No description provided for @tripGeocodingConsentBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Para encontrar shoppings, terminales y otros lugares, se enviará el texto que escribiste al servicio de búsqueda. El proveedor verá la consulta y la IP de conexión; tu ubicación GPS no se envía.'**
+  String get tripGeocodingConsentBody;
+
+  /// No description provided for @tripGeocodingConsentAction.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Habilitar y buscar'**
+  String get tripGeocodingConsentAction;
+
+  /// No description provided for @cancel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cancelar'**
+  String get cancel;
 
   /// No description provided for @tripPlaceResult.
   ///

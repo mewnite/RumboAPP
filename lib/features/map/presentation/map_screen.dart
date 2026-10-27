@@ -15,8 +15,6 @@ import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/search/presentation/search_controller.dart';
 import '../../../features/settings/presentation/privacy_preferences.dart';
 import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
-import '../../../features/stops_and_lines/data/sqflite_transit_repository.dart';
-import '../../../features/stops_and_lines/data/transit_database.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../features/stops_and_lines/domain/transit_repository.dart';
 import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
@@ -40,7 +38,6 @@ typedef MapBuilder = Widget Function(BuildContext context);
 final mapBuilderOverrideProvider = Provider<MapBuilder?>((ref) => null);
 
 final nearbyOfficialStopsProvider = FutureProvider<List<Stop>>((ref) async {
-  if (transitConfig.url.isEmpty) return const [];
   final feedState = ref.watch(feedUpdateControllerProvider);
   final feed = feedState.asData?.value;
   if (feed == null || feed.status.synthetic || feed.status.stopCount == 0) {
@@ -48,17 +45,13 @@ final nearbyOfficialStopsProvider = FutureProvider<List<Stop>>((ref) async {
   }
 
   final location = ref.watch(mapLocationControllerProvider).location;
-  final database = TransitDatabase();
-  final db = await database.open();
-  try {
-    return await SqfliteTransitRepository(() async => db).nearbyStops(
-      location?.latitude ?? MapConfig.initialCenter.lat,
-      location?.longitude ?? MapConfig.initialCenter.lon,
-      1500,
-    );
-  } finally {
-    await db.close();
-  }
+  return ref
+      .watch(transitRepositoryProvider)
+      .nearbyStops(
+        location?.latitude ?? MapConfig.initialCenter.lat,
+        location?.longitude ?? MapConfig.initialCenter.lon,
+        1500,
+      );
 });
 
 final nearbyStopRoutesProvider = FutureProvider<Map<String, List<Route>>>((
@@ -66,27 +59,16 @@ final nearbyStopRoutesProvider = FutureProvider<Map<String, List<Route>>>((
 ) async {
   final stops = await ref.watch(nearbyOfficialStopsProvider.future);
   if (stops.isEmpty) return const {};
-  final database = TransitDatabase();
-  final db = await database.open();
-  try {
-    return await SqfliteTransitRepository(() async => db)
-        .routesForStops(stops.map((stop) => stop.id).toSet());
-  } finally {
-    await db.close();
-  }
+  return ref
+      .watch(transitRepositoryProvider)
+      .routesForStops(stops.map((stop) => stop.id).toSet());
 });
 
 final routeVariantsProvider = FutureProvider.family<List<RouteVariant>, String>(
   (ref, routeId) async {
     final feed = ref.watch(feedUpdateControllerProvider).asData?.value;
     if (feed == null || feed.status.synthetic) return const [];
-    final db = await TransitDatabase().open();
-    try {
-      return await SqfliteTransitRepository(() async => db)
-          .variantsForRoute(routeId);
-    } finally {
-      await db.close();
-    }
+    return ref.watch(transitRepositoryProvider).variantsForRoute(routeId);
   },
 );
 
@@ -96,13 +78,7 @@ final routeShapeProvider = FutureProvider.family<Shape?, String>((
 ) async {
   final feed = ref.watch(feedUpdateControllerProvider).asData?.value;
   if (feed == null || feed.status.synthetic) return null;
-  final db = await TransitDatabase().open();
-  try {
-    return await SqfliteTransitRepository(() async => db)
-        .shapeForVariant(variantId);
-  } finally {
-    await db.close();
-  }
+  return ref.watch(transitRepositoryProvider).shapeForVariant(variantId);
 });
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -552,6 +528,31 @@ class _MapScreenState extends ConsumerState<MapScreen>
         builder: (context) => TripSearchSheet(
           hasCurrentLocation: location != null,
           remotePlaceSearchEnabled: remotePlaceSearchEnabled,
+          onRemotePlaceSearchConsentRequested: () async {
+            final accepted = await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text(l10n.tripGeocodingConsentTitle),
+                content: Text(l10n.tripGeocodingConsentBody),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(l10n.cancel),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(l10n.tripGeocodingConsentAction),
+                  ),
+                ],
+              ),
+            );
+            if (accepted == true) {
+              await ref
+                  .read(remotePlaceSearchEnabledProvider.notifier)
+                  .setEnabled(true);
+            }
+            return accepted == true;
+          },
           initialDestination: destination,
           searchService: searchService,
           onPlanSelected: (plan, origin, destination) {
@@ -582,13 +583,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
               // report the missing feed when the person tries to search trips.
               return const [];
             }
-            final db = await TransitDatabase().open();
-            try {
-              return await SqfliteTransitRepository(() async => db)
-                  .searchStops(query);
-            } finally {
-              await db.close();
-            }
+            return ref.read(transitRepositoryProvider).searchStops(query);
           },
           searchPlaces: (query) async {
             if (placeSource == null) {
@@ -608,23 +603,16 @@ class _MapScreenState extends ConsumerState<MapScreen>
             if (originLatitude == null || originLongitude == null) {
               throw Exception(l10n.tripOriginRequired);
             }
-            final db = await TransitDatabase().open();
-            try {
-              return await TransitTripPlanner(
-                SqfliteTransitRepository(() async => db),
-              ).plan(
-                TripRequest(
-                  originLatitude: originLatitude,
-                  originLongitude: originLongitude,
-                  destinationLatitude: destination.latitude,
-                  destinationLongitude: destination.longitude,
-                  timing: timing,
-                  config: config,
-                ),
-              );
-            } finally {
-              await db.close();
-            }
+            return TransitTripPlanner(ref.read(transitRepositoryProvider)).plan(
+              TripRequest(
+                originLatitude: originLatitude,
+                originLongitude: originLongitude,
+                destinationLatitude: destination.latitude,
+                destinationLongitude: destination.longitude,
+                timing: timing,
+                config: config,
+              ),
+            );
           },
         ),
       );

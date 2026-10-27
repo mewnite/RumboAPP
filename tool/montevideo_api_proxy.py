@@ -438,6 +438,31 @@ def load_env(path: Path) -> dict[str, str]:
 class Handler(BaseHTTPRequestHandler):
     proxy: ApiProxy
 
+    def _local_cors_headers(self) -> dict[str, str]:
+        origin = self.headers.get("Origin", "")
+        parsed = urllib.parse.urlsplit(origin)
+        if parsed.scheme != "http" or parsed.hostname not in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        }:
+            return {}
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Accept, Content-Type",
+            "Access-Control-Max-Age": "600",
+            "Vary": "Origin",
+        }
+
+    def do_OPTIONS(self) -> None:
+        headers = self._local_cors_headers()
+        self.send_response(204 if headers else 403)
+        for key, value in headers.items():
+            self.send_header(key, value)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self) -> None:
         try:
             status, content_type, body, headers = self.proxy.handle(self.path)
@@ -457,6 +482,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        cors_headers = self._local_cors_headers()
+        for key, value in cors_headers.items():
+            self.send_header(key, value)
         for key, value in headers.items():
             self.send_header(key, value)
         self.end_headers()
@@ -468,15 +496,15 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     credentials = load_env(Path(".env"))
-    if not credentials.get("CLIENT_ID") or not credentials.get("CLIENT_SECRET"):
-        print(
-            "Configurá CLIENT_ID y CLIENT_SECRET en .env antes de iniciar el proxy."
-        )
-        return 1
     server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
     Handler.proxy = ApiProxy(credentials)
     print("Proxy local de Rumbo en http://127.0.0.1:8765")
     print("Límite de tiempo real: 1 consulta global cada 10 segundos.")
+    if not credentials.get("CLIENT_ID") or not credentials.get("CLIENT_SECRET"):
+        print(
+            "Búsqueda de lugares habilitada; GTFS y tiempo real STM requieren "
+            "CLIENT_ID y CLIENT_SECRET en .env."
+        )
     print("Solo escucha en localhost; usá adb reverse para el teléfono USB.")
     try:
         server.serve_forever()

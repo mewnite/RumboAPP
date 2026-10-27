@@ -151,6 +151,9 @@ class GtfsZipSource implements TransitFeedSource {
     );
   }
 
+  Future<GtfsParseResult> parseCompact(Uint8List bytes) async =>
+      compute(parseGtfsZipCompact, bytes);
+
   @override
   Future<GtfsParseResult> parse(
     Uint8List bytes, {
