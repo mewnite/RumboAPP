@@ -1,11 +1,11 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 151 tests pasan, 10 tests del proxy pasan, APK Android debug compila y `flutter run -d chrome` inicia la app. No hay emulador Android/iOS disponible en esta sesión. Chrome informa que no pudo cargar el protocolo opcional PMTiles y la imagen `wood-pattern` del estilo; falta inspección visual del mapa.
+Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 152 tests pasan, 10 tests del proxy pasan, APK Android debug compila y `flutter run -d chrome` inicia la app. Hay un emulador Android conectado, pero esta corrección aún no fue verificada visualmente allí. Chrome informa que no pudo cargar el protocolo opcional PMTiles y la imagen `wood-pattern` del estilo; falta inspección visual del mapa.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 151 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 152 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.

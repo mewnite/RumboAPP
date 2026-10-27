@@ -123,6 +123,36 @@ void main() {
     );
   });
 
+  test(
+    'cached official GTFS metadata is available without an in-memory feed',
+    () {
+      final cached = FeedUpdateState(
+        phase: FeedUpdatePhase.updated,
+        status: const FeedStatus(stopCount: 4930, routeCount: 325),
+      );
+      expect(cached.feed, isNull);
+      expect(hasOfficialTransitData(cached), isTrue);
+      expect(
+        hasOfficialTransitData(
+          const FeedUpdateState(
+            phase: FeedUpdatePhase.updated,
+            status: FeedStatus(synthetic: true, stopCount: 18, routeCount: 3),
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        hasOfficialTransitData(
+          const FeedUpdateState(
+            phase: FeedUpdatePhase.updated,
+            status: FeedStatus(stopCount: 0, routeCount: 3),
+          ),
+        ),
+        isFalse,
+      );
+    },
+  );
+
   test('missing or synthetic official feed retries despite a recent check', () {
     final now = DateTime(2026, 10, 24, 12);
     final recentCheck = now

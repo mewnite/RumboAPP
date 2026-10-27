@@ -56,6 +56,14 @@ class FeedUpdateState {
   final GtfsParseResult? feed;
 }
 
+/// SQLite-backed platforms keep large GTFS data on disk, so the UI may have
+/// valid feed metadata without retaining a duplicate in-memory parse result.
+bool hasOfficialTransitData(FeedUpdateState? state) =>
+    state != null &&
+    !state.status.synthetic &&
+    state.status.stopCount > 0 &&
+    state.status.routeCount > 0;
+
 final feedUpdateControllerProvider =
     AsyncNotifierProvider<FeedUpdateController, FeedUpdateState>(
       FeedUpdateController.new,

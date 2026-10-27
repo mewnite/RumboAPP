@@ -40,7 +40,7 @@ final mapBuilderOverrideProvider = Provider<MapBuilder?>((ref) => null);
 final nearbyOfficialStopsProvider = FutureProvider<List<Stop>>((ref) async {
   final feedState = ref.watch(feedUpdateControllerProvider);
   final feed = feedState.asData?.value;
-  if (feed == null || feed.status.synthetic || feed.status.stopCount == 0) {
+  if (!hasOfficialTransitData(feed)) {
     return const [];
   }
 
@@ -67,7 +67,7 @@ final nearbyStopRoutesProvider = FutureProvider<Map<String, List<Route>>>((
 final routeVariantsProvider = FutureProvider.family<List<RouteVariant>, String>(
   (ref, routeId) async {
     final feed = ref.watch(feedUpdateControllerProvider).asData?.value;
-    if (feed == null || feed.status.synthetic) return const [];
+    if (!hasOfficialTransitData(feed)) return const [];
     return ref.watch(transitRepositoryProvider).variantsForRoute(routeId);
   },
 );
@@ -77,7 +77,7 @@ final routeShapeProvider = FutureProvider.family<Shape?, String>((
   variantId,
 ) async {
   final feed = ref.watch(feedUpdateControllerProvider).asData?.value;
-  if (feed == null || feed.status.synthetic) return null;
+  if (!hasOfficialTransitData(feed)) return null;
   return ref.watch(transitRepositoryProvider).shapeForVariant(variantId);
 });
 
@@ -509,8 +509,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final l10n = AppLocalizations.of(context);
     final location = ref.read(mapLocationControllerProvider).location;
     final feed = ref.read(feedUpdateControllerProvider).asData?.value;
-    final hasOfficialFeed =
-        feed != null && !feed.status.synthetic && feed.status.stopCount > 0;
+    final hasOfficialFeed = hasOfficialTransitData(feed);
     final searchService = hasOfficialFeed
         ? ref.read(searchServiceProvider)
         : null;
@@ -575,9 +574,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           },
           searchStops: (query) async {
             final feed = ref.read(feedUpdateControllerProvider).asData?.value;
-            if (feed == null ||
-                feed.status.synthetic ||
-                feed.status.stopCount == 0) {
+            if (!hasOfficialTransitData(feed)) {
               // Without an official feed there are no stops to search, but
               // address search must remain available. Planning will still
               // report the missing feed when the person tries to search trips.
@@ -593,9 +590,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           },
           findPlans: (origin, destination, timing, config) async {
             final feed = ref.read(feedUpdateControllerProvider).asData?.value;
-            if (feed == null ||
-                feed.status.synthetic ||
-                feed.status.stopCount == 0) {
+            if (!hasOfficialTransitData(feed)) {
               throw Exception(l10n.tripOfficialDataUnavailable);
             }
             final originLatitude = origin?.latitude ?? location?.latitude;
