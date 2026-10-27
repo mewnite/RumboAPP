@@ -9,7 +9,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/config/transit_config.dart';
 import '../../stops_and_lines/presentation/feed_update_controller.dart';
-import '../../search/presentation/search_controller.dart';
 import 'theme_mode_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -19,7 +18,6 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final themeMode = ref.watch(themeModeControllerProvider);
-    final remotePlaceSearch = ref.watch(remotePlaceSearchEnabledProvider);
     final feedState = ref.watch(feedUpdateControllerProvider);
 
     return Scaffold(
@@ -92,25 +90,11 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           Card(
-            child: remotePlaceSearch.when(
-              data: (enabled) => SwitchListTile(
-                key: const ValueKey('remote-place-search-setting'),
-                value: enabled,
-                title: Text(l10n.remotePlaceSearchTitle),
-                subtitle: Text(l10n.remotePlaceSearchDescription),
-                onChanged: (value) => unawaited(
-                  ref
-                      .read(remotePlaceSearchEnabledProvider.notifier)
-                      .setEnabled(value),
-                ),
-              ),
-              loading: () => const ListTile(
-                title: Center(child: CircularProgressIndicator()),
-              ),
-              error: (error, stackTrace) => ListTile(
-                title: Text(l10n.settingsLoadError),
-                subtitle: Text(error.toString()),
-              ),
+            child: ListTile(
+              leading: const Icon(Symbols.privacy_tip_rounded),
+              title: Text(l10n.privacyTitle),
+              trailing: const Icon(Symbols.chevron_right_rounded),
+              onTap: () => context.push('/settings/privacy'),
             ),
           ),
           Card(

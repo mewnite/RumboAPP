@@ -115,6 +115,192 @@ abstract class AppLocalizations {
   /// **'Sin anuncios. Sin rastreadores.'**
   String get privacyMessage;
 
+  /// No description provided for @privacyTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Privacidad y datos'**
+  String get privacyTitle;
+
+  /// No description provided for @privacyNetworkTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Datos que salen del dispositivo'**
+  String get privacyNetworkTitle;
+
+  /// No description provided for @privacyMapTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Mapa'**
+  String get privacyMapTitle;
+
+  /// No description provided for @privacyMapBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Las solicitudes de estilos y teselas permiten al proveedor inferir la zona aproximada visible; Rumbo no adjunta tu coordenada GPS.'**
+  String get privacyMapBody;
+
+  /// No description provided for @privacyTransitTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Transporte'**
+  String get privacyTransitTitle;
+
+  /// No description provided for @privacyTransitBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'La app consulta {source} para descargar el feed de transporte y, si está habilitado, posiciones de buses. No incluye tu ubicación.'**
+  String privacyTransitBody(String source);
+
+  /// No description provided for @privacySearchTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Búsqueda de lugares en línea'**
+  String get privacySearchTitle;
+
+  /// No description provided for @privacySearchBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.'**
+  String get privacySearchBody;
+
+  /// No description provided for @privacyLiveTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Buses en vivo'**
+  String get privacyLiveTitle;
+
+  /// No description provided for @privacyLiveBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Si lo activás, Rumbo consulta el proxy configurado para actualizar posiciones mientras el mapa está visible.'**
+  String get privacyLiveBody;
+
+  /// No description provided for @privacyIpNotice.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cualquier servicio conectado recibe la dirección IP necesaria para responder. La ubicación precisa del dispositivo no se envía.'**
+  String get privacyIpNotice;
+
+  /// No description provided for @privacyLocalTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Datos que no salen del dispositivo'**
+  String get privacyLocalTitle;
+
+  /// No description provided for @privacyLocalGpsTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ubicación GPS'**
+  String get privacyLocalGpsTitle;
+
+  /// No description provided for @privacyLocalGpsBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Se procesa localmente para centrar el mapa, buscar paradas y, durante un viaje activo iniciado por vos, calcular avisos de bajada.'**
+  String get privacyLocalGpsBody;
+
+  /// No description provided for @privacyLocalDataTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Tus datos guardados'**
+  String get privacyLocalDataTitle;
+
+  /// No description provided for @privacyLocalDataBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.'**
+  String get privacyLocalDataBody;
+
+  /// No description provided for @privacyControlsTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Controles'**
+  String get privacyControlsTitle;
+
+  /// No description provided for @privacyLiveSwitchTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Mostrar buses en vivo'**
+  String get privacyLiveSwitchTitle;
+
+  /// No description provided for @privacyLiveSwitchDescription.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Al apagarlo se detienen las consultas y se quitan los buses del mapa y los arribos.'**
+  String get privacyLiveSwitchDescription;
+
+  /// No description provided for @privacyClearButton.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Borrar mis datos locales'**
+  String get privacyClearButton;
+
+  /// No description provided for @privacyClearConfirmTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'¿Borrar tus datos locales?'**
+  String get privacyClearConfirmTitle;
+
+  /// No description provided for @privacyClearConfirmBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Se borrarán favoritos, lugares guardados, búsquedas recientes y la caché del mapa. Los datos de transporte no se borrarán.'**
+  String get privacyClearConfirmBody;
+
+  /// No description provided for @privacyClearSuccess.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Se borraron tus datos locales.'**
+  String get privacyClearSuccess;
+
+  /// No description provided for @privacyClearFailed.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudieron borrar todos los datos locales.'**
+  String get privacyClearFailed;
+
+  /// No description provided for @privacyAboutTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Acerca de y atribuciones'**
+  String get privacyAboutTitle;
+
+  /// No description provided for @privacyAttributionTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Datos del mapa y transporte'**
+  String get privacyAttributionTitle;
+
+  /// No description provided for @privacyDagTodo.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'TODO: confirmar el texto exacto de atribución exigido por la Licencia de Datos Abiertos – Uruguay antes de publicar.'**
+  String get privacyDagTodo;
+
+  /// No description provided for @privacyFontTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Tipografía Inter'**
+  String get privacyFontTitle;
+
+  /// No description provided for @privacyFontBody.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Inter se distribuye con su licencia SIL Open Font License (OFL) y se incluye como archivo local.'**
+  String get privacyFontBody;
+
+  /// No description provided for @privacyLicensesButton.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ver licencias de código abierto'**
+  String get privacyLicensesButton;
+
+  /// No description provided for @privacyConfiguredSource.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'la fuente de transporte configurada'**
+  String get privacyConfiguredSource;
+
   /// No description provided for @navigationMap.
   ///
   /// In es_UY, this message translates to:

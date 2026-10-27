@@ -91,6 +91,47 @@ void main() {
     },
   );
 
+  test(
+    'the live layer can show all buses in view before a route is selected',
+    () {
+      final state = LiveBusesState(
+        positions: [
+          bus(
+            id: '1',
+            line: 'A',
+            variantId: 1,
+            latitude: -34.90,
+            longitude: -56.16,
+          ),
+          bus(
+            id: '2',
+            line: 'B',
+            variantId: 2,
+            latitude: -34.90,
+            longitude: -56.16,
+          ),
+          bus(
+            id: '3',
+            line: 'C',
+            variantId: 3,
+            latitude: -35.50,
+            longitude: -56.16,
+          ),
+        ],
+        visibleBounds: const LiveBusesBounds(
+          minLatitude: -35,
+          maxLatitude: -34,
+          minLongitude: -57,
+          maxLongitude: -56,
+        ),
+      );
+
+      expect(state.filteredPositions().map((position) => position.sourceId), [
+        '1',
+        '2',
+      ]);
+    },
+  );
   testWidgets('stale and unmatched buses use a faded compact chip', (
     tester,
   ) async {

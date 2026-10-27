@@ -25,3 +25,18 @@
 - El proxy reenvía `upcomingbuses`, pero docs/api no describe su respuesta; no se implementa cliente ni se consulta desde la app.
 - Se mantiene ETA local aproximado por shape; dependencia pendiente de contrato documentado y datos de prueba autorizados.
 - Pruebas manuales con servicios reales: no realizadas.
+
+## Prioridad: mapa, paradas, buses y destinos (completa)
+- El mapa dibuja las posiciones de buses visibles de la API aunque todavía no se haya elegido una línea; al cargar el GTFS limita además a las líneas de las paradas del área y mantiene el tope de marcadores.
+- Abrir una ficha de parada recalcula los arribos cuando llega una nueva actualización de posiciones; horarios GTFS continúan rotulados como estimados.
+- La búsqueda remota del proxy acepta nombres de POIs; las sugerencias muestran el nombre corto cuando el geocodificador lo proporciona y solo se consulta al tocar «Buscar lugares o direcciones» con la opción habilitada.
+- Se agregó prueba de la búsqueda «Shopping Nuevo Centro» con cliente HTTP falso y de buses visibles sin selección de línea.
+- Verificado: proxy local responde en `/health`; estilos OpenFreeMap claro/oscuro y runtime MapLibre responden HTTP 200; `flutter run -d chrome` conectó la app.
+- Unit/widget tests: 150 en verde; `flutter analyze`: sin issues. Emulador Android/iOS no disponible para esta validación.
+
+## Fase 4: privacidad y datos locales (completa)
+- Se agregó pantalla de privacidad con explicación de red/ubicación, atribución, licencias y controles de geocodificación explícita y buses en vivo.
+- El control de buses persiste; al desactivarlo detiene el polling, descarta respuestas pendientes y borra posiciones en memoria.
+- La acción de limpiar datos elimina favoritos, búsquedas recientes y caché ambiente del mapa; no borra preferencias de tema.
+- Sin dependencias nuevas; la ubicación precisa sigue en el dispositivo y las búsquedas remotas requieren consentimiento y acción por consulta.
+- Tests específicos: preferencia de buses entre aperturas, descarte de fetch al desactivar y borrado local/cache; conjunto total: 150 en verde.

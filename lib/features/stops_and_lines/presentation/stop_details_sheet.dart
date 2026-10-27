@@ -10,6 +10,7 @@ import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/map/data/connectivity_provider.dart';
 import '../../../features/map/presentation/live_buses_controller.dart';
+import '../../../features/settings/presentation/privacy_preferences.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/sqflite_transit_repository.dart';
 import '../data/transit_arrivals_source.dart';
@@ -32,8 +33,12 @@ final stopDetailsProvider = FutureProvider.family<StopDetailsData, String>((
   try {
     final repository = SqfliteTransitRepository(() async => db);
     final routes = await repository.routesForStop(stopId);
-    final liveState = ref.read(liveBusesControllerProvider);
-    final livePositions = liveState.lastUpdatedAt == null
+    // Recompute arrivals when fresh bus positions arrive while the stop sheet is open.
+    // Scheduled GTFS departures remain estimates, not live data.
+    final liveState = ref.watch(liveBusesControllerProvider);
+    final liveEnabled =
+        ref.watch(liveBusesEnabledProvider).asData?.value ?? true;
+    final livePositions = !liveEnabled || liveState.lastUpdatedAt == null
         ? null
         : liveState.positions;
     final arrivals = await TransitArrivalsSource(

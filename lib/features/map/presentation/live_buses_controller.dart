@@ -87,9 +87,7 @@ class LiveBusesState {
   }) {
     final lines = selectedLines ?? this.selectedLines;
     final variants = selectedVariantIds ?? this.selectedVariantIds;
-    if (visibleBounds == null || (lines.isEmpty && variants.isEmpty)) {
-      return const [];
-    }
+    if (visibleBounds == null) return const [];
     Iterable<BusPosition> candidates = positions;
     if (lines.isNotEmpty || variants.isNotEmpty) {
       candidates = candidates.where(
@@ -119,6 +117,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
   Timer? _pollTimer;
   Duration _baseDelay = const Duration(seconds: 15);
   DateTime Function() _clock = DateTime.now;
+  int _pollGeneration = 0;
 
   @override
   LiveBusesState build() {
@@ -161,6 +160,27 @@ class LiveBusesController extends Notifier<LiveBusesState> {
     state = state.copyWith(isPolling: false);
   }
 
+  void clearLiveDataAndPause() {
+    _pollGeneration++;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    state = LiveBusesState(
+      selectedLines: state.selectedLines,
+      selectedVariantIds: state.selectedVariantIds,
+      visibleBounds: state.visibleBounds,
+      maxMarkers: state.maxMarkers,
+      retryDelay: _baseDelay,
+    );
+  }
+
+  void setEnabled(bool enabled) {
+    if (enabled) {
+      resumePolling();
+    } else {
+      clearLiveDataAndPause();
+    }
+  }
+
   void resumePolling() {
     if (_source == null) return;
     if (state.isPolling) return;
@@ -170,9 +190,11 @@ class LiveBusesController extends Notifier<LiveBusesState> {
 
   Future<void> refreshNow() async {
     if (_source == null) return;
+    final generation = _pollGeneration;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final snapshot = await _source!.fetch();
+      if (!ref.mounted || generation != _pollGeneration) return;
       final shouldContinuePolling = state.isPolling;
       state = state.copyWith(
         positions: snapshot.positions,
@@ -184,6 +206,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
       );
       if (shouldContinuePolling) _scheduleNextPoll();
     } on Exception catch (error) {
+      if (!ref.mounted || generation != _pollGeneration) return;
       final shouldContinuePolling = state.isPolling;
       final nextDelay = _nextBackoffDelay();
       state = state.copyWith(

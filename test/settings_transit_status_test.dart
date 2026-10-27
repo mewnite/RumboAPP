@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rumbo/features/settings/presentation/settings_screen.dart';
+import 'package:rumbo/features/search/presentation/search_controller.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/stops_and_lines/presentation/feed_update_controller.dart';
-import 'package:rumbo/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'test_helpers.dart';
@@ -37,27 +36,18 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
-  testWidgets('remote address search is disabled by default and persists', (
-    tester,
-  ) async {
+  test('remote address search is disabled by default and persists', () async {
     SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          locale: const Locale('es', 'UY'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SettingsScreen(),
-        ),
-      ),
+    expect(
+      await container.read(remotePlaceSearchEnabledProvider.future),
+      isFalse,
     );
-    await tester.pumpAndSettle();
-
-    final toggle = find.byKey(const ValueKey('remote-place-search-setting'));
-    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
-    await tester.tap(toggle);
-    await tester.pumpAndSettle();
+    await container
+        .read(remotePlaceSearchEnabledProvider.notifier)
+        .setEnabled(true);
 
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.getBool('remote_place_search_enabled'), isTrue);

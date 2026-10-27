@@ -19,6 +19,112 @@ class AppLocalizationsEs extends AppLocalizations {
   String get privacyMessage => 'Sin anuncios. Sin rastreadores.';
 
   @override
+  String get privacyTitle => 'Privacidad y datos';
+
+  @override
+  String get privacyNetworkTitle => 'Datos que salen del dispositivo';
+
+  @override
+  String get privacyMapTitle => 'Mapa';
+
+  @override
+  String get privacyMapBody =>
+      'Las solicitudes de estilos y teselas permiten al proveedor inferir la zona aproximada visible; Rumbo no adjunta tu coordenada GPS.';
+
+  @override
+  String get privacyTransitTitle => 'Transporte';
+
+  @override
+  String privacyTransitBody(String source) {
+    return 'La app consulta $source para descargar el feed de transporte y, si está habilitado, posiciones de buses. No incluye tu ubicación.';
+  }
+
+  @override
+  String get privacySearchTitle => 'Búsqueda de lugares en línea';
+
+  @override
+  String get privacySearchBody =>
+      'Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.';
+
+  @override
+  String get privacyLiveTitle => 'Buses en vivo';
+
+  @override
+  String get privacyLiveBody =>
+      'Si lo activás, Rumbo consulta el proxy configurado para actualizar posiciones mientras el mapa está visible.';
+
+  @override
+  String get privacyIpNotice =>
+      'Cualquier servicio conectado recibe la dirección IP necesaria para responder. La ubicación precisa del dispositivo no se envía.';
+
+  @override
+  String get privacyLocalTitle => 'Datos que no salen del dispositivo';
+
+  @override
+  String get privacyLocalGpsTitle => 'Ubicación GPS';
+
+  @override
+  String get privacyLocalGpsBody =>
+      'Se procesa localmente para centrar el mapa, buscar paradas y, durante un viaje activo iniciado por vos, calcular avisos de bajada.';
+
+  @override
+  String get privacyLocalDataTitle => 'Tus datos guardados';
+
+  @override
+  String get privacyLocalDataBody =>
+      'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.';
+
+  @override
+  String get privacyControlsTitle => 'Controles';
+
+  @override
+  String get privacyLiveSwitchTitle => 'Mostrar buses en vivo';
+
+  @override
+  String get privacyLiveSwitchDescription =>
+      'Al apagarlo se detienen las consultas y se quitan los buses del mapa y los arribos.';
+
+  @override
+  String get privacyClearButton => 'Borrar mis datos locales';
+
+  @override
+  String get privacyClearConfirmTitle => '¿Borrar tus datos locales?';
+
+  @override
+  String get privacyClearConfirmBody =>
+      'Se borrarán favoritos, lugares guardados, búsquedas recientes y la caché del mapa. Los datos de transporte no se borrarán.';
+
+  @override
+  String get privacyClearSuccess => 'Se borraron tus datos locales.';
+
+  @override
+  String get privacyClearFailed =>
+      'No se pudieron borrar todos los datos locales.';
+
+  @override
+  String get privacyAboutTitle => 'Acerca de y atribuciones';
+
+  @override
+  String get privacyAttributionTitle => 'Datos del mapa y transporte';
+
+  @override
+  String get privacyDagTodo =>
+      'TODO: confirmar el texto exacto de atribución exigido por la Licencia de Datos Abiertos – Uruguay antes de publicar.';
+
+  @override
+  String get privacyFontTitle => 'Tipografía Inter';
+
+  @override
+  String get privacyFontBody =>
+      'Inter se distribuye con su licencia SIL Open Font License (OFL) y se incluye como archivo local.';
+
+  @override
+  String get privacyLicensesButton => 'Ver licencias de código abierto';
+
+  @override
+  String get privacyConfiguredSource => 'la fuente de transporte configurada';
+
+  @override
   String get navigationMap => 'Mapa';
 
   @override
@@ -922,6 +1028,112 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get privacyMessage => 'Sin anuncios. Sin rastreadores.';
+
+  @override
+  String get privacyTitle => 'Privacidad y datos';
+
+  @override
+  String get privacyNetworkTitle => 'Datos que salen del dispositivo';
+
+  @override
+  String get privacyMapTitle => 'Mapa';
+
+  @override
+  String get privacyMapBody =>
+      'Las solicitudes de estilos y teselas permiten al proveedor inferir la zona aproximada visible; Rumbo no adjunta tu coordenada GPS.';
+
+  @override
+  String get privacyTransitTitle => 'Transporte';
+
+  @override
+  String privacyTransitBody(String source) {
+    return 'La app consulta $source para descargar el feed de transporte y, si está habilitado, posiciones de buses. No incluye tu ubicación.';
+  }
+
+  @override
+  String get privacySearchTitle => 'Búsqueda de lugares en línea';
+
+  @override
+  String get privacySearchBody =>
+      'Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.';
+
+  @override
+  String get privacyLiveTitle => 'Buses en vivo';
+
+  @override
+  String get privacyLiveBody =>
+      'Si lo activás, Rumbo consulta el proxy configurado para actualizar posiciones mientras el mapa está visible.';
+
+  @override
+  String get privacyIpNotice =>
+      'Cualquier servicio conectado recibe la dirección IP necesaria para responder. La ubicación precisa del dispositivo no se envía.';
+
+  @override
+  String get privacyLocalTitle => 'Datos que no salen del dispositivo';
+
+  @override
+  String get privacyLocalGpsTitle => 'Ubicación GPS';
+
+  @override
+  String get privacyLocalGpsBody =>
+      'Se procesa localmente para centrar el mapa, buscar paradas y, durante un viaje activo iniciado por vos, calcular avisos de bajada.';
+
+  @override
+  String get privacyLocalDataTitle => 'Tus datos guardados';
+
+  @override
+  String get privacyLocalDataBody =>
+      'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.';
+
+  @override
+  String get privacyControlsTitle => 'Controles';
+
+  @override
+  String get privacyLiveSwitchTitle => 'Mostrar buses en vivo';
+
+  @override
+  String get privacyLiveSwitchDescription =>
+      'Al apagarlo se detienen las consultas y se quitan los buses del mapa y los arribos.';
+
+  @override
+  String get privacyClearButton => 'Borrar mis datos locales';
+
+  @override
+  String get privacyClearConfirmTitle => '¿Borrar tus datos locales?';
+
+  @override
+  String get privacyClearConfirmBody =>
+      'Se borrarán favoritos, lugares guardados, búsquedas recientes y la caché del mapa. Los datos de transporte no se borrarán.';
+
+  @override
+  String get privacyClearSuccess => 'Se borraron tus datos locales.';
+
+  @override
+  String get privacyClearFailed =>
+      'No se pudieron borrar todos los datos locales.';
+
+  @override
+  String get privacyAboutTitle => 'Acerca de y atribuciones';
+
+  @override
+  String get privacyAttributionTitle => 'Datos del mapa y transporte';
+
+  @override
+  String get privacyDagTodo =>
+      'TODO: confirmar el texto exacto de atribución exigido por la Licencia de Datos Abiertos – Uruguay antes de publicar.';
+
+  @override
+  String get privacyFontTitle => 'Tipografía Inter';
+
+  @override
+  String get privacyFontBody =>
+      'Inter se distribuye con su licencia SIL Open Font License (OFL) y se incluye como archivo local.';
+
+  @override
+  String get privacyLicensesButton => 'Ver licencias de código abierto';
+
+  @override
+  String get privacyConfiguredSource => 'la fuente de transporte configurada';
 
   @override
   String get navigationMap => 'Mapa';

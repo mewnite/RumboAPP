@@ -75,7 +75,10 @@ class OpenStreetMapPlaceSource {
       if (value is! Map<String, dynamic>) continue;
       final latitude = double.tryParse(value['lat']?.toString() ?? '');
       final longitude = double.tryParse(value['lon']?.toString() ?? '');
-      final name = value['display_name'];
+      final name =
+          value['name'] is String && (value['name'] as String).trim().isNotEmpty
+          ? value['name'] as String
+          : value['display_name'];
       if (latitude == null ||
           longitude == null ||
           name is! String ||

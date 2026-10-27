@@ -13,6 +13,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/search/presentation/search_controller.dart';
+import '../../../features/settings/presentation/privacy_preferences.dart';
 import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
 import '../../../features/stops_and_lines/data/sqflite_transit_repository.dart';
 import '../../../features/stops_and_lines/data/transit_database.dart';
@@ -206,6 +207,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (source == null) return;
     final controller = ref.read(liveBusesControllerProvider.notifier);
     _liveBusesController = controller;
+    if (ref.read(liveBusesEnabledProvider).asData?.value == false) {
+      controller.setEnabled(false);
+      return;
+    }
     if (!_mapVisible || !_appResumed) {
       controller.pausePolling();
       return;
@@ -1067,6 +1072,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.listen(liveBusesEnabledProvider, (previous, next) {
+      final enabled = next.asData?.value;
+      if (enabled == false) {
+        ref.read(liveBusesControllerProvider.notifier).setEnabled(false);
+      } else if (enabled == true) {
+        _syncRealtimePolling();
+      }
+    });
     ref.listen<MapAction?>(mapActionProvider, (previous, next) {
       if (next == null) return;
       ref.read(mapActionProvider.notifier).clear();
@@ -1105,6 +1118,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final selectedRoute = _selectedRoute;
     final selectedRoutes = <String, Route>{
       ...?(selectedRoute == null ? null : {selectedRoute.id: selectedRoute}),
+      // Show buses serving stops in the current area without requiring a
+      // route to be expanded first. Expanding or opening a stop can add routes,
+      // but the default map state should already be useful.
+      for (final route in routesByStop.values.expand((routes) => routes))
+        route.id: route,
       for (final stopId in {
         ..._expandedStopIds,
         if (_openDetailStop != null) _openDetailStop!.id,

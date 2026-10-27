@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/map/presentation/map_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/privacy_screen.dart';
 import '../theme/theme_sample_screen.dart';
 import 'app_shell.dart';
 
@@ -46,6 +47,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   key: state.pageKey,
                   child: const SettingsScreen(),
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'privacy',
+                    builder: (context, state) => const PrivacyScreen(),
+                  ),
+                ],
               ),
             ],
           ),

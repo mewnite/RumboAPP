@@ -5,6 +5,7 @@ import '../../../core/config/map_config.dart';
 
 abstract interface class MapCacheRepository {
   Future<void> configureAmbientCache();
+  Future<void> clearAmbientCache();
 }
 
 class MapLibreCacheRepository implements MapCacheRepository {
@@ -16,6 +17,17 @@ class MapLibreCacheRepository implements MapCacheRepository {
       await manager.setMaximumAmbientCacheSize(
         bytes: MapConfig.maxAmbientCacheBytes,
       );
+    } finally {
+      manager.dispose();
+    }
+  }
+
+  @override
+  Future<void> clearAmbientCache() async {
+    if (!OfflineManager.isSupported) return;
+    final manager = await OfflineManager.createInstance();
+    try {
+      await manager.clearAmbientCache();
     } finally {
       manager.dispose();
     }

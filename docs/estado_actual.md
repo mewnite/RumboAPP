@@ -89,7 +89,7 @@ Al abrir (comportamiento verificado en emulador Android):
 5. Completar el detalle de línea con recorrido y horarios; hoy solo se puede dibujar el shape de una variante.
 6. Validar el planificador con el feed oficial ya importado y definir trazados peatonales fiables; hoy la caminata es una estimación en línea recta.
 7. Implementar viaje activo y aviso de bajada; requiere definir el criterio/umbral del aviso, notificaciones y validación de capacidades/permisos en Android e iOS.
-8. Crear una pantalla de privacidad que reúna flujos de ubicación, geocodificación y atribución; requiere confirmar proveedor y condiciones del servicio remoto.
+8. Validar en dispositivo los controles de privacidad, la atribución y las condiciones del geocodificador configurado; la pantalla de privacidad ya existe.
 
 ### Preguntas para mí
 

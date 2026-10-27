@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/map/presentation/live_buses_controller.dart';
@@ -19,6 +21,13 @@ class _TestBusSource implements RealtimeBusSource {
     }
     return snapshot;
   }
+}
+
+class _PendingBusSource implements RealtimeBusSource {
+  final Completer<RealtimeSnapshot> completer = Completer<RealtimeSnapshot>();
+
+  @override
+  Future<RealtimeSnapshot> fetch() => completer.future;
 }
 
 void main() {
@@ -188,6 +197,28 @@ void main() {
     },
   );
 
+  test('discard an in-flight response after live buses are disabled', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(liveBusesControllerProvider.notifier);
+    final source = _PendingBusSource();
+    notifier.attachSource(source, pollInterval: const Duration(seconds: 1));
+
+    notifier.setEnabled(false);
+    source.completer.complete(
+      const RealtimeSnapshot(
+        positions: [],
+        discardedCount: 0,
+        discardReasons: {},
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(liveBusesControllerProvider);
+    expect(state.positions, isEmpty);
+    expect(state.lastUpdatedAt, isNull);
+    expect(state.isPolling, isFalse);
+  });
   test('pauses, resumes and backs off after a failed refresh', () async {
     final snapshot = RealtimeSnapshot(
       positions: [
