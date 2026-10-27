@@ -131,6 +131,32 @@ void main() {
     });
 
     test(
+      'combina lugares al escribir cuando la opción ya está habilitada',
+      () async {
+        final mockService = MockPlaceSearchService();
+        final container = ProviderContainer(
+          overrides: [searchServiceProvider.overrideWithValue(mockService)],
+        );
+        addTearDown(container.dispose);
+        await container.read(remotePlaceSearchEnabledProvider.future);
+
+        container
+            .read(searchControllerProvider.notifier)
+            .onQueryChanged('Shopping Nuevo Centro', allowRemote: true);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockService.localCalls, 1);
+        expect(mockService.searchCalls, 0);
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+
+        expect(mockService.searchCalls, 1);
+        expect(
+          container.read(searchControllerProvider).results.first.id,
+          'res-Shopping Nuevo Centro',
+        );
+      },
+    );
+
+    test(
       'no llama la búsqueda remota si el interruptor está apagado',
       () async {
         SharedPreferences.setMockInitialValues({});

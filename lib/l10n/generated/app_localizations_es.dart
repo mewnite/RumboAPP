@@ -44,7 +44,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get privacySearchBody =>
-      'Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.';
+      'Cuando activás la búsqueda en línea, cada texto que buscás se envía al servicio de lugares. El proveedor ve la consulta y la IP de conexión; tu ubicación GPS no se envía.';
 
   @override
   String get privacyLiveTitle => 'Buses en vivo';
@@ -72,7 +72,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get privacyLocalDataBody =>
-      'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.';
+      'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda en línea envía el texto solo después de habilitarla y aceptar el consentimiento inicial.';
 
   @override
   String get privacyControlsTitle => 'Controles';
@@ -259,6 +259,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get mapLiveSection => 'Ómnibus en vivo';
+
+  @override
+  String mapLiveBusCount(int count) {
+    return 'Ómnibus en el mapa: $count';
+  }
 
   @override
   String get mapLiveNotConfigured =>
@@ -514,7 +519,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get remotePlaceSearchDescription =>
-      'Al buscar, el texto escrito se envía al servicio remoto. Mientras escribís, solo se buscan datos locales.';
+      'Al habilitarla, Rumbo combina paradas locales con lugares en línea mientras escribís. Se envía el texto, nunca tu ubicación precisa.';
 
   @override
   String get debugThemeSample => 'Muestra de identidad visual';
@@ -694,7 +699,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripNoStops =>
-      'No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».';
+      'No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.';
 
   @override
   String get tripNoPlaces =>
@@ -732,9 +737,6 @@ class AppLocalizationsEs extends AppLocalizations {
       'Elegí una parada de origen o activá tu ubicación desde el mapa.';
 
   @override
-  String get tripSearchPlaces => 'Buscar lugares o direcciones';
-
-  @override
   String get tripGeocodingConsentTitle => 'Buscar lugares en línea';
 
   @override
@@ -755,7 +757,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripGeocodingPrivacy =>
-      'Al tocar «Buscar lugares o direcciones», se envía el texto escrito al servicio remoto. La ubicación actual no se envía.';
+      'La búsqueda combina paradas y lugares. El texto se envía al servicio en línea; tu ubicación actual no se envía.';
 
   @override
   String get tripPlaceSearchUnavailable =>
@@ -1135,7 +1137,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get privacySearchBody =>
-      'Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.';
+      'Cuando activás la búsqueda en línea, cada texto que buscás se envía al servicio de lugares. El proveedor ve la consulta y la IP de conexión; tu ubicación GPS no se envía.';
 
   @override
   String get privacyLiveTitle => 'Buses en vivo';
@@ -1163,7 +1165,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get privacyLocalDataBody =>
-      'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.';
+      'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda en línea envía el texto solo después de habilitarla y aceptar el consentimiento inicial.';
 
   @override
   String get privacyControlsTitle => 'Controles';
@@ -1350,6 +1352,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get mapLiveSection => 'Ómnibus en vivo';
+
+  @override
+  String mapLiveBusCount(int count) {
+    return 'Ómnibus en el mapa: $count';
+  }
 
   @override
   String get mapLiveNotConfigured =>
@@ -1605,7 +1612,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get remotePlaceSearchDescription =>
-      'Al buscar, el texto escrito se envía al servicio remoto. Mientras escribís, solo se buscan datos locales.';
+      'Al habilitarla, Rumbo combina paradas locales con lugares en línea mientras escribís. Se envía el texto, nunca tu ubicación precisa.';
 
   @override
   String get debugThemeSample => 'Muestra de identidad visual';
@@ -1785,7 +1792,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripNoStops =>
-      'No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».';
+      'No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.';
 
   @override
   String get tripNoPlaces =>
@@ -1823,9 +1830,6 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
       'Elegí una parada de origen o activá tu ubicación desde el mapa.';
 
   @override
-  String get tripSearchPlaces => 'Buscar lugares o direcciones';
-
-  @override
   String get tripGeocodingConsentTitle => 'Buscar lugares en línea';
 
   @override
@@ -1846,7 +1850,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripGeocodingPrivacy =>
-      'Al tocar «Buscar lugares o direcciones», se envía el texto escrito al servicio remoto. La ubicación actual no se envía.';
+      'La búsqueda combina paradas y lugares. El texto se envía al servicio en línea; tu ubicación actual no se envía.';
 
   @override
   String get tripPlaceSearchUnavailable =>

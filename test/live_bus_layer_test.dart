@@ -185,6 +185,12 @@ void main() {
                 matchedVariantIds: const {10},
                 now: now,
               ),
+              LiveBusChip(
+                key: const ValueKey('unfiltered'),
+                bus: unmatched,
+                matchedVariantIds: const {},
+                now: now,
+              ),
             ],
           ),
         ),
@@ -194,11 +200,40 @@ void main() {
     expect(tester.widget<Opacity>(find.byType(Opacity).first).opacity, 1);
     expect(tester.widget<Opacity>(find.byType(Opacity).at(1)).opacity, 0.5);
     expect(tester.widget<Opacity>(find.byType(Opacity).at(2)).opacity, 0.5);
+    expect(tester.widget<Opacity>(find.byType(Opacity).at(3)).opacity, 1);
     expect(
       tester
           .widgetList<LineChip>(find.byType(LineChip))
           .every((chip) => chip.compact),
       isTrue,
     );
+  });
+
+  testWidgets('unfiltered live buses use the active dark theme primary', (
+    tester,
+  ) async {
+    final vehicle = bus(
+      id: '8',
+      line: '8',
+      variantId: 8,
+      latitude: -34.9,
+      longitude: -56.1,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: Scaffold(
+          body: LiveBusChip(
+            bus: vehicle,
+            matchedVariantIds: const {},
+            now: now,
+          ),
+        ),
+      ),
+    );
+
+    final chip = tester.widget<LineChip>(find.byType(LineChip));
+    expect(chip.backgroundColor, AppTheme.darkColorScheme.primary);
+    expect(tester.widget<Opacity>(find.byType(Opacity)).opacity, 1);
   });
 }

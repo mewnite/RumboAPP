@@ -131,7 +131,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
   TripPlan? _selectedTripPlan;
   String? _selectedTripOriginName;
   String? _selectedTripDestinationName;
-  Stop? _openDetailStop;
 
   @override
   void initState() {
@@ -326,6 +325,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   void _onStyleLoaded(StyleController _) {
     _mapLoadTimer?.cancel();
+    // getVisibleRegion may be unavailable in onMapCreated until the native
+    // map style has finished loading; refresh bounds now so the first bus
+    // response can be rendered without waiting for a camera gesture.
+    _updateVisibleBounds();
     if (mounted) {
       setState(() {
         _mapLoading = false;
@@ -589,9 +592,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
             return placeSource.search(query);
           },
           findPlans: (origin, destination, timing, config) async {
-            final feed = ref.read(feedUpdateControllerProvider).asData?.value;
+            var feed = ref.read(feedUpdateControllerProvider).asData?.value;
+            feed = await waitForOfficialTransitData(
+              feed,
+              () => ref.read(feedUpdateControllerProvider.future),
+            );
             if (!hasOfficialTransitData(feed)) {
-              throw Exception(l10n.tripOfficialDataUnavailable);
+              throw Exception(
+                feed?.message.isNotEmpty == true
+                    ? feed!.message
+                    : l10n.tripOfficialDataUnavailable,
+              );
             }
             final originLatitude = origin?.latitude ?? location?.latitude;
             final originLongitude = origin?.longitude ?? location?.longitude;
@@ -753,7 +764,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _showStopDetails(Stop stop) async {
     var shouldPlan = false;
-    setState(() => _openDetailStop = stop);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -770,9 +780,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
         },
       ),
     );
-    if (mounted) {
-      setState(() => _openDetailStop = null);
-    }
     if (mounted && shouldPlan) {
       await _showTripSearch(destination: TripEndpoint.fromStop(stop));
     }
@@ -828,7 +835,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     ];
   }
 
-  List<Layer> _stopLayers(List<Stop> stops) {
+  List<Layer> _stopLayers(List<Stop> stops, {required bool isDark}) {
     if (stops.isEmpty) return const [];
     return [
       CircleLayer(
@@ -843,7 +850,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         radius: 8,
         color: AppColors.lime,
         strokeWidth: 2,
-        strokeColor: AppColors.ink,
+        strokeColor: isDark ? AppColors.ivory : AppColors.ink,
       ),
     ];
   }
@@ -899,11 +906,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
 
     final layers = <Layer>[];
+    final routeColor = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (walkingPoints.isNotEmpty) {
       layers.add(
         PolylineLayer(
           polylines: walkingPoints,
-          color: AppColors.deepBlue.withValues(alpha: 0.72),
+          color: routeColor.withValues(alpha: 0.72),
           width: 4,
           dashArray: const [1, 2],
         ),
@@ -911,11 +920,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
     if (transitPoints.isNotEmpty) {
       layers.add(
-        PolylineLayer(
-          polylines: transitPoints,
-          color: AppColors.deepBlue,
-          width: 6,
-        ),
+        PolylineLayer(polylines: transitPoints, color: routeColor, width: 6),
       );
     }
 
@@ -925,9 +930,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
         CircleLayer(
           points: [Feature<Point>(geometry: Point(origin))],
           radius: 7,
-          color: AppColors.ink,
+          color: isDark ? AppColors.ivory : AppColors.ink,
           strokeWidth: 3,
-          strokeColor: AppColors.white,
+          strokeColor: isDark ? AppColors.ink : AppColors.white,
         ),
       );
     }
@@ -939,7 +944,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           radius: 8,
           color: AppColors.lime,
           strokeWidth: 3,
-          strokeColor: AppColors.ink,
+          strokeColor: isDark ? AppColors.ivory : AppColors.ink,
         ),
       );
     }
@@ -1009,10 +1014,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     Route route,
     Stop stop,
   ) async {
-    final hexColor = route.color.replaceFirst('#', '');
-    final routeColor = RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hexColor)
-        ? Color(int.parse('FF$hexColor', radix: 16))
-        : AppColors.deepBlue;
+    final routeColor = _mapRouteColor(route);
     setState(() {
       _selectedVariantId = variant.id;
       _selectedRoute = route;
@@ -1039,10 +1041,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   Future<void> _showLineDetails(Route route, {String? initialVariantId}) async {
-    final hexColor = route.color.replaceFirst('#', '');
-    final routeColor = RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hexColor)
-        ? Color(int.parse('FF$hexColor', radix: 16))
-        : AppColors.deepBlue;
+    final routeColor = _mapRouteColor(route);
     setState(() {
       _selectedTripPlan = null;
       _selectedVariantId = initialVariantId;
@@ -1123,6 +1122,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
+  Color _mapRouteColor(Route route) {
+    final hex = route.color.replaceFirst('#', '');
+    if (!RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hex)) {
+      return Theme.of(context).colorScheme.primary;
+    }
+    final color = Color(int.parse('FF$hex', radix: 16));
+    return Theme.of(context).brightness == Brightness.dark
+        ? Color.lerp(color, AppColors.ivory, .28)!
+        : color;
+  }
+
   Future<void> _setNearbyStopsExpanded(Stop stop, bool expanded) async {
     setState(() {
       if (expanded) {
@@ -1187,20 +1197,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final liveBuses = ref.watch(liveBusesControllerProvider);
     final activeTrip = ref.watch(activeTripControllerProvider);
     final selectedRoute = _selectedRoute;
-    final selectedRoutes = <String, Route>{
-      ...?(selectedRoute == null ? null : {selectedRoute.id: selectedRoute}),
-      // Show buses serving stops in the current area without requiring a
-      // route to be expanded first. Expanding or opening a stop can add routes,
-      // but the default map state should already be useful.
-      for (final route in routesByStop.values.expand((routes) => routes))
-        route.id: route,
-      for (final stopId in {
-        ..._expandedStopIds,
-        if (_openDetailStop != null) _openDetailStop!.id,
-      })
-        for (final route in routesByStop[stopId] ?? const <Route>[])
-          route.id: route,
-    };
+    final Map<String, Route> selectedRoutes = selectedRoute == null
+        ? {}
+        : {selectedRoute.id: selectedRoute};
     final selectedLines = <String>{};
     final selectedVariantIds = <int>{};
     for (final route in selectedRoutes.values) {
@@ -1213,6 +1212,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
             const <int>[],
       );
     }
+    final busesInVisibleArea = liveBuses.filteredPositions(
+      selectedLines: selectedRoute == null ? const {} : selectedLines,
+      selectedVariantIds: selectedRoute == null ? const {} : selectedVariantIds,
+    );
     final selectedShape = _selectedVariantId == null
         ? null
         : ref.watch(routeShapeProvider(_selectedVariantId!)).asData?.value;
@@ -1255,7 +1258,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           layers: [
             ..._tripPlanLayers(_selectedTripPlan),
             ..._selectedRouteLayers(effectiveShape),
-            ..._stopLayers(stops),
+            ..._stopLayers(stops, isDark: isDark),
             ..._locationLayers(locationState, isDark),
           ],
           children: [
@@ -1263,11 +1266,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
               allowInteraction: true,
               markers: [
                 if (_selectedTripPlan == null)
-                  for (final bus in liveBuses.filteredPositions(
-                    selectedLines: selectedLines,
-                    selectedVariantIds: selectedVariantIds,
-                  ))
-                    _busMarker(context, bus, selectedVariantIds),
+                  for (final bus in busesInVisibleArea)
+                    _busMarker(
+                      context,
+                      bus,
+                      selectedRoute == null
+                          ? const <int>{}
+                          : selectedVariantIds,
+                    ),
               ],
             ),
           ],
@@ -1552,9 +1558,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                                   onTap: () =>
                                       unawaited(_showStopDetails(stop)),
                                   contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(
+                                  leading: Icon(
                                     Symbols.location_on_rounded,
-                                    color: AppColors.deepBlue,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                   title: Text(stop.name),
                                   subtitle: Text(
@@ -1598,7 +1606,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         if (transitConfig.url.isEmpty)
                           Text(l10n.mapLiveNotConfigured)
                         else if ((nearbyStops.isLoading ||
-                                feedAsync.isLoading) &&
+                                feedAsync.isLoading ||
+                                feedState?.phase ==
+                                    FeedUpdatePhase.downloading ||
+                                feedState?.phase ==
+                                    FeedUpdatePhase.processing) &&
                             stops.isEmpty)
                           Row(
                             children: [
@@ -1621,9 +1633,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
                               ),
                             ],
                           )
-                        else if (feedState?.phase == FeedUpdatePhase.offline ||
-                            feedState?.phase ==
-                                FeedUpdatePhase.errorWithOldData)
+                        else if ((feedState?.phase == FeedUpdatePhase.offline ||
+                                feedState?.phase ==
+                                    FeedUpdatePhase.errorWithOldData) &&
+                            !hasOfficialTransitData(feedState))
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1675,11 +1688,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           )
                         else
                           Text(
-                            l10n.mapLiveSection,
+                            l10n.mapLiveBusCount(busesInVisibleArea.length),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                        if (stops.isNotEmpty &&
-                            liveBuses.lastUpdatedAt != null &&
+                        if (stops.isEmpty && liveBuses.error != null)
+                          Text(l10n.mapLiveError(liveBuses.error!)),
+                        if (stops.isEmpty &&
+                            liveBuses.lastUpdatedAt == null &&
+                            liveBuses.error == null)
+                          Text(l10n.mapLiveLoading),
+                        if (stops.isEmpty && liveBuses.lastUpdatedAt != null)
+                          Text(l10n.mapLiveBusCount(busesInVisibleArea.length)),
+                        if (liveBuses.lastUpdatedAt != null &&
                             _nearbyBuses(
                               locationState,
                               liveBuses.positions,

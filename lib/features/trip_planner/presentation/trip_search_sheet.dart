@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart' hide Route;
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../features/search/domain/place_search_service.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
@@ -81,7 +80,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   bool _planning = false;
   bool _originUsesLocation = true;
   bool _searchOrigin = false;
-  bool _hasSearchedPlaces = false;
+  bool _askedRemoteConsent = false;
   late bool _remoteSearchEnabled;
   TripTimingMode _timingMode = TripTimingMode.departNow;
   late DateTime _timedDateTime;
@@ -129,34 +128,57 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
 
   void _search(String query) {
     _debounce?.cancel();
+    final normalizedQuery = query.trim();
     setState(() {
       _suggestions = const [];
       _searchError = null;
-      _searching = query.trim().isNotEmpty;
-      _hasSearchedPlaces = false;
+      _searching = normalizedQuery.isNotEmpty;
     });
-    if (query.trim().isEmpty) return;
-    _debounce = Timer(const Duration(milliseconds: 220), () async {
+    if (normalizedQuery.isEmpty) return;
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
       try {
-        if (widget.searchService != null) {
-          final results = await widget.searchService!.searchLocal(query: query);
-          if (mounted && _activeController.text == query) {
-            setState(() {
-              _suggestions = results.map((r) => r.toTripEndpoint()).toList();
-              _searching = false;
-            });
+        final shouldOfferOnlineSearch =
+            normalizedQuery.length >= 3 &&
+            RegExp(r'[a-zA-ZáéíóúñÁÉÍÓÚÑ]').hasMatch(normalizedQuery) &&
+            !_remoteSearchEnabled &&
+            !_askedRemoteConsent &&
+            widget.onRemotePlaceSearchConsentRequested != null;
+        if (shouldOfferOnlineSearch) {
+          _askedRemoteConsent = true;
+          final accepted = await widget.onRemotePlaceSearchConsentRequested!
+              .call();
+          if (!mounted || _activeController.text.trim() != normalizedQuery) {
+            return;
           }
+          if (accepted) setState(() => _remoteSearchEnabled = true);
+        }
+
+        List<TripEndpoint> endpoints;
+        if (widget.searchService != null) {
+          final results = await widget.searchService!.search(
+            query: normalizedQuery,
+            allowRemote: _remoteSearchEnabled,
+          );
+          endpoints = results.map((result) => result.toTripEndpoint()).toList();
         } else {
-          final results = await widget.searchStops(query);
-          if (mounted && _activeController.text == query) {
-            setState(() {
-              _suggestions = results.map(TripEndpoint.fromStop).toList();
-              _searching = false;
-            });
+          final stops = await widget.searchStops(normalizedQuery);
+          endpoints = stops.map(TripEndpoint.fromStop).toList();
+          if (_remoteSearchEnabled && normalizedQuery.length >= 3) {
+            final places = await widget.searchPlaces(normalizedQuery);
+            final seen = endpoints.map(_endpointKey).toSet();
+            endpoints.addAll(
+              places.where((place) => seen.add(_endpointKey(place))),
+            );
           }
         }
+        if (mounted && _activeController.text.trim() == normalizedQuery) {
+          setState(() {
+            _suggestions = endpoints;
+            _searching = false;
+          });
+        }
       } on Exception catch (error) {
-        if (mounted && _activeController.text == query) {
+        if (mounted && _activeController.text.trim() == normalizedQuery) {
           setState(() {
             _searchError = error;
             _searching = false;
@@ -164,48 +186,6 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
         }
       }
     });
-  }
-
-  Future<void> _searchPlaces() async {
-    final query = _activeController.text.trim();
-    if (query.length < 3) return;
-    if (!_remoteSearchEnabled) {
-      final requestConsent = widget.onRemotePlaceSearchConsentRequested;
-      if (requestConsent == null || !await requestConsent()) return;
-      if (!mounted) return;
-      setState(() => _remoteSearchEnabled = true);
-    }
-    _debounce?.cancel();
-    setState(() {
-      _searching = true;
-      _searchError = null;
-      _hasSearchedPlaces = false;
-    });
-    try {
-      final results = widget.searchService != null
-          ? (await widget.searchService!.search(
-              query: query,
-              allowRemote: true,
-            )).map((r) => r.toTripEndpoint()).toList()
-          : await widget.searchPlaces(query);
-      if (!mounted || _activeController.text.trim() != query) return;
-      final seen = _suggestions.map(_endpointKey).toSet();
-      setState(() {
-        _suggestions = [
-          ..._suggestions,
-          ...results.where((result) => seen.add(_endpointKey(result))),
-        ];
-        _searching = false;
-        _hasSearchedPlaces = true;
-      });
-    } on Exception catch (error) {
-      if (mounted) {
-        setState(() {
-          _searchError = error;
-          _searching = false;
-        });
-      }
-    }
   }
 
   String _endpointKey(TripEndpoint endpoint) =>
@@ -537,7 +517,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
-                  _hasSearchedPlaces ? l10n.tripNoPlaces : l10n.tripNoStops,
+                  _remoteSearchEnabled ? l10n.tripNoPlaces : l10n.tripNoStops,
                 ),
               )
             else if (_suggestions.isNotEmpty)
@@ -585,14 +565,9 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   },
                 ),
               ),
-            if (_activeController.text.trim().length >= 3 &&
-                (_originFocus.hasFocus || _destinationFocus.hasFocus)) ...[
+            if (_remoteSearchEnabled &&
+                _activeController.text.trim().length >= 3) ...[
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _searching ? null : _searchPlaces,
-                icon: const Icon(Symbols.travel_explore_rounded),
-                label: Text(l10n.tripSearchPlaces),
-              ),
               Text(
                 l10n.tripGeocodingPrivacy,
                 textAlign: TextAlign.center,
@@ -992,7 +967,7 @@ class _TripPlanCard extends StatelessWidget {
                       for (final line in lines)
                         LineChip(
                           label: line,
-                          backgroundColor: AppColors.deepBlue,
+                          backgroundColor: theme.colorScheme.primary,
                           compact: true,
                         ),
                     ],

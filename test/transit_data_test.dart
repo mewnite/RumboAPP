@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -150,6 +151,55 @@ void main() {
         ),
         isFalse,
       );
+    },
+  );
+
+  test('trip data waits for an initial GTFS download and import', () async {
+    final completion = Completer<FeedUpdateState>();
+    final pending = waitForOfficialTransitData(
+      const FeedUpdateState(
+        phase: FeedUpdatePhase.processing,
+        stage: 'procesando_archivos',
+      ),
+      () => completion.future,
+    );
+    var finished = false;
+    unawaited(
+      pending.then<void>((_) {
+        finished = true;
+      }),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(finished, isFalse);
+
+    completion.complete(
+      const FeedUpdateState(
+        phase: FeedUpdatePhase.updated,
+        status: FeedStatus(stopCount: 4930, routeCount: 325),
+      ),
+    );
+    final result = await pending;
+
+    expect(hasOfficialTransitData(result), isTrue);
+  });
+
+  test(
+    'initial GTFS failure preserves its diagnostic for the planner',
+    () async {
+      final result = await waitForOfficialTransitData(
+        const FeedUpdateState(
+          phase: FeedUpdatePhase.downloading,
+          stage: 'conectando',
+        ),
+        () async => const FeedUpdateState(
+          phase: FeedUpdatePhase.offline,
+          message: 'El proxy rechazó la descarga del feed.',
+        ),
+      );
+
+      expect(result?.phase, FeedUpdatePhase.offline);
+      expect(result?.message, 'El proxy rechazó la descarga del feed.');
+      expect(hasOfficialTransitData(result), isFalse);
     },
   );
 

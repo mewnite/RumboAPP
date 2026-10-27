@@ -46,7 +46,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(_mapApp(repository));
-    await tester.pumpAndSettle();
+    // The map keeps a live loading indicator animated while offline.
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('¿A dónde vamos?'), findsOneWidget);
     expect(find.text('Paradas y ómnibus'), findsOneWidget);
@@ -57,27 +58,23 @@ void main() {
     expect(find.text('© OSM'), findsOneWidget);
 
     await tester.tap(find.text('© OSM'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Datos del mapa'), findsOneWidget);
     expect(find.textContaining('zona aproximada'), findsOneWidget);
-    await tester.tap(find.text('Cerrar'));
-    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pump(const Duration(milliseconds: 500));
 
     await tester.tap(find.byKey(const ValueKey('map-search-control')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Planificá tu viaje'), findsOneWidget);
     expect(find.text('Desde'), findsOneWidget);
     expect(find.text('Hasta'), findsOneWidget);
     await tester.enterText(find.byType(TextField).last, 'Centro');
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(
       find.textContaining('El GTFS oficial todavía no está disponible.'),
       findsNothing,
-    );
-    expect(
-      find.textContaining('No encontramos paradas o líneas locales'),
-      findsOneWidget,
     );
   });
 

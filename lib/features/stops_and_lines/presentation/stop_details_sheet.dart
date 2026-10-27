@@ -4,7 +4,6 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
@@ -121,7 +120,10 @@ class StopDetailsSheet extends ConsumerWidget {
                                 label: route.shortName.isEmpty
                                     ? route.id
                                     : route.shortName,
-                                backgroundColor: _routeColor(route),
+                                backgroundColor: _routeColor(
+                                  route,
+                                  Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                             ),
                         ],
@@ -217,7 +219,7 @@ class _ArrivalRow extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: LineChip(
         label: arrival.routeLabel,
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: Theme.of(context).colorScheme.primary,
       ),
       title: Text(arrival.destination),
       subtitle: Text(
@@ -284,10 +286,10 @@ class _StatusMessage extends StatelessWidget {
   );
 }
 
-Color _routeColor(Route route) {
+Color _routeColor(Route route, Color fallback) {
   final hex = route.color.replaceFirst('#', '');
   if (!RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hex)) {
-    return AppColors.deepBlue;
+    return fallback;
   }
   return Color(int.parse('FF$hex', radix: 16));
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,9 +73,11 @@ final searchControllerProvider =
 
 class DestinationSearchController extends Notifier<SearchState> {
   int _searchGeneration = 0;
+  Timer? _remoteDebounce;
 
   @override
   SearchState build() {
+    ref.onDispose(() => _remoteDebounce?.cancel());
     Future.microtask(loadRecentSearches);
     return const SearchState();
   }
@@ -106,8 +110,10 @@ class DestinationSearchController extends Notifier<SearchState> {
     double? userLatitude,
     double? userLongitude,
     bool isOffline = false,
+    bool allowRemote = false,
   }) {
     final trimmed = query.trim();
+    _remoteDebounce?.cancel();
 
     if (trimmed.isEmpty) {
       _searchGeneration++;
@@ -132,6 +138,16 @@ class DestinationSearchController extends Notifier<SearchState> {
     );
 
     state = state.copyWith(isLocalOnly: isOffline);
+    if (allowRemote && !isOffline && trimmed.length >= 3) {
+      _remoteDebounce = Timer(const Duration(milliseconds: 450), () {
+        if (_searchGeneration != currentId) return;
+        final remoteId = ++_searchGeneration;
+        state = state.copyWith(status: SearchStatus.loading);
+        unawaited(
+          _searchRemoteAndRank(trimmed, remoteId, userLatitude, userLongitude),
+        );
+      });
+    }
   }
 
   Future<void> searchRemote({
@@ -145,6 +161,7 @@ class DestinationSearchController extends Notifier<SearchState> {
     final trimmed = query.trim();
     if (trimmed.length < 3) return;
     final currentId = ++_searchGeneration;
+    _remoteDebounce?.cancel();
     state = state.copyWith(query: trimmed, status: SearchStatus.loading);
     await _searchRemoteAndRank(trimmed, currentId, userLatitude, userLongitude);
   }

@@ -160,7 +160,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacySearchBody.
   ///
   /// In es_UY, this message translates to:
-  /// **'Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.'**
+  /// **'Cuando activás la búsqueda en línea, cada texto que buscás se envía al servicio de lugares. El proveedor ve la consulta y la IP de conexión; tu ubicación GPS no se envía.'**
   String get privacySearchBody;
 
   /// No description provided for @privacyLiveTitle.
@@ -208,7 +208,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyLocalDataBody.
   ///
   /// In es_UY, this message translates to:
-  /// **'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.'**
+  /// **'Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda en línea envía el texto solo después de habilitarla y aceptar el consentimiento inicial.'**
   String get privacyLocalDataBody;
 
   /// No description provided for @privacyControlsTitle.
@@ -540,6 +540,12 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'Ómnibus en vivo'**
   String get mapLiveSection;
+
+  /// No description provided for @mapLiveBusCount.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ómnibus en el mapa: {count}'**
+  String mapLiveBusCount(int count);
 
   /// No description provided for @mapLiveNotConfigured.
   ///
@@ -970,7 +976,7 @@ abstract class AppLocalizations {
   /// No description provided for @remotePlaceSearchDescription.
   ///
   /// In es_UY, this message translates to:
-  /// **'Al buscar, el texto escrito se envía al servicio remoto. Mientras escribís, solo se buscan datos locales.'**
+  /// **'Al habilitarla, Rumbo combina paradas locales con lugares en línea mientras escribís. Se envía el texto, nunca tu ubicación precisa.'**
   String get remotePlaceSearchDescription;
 
   /// No description provided for @debugThemeSample.
@@ -1312,7 +1318,7 @@ abstract class AppLocalizations {
   /// No description provided for @tripNoStops.
   ///
   /// In es_UY, this message translates to:
-  /// **'No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».'**
+  /// **'No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.'**
   String get tripNoStops;
 
   /// No description provided for @tripNoPlaces.
@@ -1369,12 +1375,6 @@ abstract class AppLocalizations {
   /// **'Elegí una parada de origen o activá tu ubicación desde el mapa.'**
   String get tripOriginRequired;
 
-  /// No description provided for @tripSearchPlaces.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Buscar lugares o direcciones'**
-  String get tripSearchPlaces;
-
   /// No description provided for @tripGeocodingConsentTitle.
   ///
   /// In es_UY, this message translates to:
@@ -1414,7 +1414,7 @@ abstract class AppLocalizations {
   /// No description provided for @tripGeocodingPrivacy.
   ///
   /// In es_UY, this message translates to:
-  /// **'Al tocar «Buscar lugares o direcciones», se envía el texto escrito al servicio remoto. La ubicación actual no se envía.'**
+  /// **'La búsqueda combina paradas y lugares. El texto se envía al servicio en línea; tu ubicación actual no se envía.'**
   String get tripGeocodingPrivacy;
 
   /// No description provided for @tripPlaceSearchUnavailable.

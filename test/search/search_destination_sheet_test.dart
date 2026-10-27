@@ -134,7 +134,7 @@ void main() {
 
       // 2. Escribir en el campo de búsqueda
       await tester.enterText(find.byType(TextField), '18 de Julio');
-      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
       // 3. Debe mostrar resultados con chip de líneas
@@ -142,13 +142,9 @@ void main() {
       expect(find.text('14'), findsOneWidget);
       expect(find.text('21'), findsOneWidget);
       expect(find.text('180'), findsOneWidget);
-      expect(find.text('Av. Italia 2450'), findsNothing);
-      expect(searchService.remoteCalls, 0);
-
-      await tester.tap(find.text('Buscar lugares o direcciones'));
-      await tester.pumpAndSettle();
       expect(find.text('Av. Italia 2450'), findsOneWidget);
       expect(searchService.remoteCalls, 1);
+      expect(find.text('Buscar lugares o direcciones'), findsNothing);
 
       // 4. Seleccionar un destino
       await tester.tap(find.byKey(const ValueKey('search-result-stop-1')));
@@ -159,4 +155,45 @@ void main() {
       expect(selectedResult!.title, 'Av. 18 de Julio y Ejido');
     },
   );
+
+  testWidgets('pide consentimiento una vez y busca lugares automáticamente', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final searchService = TestSearchService();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          searchServiceProvider.overrideWithValue(searchService),
+          networkAvailableProvider.overrideWith(
+            (ref) => Stream<bool>.value(true),
+          ),
+        ],
+        child: MaterialApp(
+          locale: const Locale('es', 'UY'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: SearchDestinationSheet(onDestinationSelected: (_) {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Shopping Nuevo Centro');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Buscar lugares en línea'), findsOneWidget);
+    expect(searchService.remoteCalls, 0);
+    await tester.tap(find.text('Habilitar y buscar'));
+    await tester.pumpAndSettle();
+
+    expect(searchService.remoteCalls, 1);
+    expect(find.text('Av. Italia 2450'), findsOneWidget);
+    expect(find.text('Buscar lugares o direcciones'), findsNothing);
+  });
 }

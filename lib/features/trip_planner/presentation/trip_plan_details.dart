@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../domain/trip_planner.dart';
 
@@ -267,9 +266,9 @@ class _TimelineStepTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final markerColor = step.isDestination
-        ? AppColors.deepBlue
+        ? theme.colorScheme.primary
         : step.isOrigin
-        ? AppColors.ink
+        ? theme.colorScheme.onSurface
         : theme.colorScheme.primary;
 
     return IntrinsicHeight(

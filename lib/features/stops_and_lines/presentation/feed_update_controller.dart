@@ -64,6 +64,22 @@ bool hasOfficialTransitData(FeedUpdateState? state) =>
     state.status.stopCount > 0 &&
     state.status.routeCount > 0;
 
+Future<FeedUpdateState?> waitForOfficialTransitData(
+  FeedUpdateState? current,
+  Future<FeedUpdateState> Function() waitForUpdate,
+) async {
+  if (hasOfficialTransitData(current)) return current;
+  if (current?.phase != FeedUpdatePhase.downloading &&
+      current?.phase != FeedUpdatePhase.processing) {
+    return current;
+  }
+  try {
+    return await waitForUpdate();
+  } catch (_) {
+    return current;
+  }
+}
+
 final feedUpdateControllerProvider =
     AsyncNotifierProvider<FeedUpdateController, FeedUpdateState>(
       FeedUpdateController.new,
@@ -117,18 +133,18 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
       );
       await _refresh(empty);
       return state.asData?.value ?? empty;
-    } catch (e, stackTrace) {
+    } catch (e) {
       final stale = _lastGood;
       final result = FeedUpdateState(
-        phase: stale?.feed == null
-            ? FeedUpdatePhase.noData
-            : FeedUpdatePhase.errorWithOldData,
+        phase: hasOfficialTransitData(stale)
+            ? FeedUpdatePhase.errorWithOldData
+            : phaseForFeedError(e),
         message: e.toString(),
         feed: stale?.feed,
         status: stale?.status ?? const FeedStatus(),
       );
       state = AsyncData(result);
-      Error.throwWithStackTrace(e, stackTrace);
+      return result;
     }
   }
 
@@ -184,18 +200,18 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
       state = AsyncData(result);
       _lastGood = result;
       return result;
-    } catch (e, stackTrace) {
+    } catch (e) {
       final stale = _lastGood;
       final result = FeedUpdateState(
-        phase: stale?.feed == null
-            ? FeedUpdatePhase.noData
-            : FeedUpdatePhase.errorWithOldData,
+        phase: hasOfficialTransitData(stale)
+            ? FeedUpdatePhase.errorWithOldData
+            : phaseForFeedError(e),
         message: e.toString(),
         feed: stale?.feed,
         status: stale?.status ?? const FeedStatus(),
       );
       state = AsyncData(result);
-      Error.throwWithStackTrace(e, stackTrace);
+      return result;
     }
   }
 

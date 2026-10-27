@@ -11,7 +11,7 @@
   "privacyTransitBody": "La app consulta {source} para descargar el feed de transporte y, si está habilitado, posiciones de buses. No incluye tu ubicación.",
   "@privacyTransitBody": { "placeholders": { "source": { "type": "String" } } },
   "privacySearchTitle": "Búsqueda de lugares en línea",
-  "privacySearchBody": "Solo se envía el texto cuando activás esta opción y tocás Buscar lugares o direcciones. El proveedor ve la consulta y la IP de conexión.",
+  "privacySearchBody": "Cuando activás la búsqueda en línea, cada texto que buscás se envía al servicio de lugares. El proveedor ve la consulta y la IP de conexión; tu ubicación GPS no se envía.",
   "privacyLiveTitle": "Buses en vivo",
   "privacyLiveBody": "Si lo activás, Rumbo consulta el proxy configurado para actualizar posiciones mientras el mapa está visible.",
   "privacyIpNotice": "Cualquier servicio conectado recibe la dirección IP necesaria para responder. La ubicación precisa del dispositivo no se envía.",
@@ -19,7 +19,7 @@
   "privacyLocalGpsTitle": "Ubicación GPS",
   "privacyLocalGpsBody": "Se procesa localmente para centrar el mapa, buscar paradas y, durante un viaje activo iniciado por vos, calcular avisos de bajada.",
   "privacyLocalDataTitle": "Tus datos guardados",
-  "privacyLocalDataBody": "Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda remota solo envía el texto tras una acción explícita.",
+  "privacyLocalDataBody": "Favoritos, Casa y Trabajo, búsquedas recientes y el origen/destino del planificador se guardan localmente. La búsqueda en línea envía el texto solo después de habilitarla y aceptar el consentimiento inicial.",
   "privacyControlsTitle": "Controles",
   "privacyLiveSwitchTitle": "Mostrar buses en vivo",
   "privacyLiveSwitchDescription": "Al apagarlo se detienen las consultas y se quitan los buses del mapa y los arribos.",
@@ -110,6 +110,14 @@
   "stopHowToGetThere": "Cómo llegar",
   "mapNoStops": "No encontramos paradas a menos de 1,5 km. Activá tu ubicación o acercá el mapa.",
   "mapLiveSection": "Ómnibus en vivo",
+  "mapLiveBusCount": "Ómnibus en el mapa: {count}",
+  "@mapLiveBusCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mapLiveNotConfigured": "El tiempo real no está conectado en esta instalación.",
   "mapLiveLoading": "Consultando ómnibus en vivo…",
   "mapLiveEmpty": "El STM no reporta ómnibus en vivo cerca de este punto.",
@@ -251,7 +259,7 @@
   "themeSystem": "Sistema",
   "settingsLoadError": "No se pudo cargar la preferencia de apariencia.",
   "remotePlaceSearchTitle": "Buscar direcciones en línea",
-  "remotePlaceSearchDescription": "Al buscar, el texto escrito se envía al servicio remoto. Mientras escribís, solo se buscan datos locales.",
+  "remotePlaceSearchDescription": "Al habilitarla, Rumbo combina paradas locales con lugares en línea mientras escribís. Se envía el texto, nunca tu ubicación precisa.",
   "debugThemeSample": "Muestra de identidad visual",
   "debugThemeSampleTitle": "Identidad visual",
   "debugPaletteTitle": "Paleta Rumbo",
@@ -338,7 +346,7 @@
   "tripDepartureLabel": "Salida",
   "tripChangeDate": "Cambiar fecha",
   "tripChangeTime": "Cambiar hora",
-  "tripNoStops": "No encontramos paradas o líneas locales con ese texto. Para buscar un shopping o una terminal, usá «Buscar lugares o direcciones».",
+  "tripNoStops": "No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.",
   "tripNoPlaces": "No encontramos lugares o direcciones con ese texto.",
   "tripSearchError": "No se pudo buscar: {error}",
   "@tripSearchError": {
@@ -355,14 +363,13 @@
   "tripStaticScheduleNotice": "Opciones basadas en horarios programados; no son arribos en vivo.",
   "tripOfficialDataUnavailable": "El GTFS oficial todavía no está disponible. Iniciá el proxy local y reintentá la actualización.",
   "tripOriginRequired": "Elegí una parada de origen o activá tu ubicación desde el mapa.",
-  "tripSearchPlaces": "Buscar lugares o direcciones",
   "tripGeocodingConsentTitle": "Buscar lugares en línea",
   "tripGeocodingConsentBody": "Para encontrar shoppings, terminales y otros lugares, se enviará el texto que escribiste al servicio de búsqueda. El proveedor verá la consulta y la IP de conexión; tu ubicación GPS no se envía.",
   "tripGeocodingConsentAction": "Habilitar y buscar",
   "cancel": "Cancelar",
   "tripPlaceResult": "Lugar o dirección · OpenStreetMap",
   "tripStopResult": "Parada del STM",
-  "tripGeocodingPrivacy": "Al tocar «Buscar lugares o direcciones», se envía el texto escrito al servicio remoto. La ubicación actual no se envía.",
+  "tripGeocodingPrivacy": "La búsqueda combina paradas y lugares. El texto se envía al servicio en línea; tu ubicación actual no se envía.",
   "tripPlaceSearchUnavailable": "La búsqueda de lugares no está configurada en esta instalación.",
   "tripPlanError": "No se pudo planificar: {error}",
   "@tripPlanError": {

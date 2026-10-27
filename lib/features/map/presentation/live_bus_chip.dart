@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../stops_and_lines/domain/transit_models.dart';
 
@@ -21,12 +20,13 @@ class LiveBusChip extends StatelessWidget {
     return age > const Duration(seconds: 60);
   }
 
-  bool get isMatched => matchedVariantIds.contains(bus.variantId);
+  bool get isMatched =>
+      matchedVariantIds.isEmpty || matchedVariantIds.contains(bus.variantId);
 
   @override
   Widget build(BuildContext context) {
     final color = isMatched
-        ? AppColors.deepBlue
+        ? Theme.of(context).colorScheme.primary
         : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Opacity(
       opacity: isStale || !isMatched ? 0.5 : 1,

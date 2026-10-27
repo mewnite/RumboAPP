@@ -758,7 +758,7 @@ void main() {
     },
   );
 
-  testWidgets('sends an address to place search only after explicit action', (
+  testWidgets('searches stops and places automatically as the user types', (
     tester,
   ) async {
     var placeSearchCount = 0;
@@ -790,21 +790,18 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField).last, 'Av. 18 de Julio 1234');
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.pumpAndSettle();
-    expect(placeSearchCount, 0);
-
-    await tester.tap(find.text('Buscar lugares o direcciones'));
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     expect(placeSearchCount, 1);
+    expect(find.text('Buscar lugares o direcciones'), findsNothing);
     expect(find.text('Av. 18 de Julio 1234, Montevideo'), findsOneWidget);
     expect(
-      find.textContaining('se envía el texto escrito al servicio remoto'),
+      find.textContaining('El texto se envía al servicio en línea'),
       findsOneWidget,
     );
   });
 
-  testWidgets('offers remote places after explicit consent when disabled', (
+  testWidgets('asks consent automatically before the first remote search', (
     tester,
   ) async {
     var localSearchCount = 0;
@@ -837,15 +834,51 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField).last, 'Centro');
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
     expect(localSearchCount, 1);
     expect(remoteSearchCount, 0);
-    expect(find.text('Buscar lugares o direcciones'), findsOneWidget);
-    await tester.tap(find.text('Buscar lugares o direcciones'));
-    await tester.pumpAndSettle();
     expect(consentRequestCount, 1);
+    expect(find.text('Buscar lugares o direcciones'), findsNothing);
     expect(remoteSearchCount, 0);
+  });
+
+  testWidgets('runs the combined search after consent without another tap', (
+    tester,
+  ) async {
+    var remoteSearchCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            onRemotePlaceSearchConsentRequested: () async => true,
+            searchStops: (_) async => const [],
+            searchPlaces: (query) async {
+              remoteSearchCount++;
+              return [
+                TripEndpoint(name: query, latitude: -34.9, longitude: -56.2),
+              ];
+            },
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byType(TextField).last,
+      'Shopping Nuevo Centro',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(remoteSearchCount, 1);
+    expect(find.text('Shopping Nuevo Centro'), findsWidgets);
+    expect(find.text('Buscar lugares o direcciones'), findsNothing);
   });
 }

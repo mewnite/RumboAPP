@@ -4,7 +4,6 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../features/favorites/domain/favorite.dart';
@@ -74,7 +73,7 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
     if (RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hex)) {
       return Color(int.parse('FF$hex', radix: 16));
     }
-    return AppColors.deepBlue;
+    return Theme.of(context).colorScheme.primary;
   }
 
   Future<void> _toggleFavorite(
@@ -336,7 +335,7 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
                         Symbols.directions_bus_rounded,
                         size: 20,
                         color: livePositions.isNotEmpty
-                            ? AppColors.deepBlue
+                            ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.outline,
                       ),
                       const SizedBox(width: 8),
@@ -346,7 +345,7 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: livePositions.isNotEmpty
-                                    ? AppColors.deepBlue
+                                    ? Theme.of(context).colorScheme.primary
                                     : Theme.of(context)
                                           .colorScheme
                                           .onSurfaceVariant,

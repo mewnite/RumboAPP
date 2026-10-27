@@ -1,8 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -35,6 +36,7 @@ class _SearchDestinationSheetState
     extends ConsumerState<SearchDestinationSheet> {
   late final TextEditingController _textController;
   final FocusNode _focusNode = FocusNode();
+  bool _askedRemoteConsent = false;
 
   @override
   void initState() {
@@ -57,6 +59,8 @@ class _SearchDestinationSheetState
   void _triggerSearch(String query) {
     final hasNetwork = ref.read(networkAvailableProvider).asData?.value ?? true;
     final isOffline = !hasNetwork;
+    final remoteEnabled =
+        ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
     ref
         .read(searchControllerProvider.notifier)
         .onQueryChanged(
@@ -64,17 +68,48 @@ class _SearchDestinationSheetState
           userLatitude: widget.userLatitude,
           userLongitude: widget.userLongitude,
           isOffline: isOffline,
+          allowRemote: remoteEnabled,
         );
+    if (!remoteEnabled &&
+        !isOffline &&
+        !_askedRemoteConsent &&
+        query.trim().length >= 3 &&
+        RegExp(r'[a-zA-ZáéíóúñÁÉÍÓÚÑ]').hasMatch(query)) {
+      _askedRemoteConsent = true;
+      unawaited(_requestRemoteConsent());
+    }
   }
 
-  Future<void> _searchRemote() async {
-    await ref
-        .read(searchControllerProvider.notifier)
-        .searchRemote(
-          query: _textController.text,
-          userLatitude: widget.userLatitude,
-          userLongitude: widget.userLongitude,
-        );
+  Future<void> _requestRemoteConsent() async {
+    final l10n = AppLocalizations.of(context);
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.tripGeocodingConsentTitle),
+        content: Text(l10n.tripGeocodingConsentBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.tripGeocodingConsentAction),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || accepted != true) return;
+    await ref.read(remotePlaceSearchEnabledProvider.notifier).setEnabled(true);
+    if (mounted) {
+      await ref
+          .read(searchControllerProvider.notifier)
+          .searchRemote(
+            query: _textController.text,
+            userLatitude: widget.userLatitude,
+            userLongitude: widget.userLongitude,
+          );
+    }
   }
 
   @override
@@ -146,20 +181,10 @@ class _SearchDestinationSheetState
                   _textController.text.trim().length >= 3)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _searchRemote,
-                        icon: const Icon(Symbols.travel_explore_rounded),
-                        label: Text(l10n.tripSearchPlaces),
-                      ),
-                      Text(
-                        l10n.tripGeocodingPrivacy,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
+                  child: Text(
+                    l10n.tripGeocodingPrivacy,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall,
                   ),
                 ),
 
@@ -352,7 +377,7 @@ class _SearchResultTile extends StatelessWidget {
                           for (final line in result.lines.take(5))
                             LineChip(
                               label: line,
-                              backgroundColor: AppColors.deepBlue,
+                              backgroundColor: theme.colorScheme.primary,
                             ),
                         ],
                       ),

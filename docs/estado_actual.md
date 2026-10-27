@@ -1,11 +1,11 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 152 tests pasan, 10 tests del proxy pasan, APK Android debug compila y `flutter run -d chrome` inicia la app. Hay un emulador Android conectado, pero esta corrección aún no fue verificada visualmente allí. Chrome informa que no pudo cargar el protocolo opcional PMTiles y la imagen `wood-pattern` del estilo; falta inspección visual del mapa.
+Revisión: 2026-10-27. Validación de esta corrección: `flutter analyze` sin issues, 159 tests Flutter pasan, `flutter build web --debug` y `flutter build apk --debug` compilan. La búsqueda integrada, los estados de carga, el filtro de buses y los colores de tema están corregidos en código; falta validar visualmente esta revisión en el emulador. La compilación web informa que el protocolo opcional PMTiles no está activo; falta inspección visual de teselas y marcadores.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 152 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 159 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -23,11 +23,11 @@ Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 152 tes
 | 6. Tiempo real: parser, matcher, HTTP, polling y mapa | completa y probada (datos sintéticos) | `stm_online_geojson_parser.dart`, `RealtimeMatcher`, `MontevideoRealtimeBusSource`, `LiveBusesController`, `MapScreen` | `montevideo_realtime_bus_source_test`, `live_buses_controller_test`, `live_bus_layer_test`, `map_screen_test`; feed oficial no verificado |
 | 7. Arribos en vivo por parada | parcial; endpoint oficial pendiente de verificar payload | `TransitArrivalsSource`, `StopDetailsSheet`, `upcomingDepartures` | `transit_data_test`, `transit_arrivals_source_test`, `stop_details_sheet_test`; ETA local aproximado. La API publica `upcomingbuses`, pero el esquema accesible no identifica campo/unidad del ETA |
 | 8. Detalle de parada y línea, recorrido y horarios | completa en código | `StopDetailsSheet`, `LineDetailsSheet`, `MapScreen` | hoja de parada y detalle de línea con variante, paradas ordenadas, horario estimado y buses observados; ver `line_details_sheet_test` y `stop_details_sheet_test` |
-| 9. Búsqueda de lugares, paradas y líneas | implementada en el planificador | `TripSearchSheet`, `LocalTransitSearchSource`, `RemoteGeocodingSource`, `RemotePlaceSearchEnabledController` | `search_controller_test`, `trip_search_sheet_test`; nombres de lugares, paradas y líneas; geocodificación remota apagada por defecto y solo tras acción explícita |
+| 9. Búsqueda de lugares, paradas y líneas | búsqueda integrada al escribir, con consentimiento inicial para geocodificación | `TripSearchSheet`, `SearchDestinationSheet`, `LocalTransitSearchSource`, `RemoteGeocodingSource` | `search_controller_test`, `trip_search_sheet_test`; GTFS y lugares se combinan sin botón adicional cuando la búsqueda en línea está habilitada |
 | 10. Planificador, resultados y horario | implementado; datos y trazados requieren validación real | `TransitTripPlanner`, `PlannerConfig`, `TripSearchSheet`, `TripPlanDetails` | `trip_planner_test`, `trip_search_sheet_test`; permite salir ahora, salir a una hora o llegar a una hora (hoy/mañana, 24 h); “llegar a las” prueba hasta 18 salidas candidatas; descarta itinerarios dominados, ordena por rápido/caminata/transbordos, ofrece «Caminar» y transbordos peatonales, y ejecuta la búsqueda en un isolate en plataformas nativas. La tarjeta muestra salida–llegada, duración, chips de línea, caminata, transbordos y etiqueta semántica |
 | 11. Detalle y viaje en curso/aviso de bajada | implementado; falta validación física | `TripPlanDetails`, `ActiveTripController`, `ActiveTripTracker`, notificaciones locales | inicia con acción explícita, seguimiento local en segundo plano y aviso a 300 m o dos paradas; ver `active_trip_controller_test` y `active_trip_tracker_test` |
 | 12. Favoritos | completa y probada (almacenamiento local) | `Favorite`, `FavoritesRepository`, `FavoritesScreen`, `favoritesControllerProvider`, `mapActionProvider` | `favorites_test`, `stop_details_sheet_test`, `map_screen_test`; guarda paradas, líneas y las ranuras Casa/Trabajo en `shared_preferences`; el mapa aún no se probó en dispositivo |
-| 13. Privacidad y atribuciones | implementada en código; faltan comprobaciones de proveedor/dispositivo | pantalla de privacidad, `_showAttribution`, preferencias y textos ARB | controles para búsqueda remota y buses en vivo, limpieza local, explicación de ubicación y fuentes; la búsqueda remota es explícita |
+| 13. Privacidad y atribuciones | implementada en código; faltan comprobaciones de proveedor/dispositivo | pantalla de privacidad, `_showAttribution`, preferencias y textos ARB | controles para búsqueda remota y buses en vivo, limpieza local, explicación de ubicación y fuentes; la consulta remota requiere consentimiento y nunca envía GPS |
 | 14. Identidad visual, isotipo, ícono e Inter | parcial | `RumboLogo`, `pubspec.yaml`, recursos de plataforma | Inter local está declarada y existen archivos de icono; el isotipo es placeholder. El aspecto de los assets no se verificó |
 
 ## 3. Datos y servicios
@@ -48,7 +48,9 @@ Revisión: 2026-10-27. Validación actual: `flutter analyze` sin issues, 152 tes
 ## 4. Problemas y deuda
 
 - `TODO`/`FIXME`: no se encontraron coincidencias en `lib/`, `test/` ni `docs/`.
-- Los tests y el análisis no reportaron fallos. Se ejecutó la app en un emulador Android: se verificaron el mapa, la búsqueda de direcciones, la importación del feed oficial y el estado en Ajustes. Permisos de ubicación, tema oscuro, escala de fuente y un teléfono físico quedan sin verificar.
+- Los tests, el análisis y la compilación web no reportaron fallos en la revisión actual. Una respuesta HTTP 200 del proxy no confirma por sí sola que el payload contenga buses válidos dentro del área visible; el panel ahora muestra el número de posiciones visibles. Falta confirmar ese valor y los marcadores en el emulador con el proxy activo.
+- La descarga/importación inicial ya conserva el error real del proxy/parser para el planificador; no se debe volver a mostrar un mensaje genérico de “GTFS no disponible” mientras la carga sigue en curso.
+- La revisión anterior se ejecutó en un emulador Android y verificó el mapa, búsqueda de direcciones e importación del feed oficial. Permisos de ubicación, tema oscuro, escala de fuente y un teléfono físico quedan sin verificar en esta revisión.
 - El ETA en vivo usa la proyección sobre el shape y una velocidad de 18 km/h cuando el dato reportado es menor a 8 km/h; no se validó contra arribos oficiales ni contra el comportamiento real de la flota.
 - El detalle de parada actualiza sus arribos locales cuando se refrescan las posiciones observadas; el cálculo ETA local no equivale a una llegada oficial ni validada.
 - El planificador traza segmentos rectos/esquemáticos entre puntos; su propio detalle aclara que no es navegación peatonal ni ETA en vivo.
@@ -74,7 +76,7 @@ Al abrir (comportamiento verificado en emulador Android):
 1. Mapa centrado en Montevideo, barra de búsqueda, botón de ubicación y atribución.
 2. Panel inferior “Paradas y ómnibus”; sin proxy disponible muestra estado/error de datos oficiales y sugerencia de proxy.
 3. La ubicación solo se solicita al tocar el control y aceptar la explicación.
-4. La búsqueda abre el panel de planificación. La búsqueda remota está apagada por defecto; se habilita en Ajustes y el texto solo se envía al tocar «Buscar lugares o direcciones».
+4. La búsqueda abre el panel de planificación. La búsqueda remota está apagada por defecto; al escribir un nombre de lugar, Rumbo pide consentimiento una vez y luego mezcla lugares con paradas y líneas sin botón adicional.
 5. Con datos disponibles, el mapa lista paradas cercanas y dibuja hasta 60 buses visibles de la API; antes de elegir filtros muestra los buses del área y, con GTFS cargado, prioriza líneas de las paradas cercanas. Abre el detalle de parada con arribos calculados localmente.
 6. Favoritos muestra Casa y Trabajo (con «Definir» si faltan), las paradas y las líneas guardadas. Tocar un lugar abre el planificador con ese destino; tocar una línea la dibuja en el mapa; tocar una parada abre su detalle. Deslizar elimina con «Deshacer» y mantener presionado permite renombrar. Las ranuras definidas aparecen como atajos debajo de la búsqueda del mapa.
 7. Ajustes permite elegir tema claro, oscuro o sistema, muestra el estado/fuente de datos y permite habilitar la búsqueda de direcciones en línea.
@@ -95,4 +97,4 @@ Al abrir (comportamiento verificado en emulador Android):
 
 1. ¿Qué feed GTFS oficial, licencia y entorno de proxy autorizás para pruebas y producción?
 2. ¿Qué contrato confirmado debe usarse para buses y arribos, y qué frecuencia/ETA se permite?
-3. Para producción: ¿qué proveedor de búsqueda remota y condiciones de uso aprobás? La integración actual permanece desactivada hasta que se habilita y cada consulta exige acción explícita.
+3. Para producción: ¿qué proveedor de búsqueda remota y condiciones de uso aprobás? La búsqueda permanece apagada hasta que la persona la habilita y acepta el consentimiento inicial.

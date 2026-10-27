@@ -115,9 +115,10 @@ diseñado para movilidad urbana en Montevideo:
 - **Geocodificador remoto con gateway y caché:** Consulta direcciones completas con
   número de puerta, esquinas e intersecciones (`18 de Julio y Ejido`), POIs (facultades,
   hospitales, terminales) y barrios mediante un gateway configurable (`/geocode`).
-  La búsqueda en línea de shoppings, terminales, direcciones y barrios se ofrece
-  desde el campo de destino y pide consentimiento antes de enviar la consulta.
-  Dispone de debounce y cancelación de consultas obsoletas.
+  La búsqueda combina resultados de STM y lugares en línea automáticamente al
+  escribir cuando está habilitada. La primera búsqueda de lugares solicita
+  consentimiento, sin un botón aparte. Dispone de debounce y descarta consultas
+  obsoletas.
 - **Normalizador montevideano:** Parser puro (`MontevideoQueryParser`) con expansión de
   abreviaturas rioplatenses (`Av.`, `Bvar.`, `Cno.`, `Gral.`, `Dr.`), plegado de tildes
   y detección de intención (`stopCode`, `intersection`, `addressWithNumber`, `routeCode`).

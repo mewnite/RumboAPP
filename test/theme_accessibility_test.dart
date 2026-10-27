@@ -6,6 +6,16 @@ import 'package:rumbo/core/theme/contrast.dart';
 import 'package:rumbo/core/widgets/line_chip.dart';
 
 void main() {
+  test('dark theme assigns dark surfaces to shared Material components', () {
+    final theme = AppTheme.dark();
+
+    expect(theme.scaffoldBackgroundColor, AppColors.ink);
+    expect(theme.cardTheme.color, AppColors.darkSurface);
+    expect(theme.dialogTheme.backgroundColor, AppColors.darkElevatedSurface);
+    expect(theme.bottomSheetTheme.backgroundColor, AppColors.darkSurface);
+    expect(theme.inputDecorationTheme.fillColor, AppColors.darkSurface);
+  });
+
   testWidgets('LineChip selects AA text on light and dark line colors', (
     tester,
   ) async {
