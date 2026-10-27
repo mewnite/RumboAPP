@@ -18,3 +18,10 @@
 - Se agregaron `stopsForVariant` y `upcomingDeparturesForVariant` a `TransitRepository`, `SqfliteTransitRepository` y fake.
 - Tests nuevos: `test/line_details_sheet_test.dart` (selector de variante, orden de paradas, favorito, estados, buses en vivo). Total: 144 tests en verde.
 - No probado: visualización en emulador y dispositivo físico.
+
+## Fase 3: variantes oficiales y arribos oficiales (diagnóstico completado)
+- El API/proxy documenta `lineVariantId` en buses y variantes, pero no un mapeo validado a `trip_id`/`shape_id` del GTFS.
+- No se genera `variant_map.csv` ni se emparejan variantes por texto; faltan fixtures oficiales para probar ese cruce.
+- El proxy reenvía `upcomingbuses`, pero docs/api no describe su respuesta; no se implementa cliente ni se consulta desde la app.
+- Se mantiene ETA local aproximado por shape; dependencia pendiente de contrato documentado y datos de prueba autorizados.
+- Pruebas manuales con servicios reales: no realizadas.
