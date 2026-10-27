@@ -1627,7 +1627,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
                                               FeedUpdatePhase.processing ||
                                           feedState?.phase ==
                                               FeedUpdatePhase.downloading
-                                      ? l10n.mapFeedLoading
+                                      ? feedState?.phase ==
+                                                    FeedUpdatePhase
+                                                        .processing &&
+                                                feedState!.progress > .35
+                                            ? l10n.mapFeedProgress(
+                                                (feedState.progress * 100)
+                                                    .round(),
+                                              )
+                                            : l10n.mapFeedLoading
                                       : l10n.mapStopsLoading,
                                 ),
                               ),

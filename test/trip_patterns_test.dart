@@ -16,6 +16,7 @@ Uint8List feedZip({
   String? variantMap,
   bool withShapes = false,
   bool duplicateRoutes = false,
+  String stopTimes = 'trip_id,arrival_time,departure_time,stop_id,stop_sequence\nt1,25:00:00,25:00:00,s,1\n',
 }) {
   final archive = Archive();
   void add(String name, String body) =>
@@ -28,10 +29,7 @@ Uint8List feedZip({
         : 'route_id,route_short_name,route_type\nr,R,3\n',
   );
   add('trips.txt', trips);
-  add(
-    'stop_times.txt',
-    'trip_id,arrival_time,departure_time,stop_id,stop_sequence\nt1,25:00:00,25:00:00,s,1\n',
-  );
+  add('stop_times.txt', stopTimes);
   add(
     'calendar.txt',
     'service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nw,1,1,1,1,1,0,0,20260101,20271231\n',
@@ -83,7 +81,7 @@ void main() {
         ),
       ];
       final (patterns, tripPatternIds, _) = computePatternsFromTimes(times);
-      expect(patterns, hasLength(2));
+      expect(patterns, hasLength(1));
       expect(tripPatternIds['t1'], tripPatternIds['t2']);
       expect(patterns.first.stops, hasLength(2));
       expect(patterns.first.stops[0].departureOffsetSecs, 0);
@@ -210,6 +208,48 @@ void main() {
         DateTime(2026, 6, 2, 0, 5),
       );
       expect(result.single.departure, DateTime(2026, 6, 2, 1));
+    },
+  );
+
+  test(
+    'SQLite import deduplicates repeated trip patterns before insert',
+    () async {
+      sqfliteFfiInit();
+      final directory = await Directory.systemTemp.createTemp(
+        'rumbo-pattern-dedup-',
+      );
+      final feed = await GtfsZipSource('').parse(
+        feedZip(
+          trips: 'route_id,service_id,trip_id,direction_id,shape_id,variant_id\nr,w,t1,0,sh,701\nr,w,t2,0,sh,701\n',
+          stopTimes: 'trip_id,arrival_time,departure_time,stop_id,stop_sequence\nt1,06:00:00,06:00:00,s,1\nt1,06:10:00,06:10:00,s2,2\nt2,06:15:00,06:15:00,s,1\nt2,06:25:00,06:25:00,s2,2\n',
+        ),
+        streamStopTimes: true,
+      );
+      expect(feed.patterns, hasLength(1));
+
+      final store = TransitDatabase(
+        directoryProvider: () async => directory,
+        factory: databaseFactoryFfi,
+      );
+      await store.replaceFeed(feed);
+      final database = await store.open();
+      expect(
+        (await database.rawQuery('SELECT COUNT(*) AS count FROM trip_patterns'))
+            .single['count'],
+        1,
+      );
+      expect(
+        (await database.rawQuery('SELECT COUNT(*) AS count FROM pattern_stops'))
+            .single['count'],
+        2,
+      );
+      expect(
+        (await database.rawQuery(
+          'SELECT COUNT(DISTINCT pattern_id) AS count FROM trips',
+        )).single['count'],
+        1,
+      );
+      await database.close();
     },
   );
 

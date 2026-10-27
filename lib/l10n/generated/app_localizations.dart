@@ -637,6 +637,12 @@ abstract class AppLocalizations {
   /// **'Descargando y preparando los datos oficiales…'**
   String get mapFeedLoading;
 
+  /// No description provided for @mapFeedProgress.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Preparando datos para planificar: {progress}%'**
+  String mapFeedProgress(int progress);
+
   /// No description provided for @mapFeedDemoOnly.
   ///
   /// In es_UY, this message translates to:

@@ -1,11 +1,11 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-27. Validación de esta corrección: `flutter analyze` sin issues, 159 tests Flutter pasan, `flutter build web --debug` y `flutter build apk --debug` compilan. La búsqueda integrada, los estados de carga, el filtro de buses y los colores de tema están corregidos en código; falta validar visualmente esta revisión en el emulador. La compilación web informa que el protocolo opcional PMTiles no está activo; falta inspección visual de teselas y marcadores.
+Revisión: 2026-10-27. La versión anterior se instaló en el emulador con el proxy activo: el GTFS terminó de importarse sin error, creó una base de 198 MB en unos 3 minutos y mostró paradas cercanas. Esto reprodujo el error anterior: patrones idénticos se insertaban varias veces y SQLite rechazaba la clave primaria. La revisión actual deduplica los patrones, evita releer 2,2 millones de filas, muestra avance y espera correctamente el primer estado; falta validar estos últimos cambios en Android.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 159 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 161 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -33,7 +33,7 @@ Revisión: 2026-10-27. Validación de esta corrección: `flutter analyze` sin is
 ## 3. Datos y servicios
 
 - La app no carga datos sintéticos por defecto. Android/iOS reutilizan un GTFS oficial cacheado en SQLite y, si no hay uno, intentan descargarlo desde el proxy configurado. Chrome mantiene el GTFS oficial compacto en memoria, ya que `sqflite` no funciona en web. El feed sintético solo se carga con `--dart-define=RUMBO_DEMO_MODE=true`.
-- En el emulador Android se verificó la descarga y la importación del feed oficial servido por el proxy: versión 1.1, 4.930 paradas, 325 líneas, 1.089 variantes, 37.451 viajes, 2.221.437 horarios y 332.505 puntos de shape. La base resultante ocupa 168,5 MB y el proceso completo tardó alrededor de 10 minutos. La licencia y las condiciones de uso del feed para producción siguen sin confirmar.
+- En el emulador Android se verificó la descarga y la importación del feed oficial servido por el proxy: versión 1.1, 4.930 paradas, 325 líneas, 1.089 variantes, 37.451 viajes, 2.221.437 horarios y 332.505 puntos de shape. La versión anterior tardó alrededor de 3 minutos y produjo una base de 198 MB; cambios posteriores eliminan trabajo redundante y falta medirlos desde cero. La licencia y las condiciones de uso del feed para producción siguen sin confirmar.
 - `lib/core/config/map_config.dart`: estilos `https://tiles.openfreemap.org/styles/positron` y `https://tiles.openfreemap.org/styles/dark`. Configurados, pero no probados en ejecución.
 - `lib/core/config/transit_config.dart`: `http://10.0.2.2:8765` en Android y `http://127.0.0.1:8765` en otras plataformas (debug). Compone `/gtfs/latest`, `/api/buses?format=geojson` y `/geocode`; son rutas del proxy local, no URLs oficiales confirmadas.
 - `lib/features/map/data/montevideo_realtime_bus_source.dart` compone `/buses?format=geojson` sobre la base `.../api`. El proxy del repo implementa `/api/buses`; la documentación `docs/api/montevideo_publictransport.md` describe la ruta del proxy como `/api/buses`.
@@ -48,14 +48,16 @@ Revisión: 2026-10-27. Validación de esta corrección: `flutter analyze` sin is
 ## 4. Problemas y deuda
 
 - `TODO`/`FIXME`: no se encontraron coincidencias en `lib/`, `test/` ni `docs/`.
-- Los tests, el análisis y la compilación web no reportaron fallos en la revisión actual. Una respuesta HTTP 200 del proxy no confirma por sí sola que el payload contenga buses válidos dentro del área visible; el panel ahora muestra el número de posiciones visibles. Falta confirmar ese valor y los marcadores en el emulador con el proxy activo.
-- La descarga/importación inicial ya conserva el error real del proxy/parser para el planificador; no se debe volver a mostrar un mensaje genérico de “GTFS no disponible” mientras la carga sigue en curso.
+- La versión anterior se verificó en el emulador: el GTFS oficial terminó de cargar y aparecieron paradas; falta verificar los buses que devolvió el proxy. HTTP 200 por sí solo no confirma posiciones válidas dentro del área visible.
+- Si el planificador se abre antes de que Riverpod emita su primer estado, espera el resultado real del GTFS y no dispara la excepción genérica de “GTFS no disponible”. Los errores de red/parser se preservan con su diagnóstico.
+- El parser deduplica por `pattern_id`; antes se fallaba con `UNIQUE constraint failed: trip_patterns.pattern_id` porque se comparaba identidad de objetos. Se agregó una prueba SQLite con dos viajes del mismo patrón.
+- La importación nativa usa patrones ya calculados y omite el JSONL duplicado de 2.221.437 filas. Reporta avance y desactiva journaling solo en la base temporal, que reemplaza la vigente al terminar.
 - La revisión anterior se ejecutó en un emulador Android y verificó el mapa, búsqueda de direcciones e importación del feed oficial. Permisos de ubicación, tema oscuro, escala de fuente y un teléfono físico quedan sin verificar en esta revisión.
 - El ETA en vivo usa la proyección sobre el shape y una velocidad de 18 km/h cuando el dato reportado es menor a 8 km/h; no se validó contra arribos oficiales ni contra el comportamiento real de la flota.
 - El detalle de parada actualiza sus arribos locales cuando se refrescan las posiciones observadas; el cálculo ETA local no equivale a una llegada oficial ni validada.
 - El planificador traza segmentos rectos/esquemáticos entre puntos; su propio detalle aclara que no es navegación peatonal ni ETA en vivo.
 - Favoritos se guarda solo en el dispositivo: no hay sincronización entre dispositivos ni recuperación al desinstalar. El renombrado cambia únicamente el nombre visible, no las coordenadas. Además de Casa y Trabajo, el modelo admite lugares sin ranura, pero todavía no hay una acción para agregarlos desde la interfaz.
-- No hay dispositivo móvil disponible para validar los permisos “Siempre”, el servicio de ubicación persistente, la notificación y el aviso durante un viaje real.
+- No hay teléfono físico para validar permisos “Siempre”, servicio persistente, notificaciones o aviso de bajada. El emulador Android sí está disponible.
 
 ## 5. Cómo probarlo
 

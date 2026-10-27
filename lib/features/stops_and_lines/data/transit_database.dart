@@ -102,6 +102,7 @@ class TransitDatabase {
     String sourceName = 'Datos sintéticos de prueba',
     String? etag,
     DateTime? downloadedAt,
+    void Function(double progress)? onProgress,
   }) async {
     final dir = await _directoryProvider();
     final live = p.join(dir.path, 'rumbo_transit.db'),
@@ -117,9 +118,39 @@ class TransitDatabase {
     );
     var databaseClosed = false;
     try {
+      // This is a disposable build database. The previous live database stays
+      // untouched until the completed file is atomically swapped into place,
+      // so disabling SQLite's per-page journal here avoids redundant I/O while
+      // retaining crash safety for the data already in use.
+      await db.execute('PRAGMA journal_mode=OFF');
+      await db.execute('PRAGMA synchronous=OFF');
       await db.transaction((txn) async {
         var batch = txn.batch();
         var pendingRows = 0;
+        final totalRows =
+            feed.stops.length +
+            feed.routes.length +
+            feed.variants.length +
+            feed.trips.length +
+            (feed.patterns ?? const <TripPattern>[]).fold<int>(
+              0,
+              (count, pattern) => count + 1 + pattern.stops.length,
+            ) +
+            feed.shapes.fold<int>(
+              0,
+              (count, shape) => count + shape.points.length,
+            ) +
+            feed.calendars.length +
+            feed.calendars.fold<int>(
+              0,
+              (count, calendar) =>
+                  count +
+                  calendar.addedDates.length +
+                  calendar.removedDates.length,
+            ) +
+            1;
+        var insertedRows = 0;
+        var lastReportedProgress = 0.0;
 
         Future<void> commitBatch() async {
           if (pendingRows == 0) return;
@@ -134,6 +165,12 @@ class TransitDatabase {
         ) async {
           batch.insert(table, values);
           pendingRows++;
+          insertedRows++;
+          final progress = insertedRows / totalRows;
+          if (progress - lastReportedProgress >= .01) {
+            lastReportedProgress = progress;
+            onProgress?.call(progress.clamp(0.0, 1.0));
+          }
           if (pendingRows >= _importBatchSize) await commitBatch();
         }
 
@@ -177,9 +214,12 @@ class TransitDatabase {
           });
         }
         late final List<TripPattern> patternsToWrite;
-        late final Map<String, String> tripPatternIdsToWrite;
-        late final Map<String, int> tripStartSecsToWrite;
-        if (feed.stopTimesFilePath != null) {
+        // The GTFS parser already groups rows into patterns as it streams the
+        // file. Prefer that compact result; rereading every stop_time into a
+        // second in-memory list made the first launch needlessly slow.
+        if (feed.patterns?.isNotEmpty == true) {
+          patternsToWrite = feed.patterns!;
+        } else if (feed.stopTimesFilePath != null) {
           final spoolTimes = <StopTime>[];
           final lines = File(feed.stopTimesFilePath!)
               .openRead()
@@ -200,9 +240,6 @@ class TransitDatabase {
           }
           final computed = computePatternsFromTimes(spoolTimes);
           patternsToWrite = computed.$1.toList(growable: false);
-          tripPatternIdsToWrite = computed.$2;
-          tripStartSecsToWrite = computed.$3;
-          // Actualizar los trips con los pattern_id y start_secs calculados.
           for (var i = 0; i < feed.trips.length; i++) {
             final t = feed.trips[i];
             feed.trips[i] = Trip(
@@ -211,23 +248,13 @@ class TransitDatabase {
               serviceId: t.serviceId,
               variantId: t.variantId,
               headsign: t.headsign,
-              patternId: tripPatternIdsToWrite[t.id],
-              startSecs: tripStartSecsToWrite[t.id],
+              patternId: computed.$2[t.id],
+              startSecs: computed.$3[t.id],
             );
           }
-        } else if (feed.patterns?.isNotEmpty == true) {
-          patternsToWrite = feed.patterns!;
-          tripPatternIdsToWrite = {
-            for (final t in feed.trips) t.id: t.patternId ?? '',
-          };
-          tripStartSecsToWrite = {
-            for (final t in feed.trips) t.id: t.startSecs ?? 0,
-          };
         } else {
           final computed = computePatternsFromTimes(feed.stopTimes);
           patternsToWrite = computed.$1.toList(growable: false);
-          tripPatternIdsToWrite = computed.$2;
-          tripStartSecsToWrite = computed.$3;
           for (var i = 0; i < feed.trips.length; i++) {
             final t = feed.trips[i];
             feed.trips[i] = Trip(
@@ -236,8 +263,8 @@ class TransitDatabase {
               serviceId: t.serviceId,
               variantId: t.variantId,
               headsign: t.headsign,
-              patternId: tripPatternIdsToWrite[t.id],
-              startSecs: tripStartSecsToWrite[t.id],
+              patternId: computed.$2[t.id],
+              startSecs: computed.$3[t.id],
             );
           }
         }

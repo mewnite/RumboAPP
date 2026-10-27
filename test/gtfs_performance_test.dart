@@ -17,11 +17,14 @@ void main() {
     await File(zipPath).writeAsBytes(bytes);
     final stopwatch = Stopwatch()..start();
     final feed = await GtfsZipSource('').parseFile(zipPath);
+    expect(feed.stopTimesFilePath, isNull);
+    expect(feed.patterns, isNotEmpty);
     final store = TransitDatabase(
       directoryProvider: () async => directory,
       factory: databaseFactoryFfi,
     );
-    await store.replaceFeed(feed);
+    final progress = <double>[];
+    await store.replaceFeed(feed, onProgress: progress.add);
     stopwatch.stop();
     final database = await store.open();
     final importedCount = (await database.rawQuery(
@@ -41,5 +44,8 @@ void main() {
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
     expect(importedCount, greaterThan(0));
     expect(tripsWithPattern, feed.trips.length);
+    expect(progress, isNotEmpty);
+    expect(progress, orderedEquals([...progress]..sort()));
+    expect(progress.last, greaterThan(.99));
   });
 }

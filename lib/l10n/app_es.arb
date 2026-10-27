@@ -168,6 +168,14 @@
   "mapRouteNoGeometry": "El feed no incluye la geometría de este recorrido.",
   "mapRouteShowOnMap": "Ver recorrido en el mapa",
   "mapFeedLoading": "Descargando y preparando los datos oficiales…",
+  "mapFeedProgress": "Preparando datos para planificar: {progress}%",
+  "@mapFeedProgress": {
+    "placeholders": {
+      "progress": {
+        "type": "int"
+      }
+    }
+  },
   "mapFeedDemoOnly": "La muestra de prueba no contiene recorridos reales.",
   "mapFeedError": "No se pudieron cargar los datos oficiales: {message}",
   "@mapFeedError": {

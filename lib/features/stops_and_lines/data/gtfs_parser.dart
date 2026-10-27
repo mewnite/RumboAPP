@@ -61,12 +61,11 @@ GtfsParseResult parseGtfsZipToFile(Map<String, Object> input) {
 }
 
 /// Parses a downloaded ZIP from disk in an isolate. The large stop_times table
-/// is decompressed to disk and read in bounded chunks, then serialized as
-/// JSONL for the transactional SQLite importer.
+/// is decompressed to disk and read in bounded chunks; only compact trip
+/// patterns are retained, never millions of raw rows or a second JSONL copy.
 GtfsParseResult parseGtfsZipFileToFile(Map<String, Object> input) {
   final zipPath = input['zipPath']! as String;
   final stopTimesPath = input['stopTimesPath']! as String;
-  final spoolPath = input['spoolPath']! as String;
   final archiveInput = InputFileStream(zipPath);
   try {
     final archive = ZipDecoder().decodeStream(archiveInput, verify: true);
@@ -94,8 +93,8 @@ GtfsParseResult parseGtfsZipFileToFile(Map<String, Object> input) {
       if (!foundStopTimes) files.remove('stop_times.txt');
       return _parseGtfsFiles(
         files,
-        stopTimesFilePath: spoolPath,
         stopTimesCsvPath: foundStopTimes ? stopTimesPath : null,
+        retainStopTimes: false,
       );
     } finally {
       for (final item in archive.files) {
@@ -366,7 +365,7 @@ GtfsParseResult _parseGtfsFiles(
   }
   final times = <StopTime>[];
   var timeCount = 0;
-  final patterns = <TripPattern>{};
+  final patternsById = <String, TripPattern>{};
   final tripPatternIds = <String, String>{};
   final tripStartSecs = <String, int>{};
   final spool = stopTimesFilePath == null
@@ -401,7 +400,10 @@ GtfsParseResult _parseGtfsFiles(
           )
           .join('|');
       final patternId = sha256.convert(utf8.encode(patternKey)).toString();
-      patterns.add(TripPattern(id: patternId, stops: patternStops));
+      patternsById.putIfAbsent(
+        patternId,
+        () => TripPattern(id: patternId, stops: patternStops),
+      );
       tripPatternIds[currentTripId] = patternId;
       tripStartSecs[currentTripId] = firstDeparture;
       closedTrips.add(currentTripId);
@@ -522,7 +524,7 @@ GtfsParseResult _parseGtfsFiles(
     feedInfo: info,
     warningCount: warnings.length,
     warnings: warnings,
-    patterns: patterns.toList(growable: false),
+    patterns: patternsById.values.toList(growable: false),
     tripPatternIds: tripPatternIds,
   );
 }
@@ -536,7 +538,7 @@ GtfsParseResult _parseGtfsFiles(
 /// trip_id -> start_secs (desfase del primer horario del viaje).
 (Iterable<TripPattern>, Map<String, String>, Map<String, int>)
 computePatternsFromTimes(Iterable<StopTime> times) {
-  final patterns = <TripPattern>[];
+  final patternsById = <String, TripPattern>{};
   final tripPatternIds = <String, String>{};
   final tripStartSecs = <String, int>{};
   final closedTrips = <String>{};
@@ -567,7 +569,10 @@ computePatternsFromTimes(Iterable<StopTime> times) {
         )
         .join('|');
     final patternId = sha256.convert(utf8.encode(patternKey)).toString();
-    patterns.add(TripPattern(id: patternId, stops: patternStops));
+    patternsById.putIfAbsent(
+      patternId,
+      () => TripPattern(id: patternId, stops: patternStops),
+    );
     tripPatternIds[currentTripId] = patternId;
     tripStartSecs[currentTripId] = firstDeparture;
     closedTrips.add(currentTripId);
@@ -590,5 +595,9 @@ computePatternsFromTimes(Iterable<StopTime> times) {
     // El llamador puede decidir usar una tabla temporal si lo necesita.
   }
 
-  return (patterns, tripPatternIds, tripStartSecs);
+  return (
+    patternsById.values.toList(growable: false),
+    tripPatternIds,
+    tripStartSecs,
+  );
 }

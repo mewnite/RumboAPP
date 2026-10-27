@@ -210,9 +210,7 @@ flutter run -d <ID-del-dispositivo> --dart-define=RUMBO_API_BASE_URL=http://127.
 ```
 
 En el emulador Android alcanza con `flutter run -d emulator-5554`; la app usa
-`10.0.2.2` para llegar al proxy del host. La primera actualización descarga el ZIP GTFS oficial y lo importa a SQLite;
-puede tardar según el teléfono. En el emulador de prueba tardó alrededor de
-10 minutos para 4.930 paradas y 2.221.437 horarios. Permití ubicación desde el botón del mapa para
+`10.0.2.2` para llegar al proxy del host. La primera actualización descarga el ZIP GTFS oficial y lo importa a SQLite; el proceso muestra el avance y puede demorar según el teléfono. En una prueba de depuración del emulador tardó alrededor de 3 minutos para 4.930 paradas y 2.221.437 horarios. Las siguientes aperturas reutilizan la base local. Permití ubicación desde el botón del mapa para
 centrarlo. Los buses se descargan sin enviar coordenadas y se filtran en el
 teléfono alrededor de esa posición. Si el panel informa que no hay unidades,
 puede que no haya buses reportando en ese instante; la API también puede
@@ -220,16 +218,18 @@ devolver `[]` sin que sea un error de autenticación. En debug se habilita HTTP
 solo para este proxy local; una compilación de producción debe usar un backend
 HTTPS propio y revisar antes las condiciones de uso del feed y de la API.
 
-La prueba aislada midió 1.171 ms para parsear desde disco e importar a SQLite el
+La prueba aislada midió menos de un segundo para parsear desde disco e importar a SQLite el
 ZIP sintético de 2.202 bytes (18 paradas, 3 líneas, 6 variantes y 48 horarios)
 en este equipo. No representa un feed real.
 En el emulador Android de prueba se importó el feed oficial servido por el
 proxy: 4.930 paradas, 325 líneas, 37.451 viajes, 2.221.437 horarios y 332.505
-puntos de shape. La base resultante ocupa 168,5 MB y el proceso completo tardó
-alrededor de 10 minutos.
+puntos de shape. La base resultante ocupó 198 MB y el proceso completo tardó
+alrededor de 3 minutos en la versión anterior de depuración; la revisión actual
+evita patrones duplicados y escrituras temporales redundantes. El cambio final
+de journaling aún no se midió con una instalación limpia.
 En Android/iOS la descarga estática se escribe a disco; un isolate descomprime
-`stop_times.txt` a un archivo temporal, lo lee en bloques de 64 KiB y emite
-filas JSONL. SQLite importa todas las tablas en lotes de 500 dentro de una
-transacción. El ZIP y la tabla completa de horarios no se retienen en memoria,
-pero las tablas GTFS restantes sí se parsean en memoria. El tiempo y la memoria
-en un teléfono físico con el feed completo todavía no se midieron.
+`stop_times.txt` a un archivo temporal y la procesa en bloques de 64 KiB. El
+parser conserva patrones de horario deduplicados, que SQLite importa en lotes
+de 500 dentro de una transacción, sin crear otra copia de millones de horarios.
+Las tablas GTFS restantes sí se parsean en memoria. El tiempo en un teléfono
+físico todavía no se midió.

@@ -56,14 +56,15 @@ Inventario de lo que usaba `stop_times`/`StopTime` y lo que cambió:
   advertencias (se recomienda tabla temporal para feeds no ordenados).
 - `lib/features/stops_and_lines/data/gtfs_csv.dart`: sin cambios; sigue leyendo
   `stop_times.txt` en chunks acotados.
-- `lib/features/stops_and_lines/data/transit_feed_source.dart`: sin cambios en
-  la API; `streamStopTimes` sigue controlando el volcado a JSONL.
+- `lib/features/stops_and_lines/data/transit_feed_source.dart`: el flujo nativo
+  desde archivo evita JSONL y entrega los patrones compactos; `streamStopTimes`
+  conserva el modo compatible para parsear bytes/fixtures.
 - `lib/features/stops_and_lines/data/transit_database.dart`: esquema v6.
   `onUpgrade` de v5 a v6 elimina `stop_times`, agrega `pattern_id` y
   `start_secs` a `trips` (si faltan), crea `trip_patterns` y `pattern_stops`
   con índices por `stop_id` y `(pattern_id, ordinal)`. `replaceFeed` escribe
   patrones (y sus paradas con desfases) en lugar de filas de `stop_times`;
-  cuando hay spool de JSONL lo lee y computa patrones en streaming. El importador
+  patrones compactos sin releer una copia JSONL de los horarios. El importador
   nunca mantiene todos los horarios en memoria.
 - `lib/features/stops_and_lines/data/sqflite_transit_repository.dart`:
   `routesForStop`, `routesForStops`, `upcomingDepartures` y `scheduleForStops`
@@ -112,7 +113,7 @@ autorizado).
 - El snapshot de prueba conserva `frecuencia` y `version` en `rawExtras` sin interpretarlos. `receivedAt` es el instante local entregado al parser; la fuente descrita no trae timestamp ni rumbo.
 - El manual de la Intendencia describe `GET /buses` y `GET /buses/geo` en el upstream. Rumbo no llama esos paths desde la app: consulta `GET /api/buses?format=geojson` en el proxy, sin coordenadas del dispositivo, y filtra la flota en el aparato.
 - Los códigos de variante y las posiciones incluidos en fixtures son sintéticos. Los nombres de parada son ficticios y sus coordenadas son puntos sintéticos próximos al centro de mapa de Montevideo configurado en Rumbo; no se presentan como paradas reales.
-- Las tablas GTFS restantes se procesan en memoria para formar los modelos de dominio. En el emulador Android se importó el feed oficial completo (4.930 paradas, 2.221.437 horarios y 332.505 puntos de shape) en una base de 168,5 MB; el proceso tardó alrededor de 10 minutos. El pico de memoria y el tiempo en un teléfono físico siguen pendientes de medición.
+- Las tablas GTFS restantes se procesan en memoria para formar los modelos de dominio. La versión previa tardó cerca de 3 minutos en importar el feed oficial en emulador; la revisión actual evita JSONL redundante y journaling del archivo temporal, aún sin una medición limpia posterior. El pico de memoria y el tiempo en teléfono físico siguen pendientes.
 - La medición aislada del camino de archivo (parseo e importación SQLite) fue 1.171 ms en este equipo (ZIP sintético de 2.202 bytes, 18 paradas, 3 líneas, 6 variantes y 48 stop_times); no extrapolarla a feeds de producción ni a millones de horarios.
 
 - `sourceId` mantiene el valor JSON de `properties.id` sin convertirlo; no se usa para formar una identidad de vehículo porque su formato puede cambiar cuando cambia la variante. La deduplicación usa ese valor opaco de forma exacta.
@@ -158,3 +159,8 @@ autorizado).
 - En iOS se usan `AppleSettings.allowBackgroundLocationUpdates`, modo `UIBackgroundModes=location` y texto de autorización dedicado. iOS no ofrece un aviso persistente equivalente al servicio Android; se publican avisos locales al cambiar el contador y al acercarse.
 - La ubicación se procesa en el teléfono y no se envía a servidores. El criterio de bajada combina distancia recta ≤300 m con progreso ≤2 paradas en la secuencia GTFS, y evita duplicar el aviso.
 - «Finalizar viaje», cambiar el plan o cerrar el detalle cancela la suscripción y notificaciones. Sin dependencias nuevas: se reutilizan `geolocator` y `flutter_local_notifications`; no se incorpora SDK de tracking.
+
+## Importación inicial de GTFS
+- El parser procesa `stop_times.txt` en streaming y deduplica patrones por `pattern_id`; SQLite recibe cada patrón una vez aunque varios viajes compartan el mismo recorrido.
+- La importación usa patrones compactos en vez de crear y recorrer JSONL de cada horario; reporta avance y desactiva journal/synchronous solo en el archivo temporal desechable, sin tocar la base vigente antes del cambio atómico.
+- El planificador espera el `Future` inicial del feed también cuando Riverpod aún no publicó datos; errores de red/importación mantienen el diagnóstico para evitar el falso estado “GTFS no disponible”.

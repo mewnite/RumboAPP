@@ -65,4 +65,7 @@
 - Los componentes compartidos, formularios, marcadores y trayectos usan colores del tema para responder al modo oscuro.
 - La importación inicial devuelve el estado de error con su diagnóstico en vez de convertirlo en un `AsyncError` y perderlo para el planificador; las búsquedas esperan a que termine el feed.
 - El mapa vuelve a consultar el área visible cuando termina de cargar el estilo, para que la primera respuesta de buses se filtre/renderice aunque la persona no mueva el mapa.
-- Verificación actual: 158 tests pasan, `flutter analyze` limpio y `flutter build web --debug` correcto; falta comprobación visual con el proxy en el emulador.
+- En emulador se reprodujo el fallo `UNIQUE constraint failed: trip_patterns.pattern_id`: distintos objetos compartían el mismo ID de patrón. El parser ahora deduplica por id, cubierto por prueba SQLite con dos viajes.
+- Una búsqueda iniciada antes del primer estado del proveedor espera el feed; los errores conservan el diagnóstico en lugar del mensaje genérico.
+- La importación usa patrones calculados, no genera/recorre otro JSONL de 2,2 millones de filas, muestra avance y desactiva journaling en el archivo temporal descartable.
+- La versión anterior completó la importación oficial (4.930 paradas) y mostró paradas en el emulador en ~3 minutos. Falta validar con una instalación limpia los cambios finales de rendimiento/avance; 161 tests y `flutter analyze` pasan.

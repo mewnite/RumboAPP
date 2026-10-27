@@ -69,14 +69,19 @@ Future<FeedUpdateState?> waitForOfficialTransitData(
   Future<FeedUpdateState> Function() waitForUpdate,
 ) async {
   if (hasOfficialTransitData(current)) return current;
-  if (current?.phase != FeedUpdatePhase.downloading &&
-      current?.phase != FeedUpdatePhase.processing) {
+  if (current != null &&
+      current.phase != FeedUpdatePhase.downloading &&
+      current.phase != FeedUpdatePhase.processing) {
     return current;
   }
   try {
     return await waitForUpdate();
-  } catch (_) {
-    return current;
+  } catch (error) {
+    return FeedUpdateState(
+      phase: phaseForFeedError(error),
+      message: error.toString(),
+      status: current?.status ?? const FeedStatus(),
+    );
   }
 }
 
@@ -314,11 +319,18 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
         ),
       );
       void reportProgress(String stage, double progress) {
+        final overallProgress = switch (stage) {
+          'validando_zip' => .05 + progress * .05,
+          'procesando_archivos' => .1 + progress * .15,
+          'datos_procesados' => .35,
+          'importando_sqlite' => .35 + progress * .64,
+          _ => .1 + progress * .25,
+        };
         state = AsyncData(
           FeedUpdateState(
             phase: FeedUpdatePhase.processing,
             stage: stage,
-            progress: progress,
+            progress: overallProgress.clamp(0.0, .99),
             feed: previous.feed,
             status: previous.status,
           ),
@@ -343,6 +355,8 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
           sourceName: transitConfig.sourceName,
           etag: downloaded.etag,
           downloadedAt: checkedAt,
+          onProgress: (progress) =>
+              reportProgress('importando_sqlite', progress),
         );
       }
       if (downloaded.etag != null) {

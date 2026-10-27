@@ -326,6 +326,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get mapFeedLoading => 'Descargando y preparando los datos oficiales…';
 
   @override
+  String mapFeedProgress(int progress) {
+    return 'Preparando datos para planificar: $progress%';
+  }
+
+  @override
   String get mapFeedDemoOnly =>
       'La muestra de prueba no contiene recorridos reales.';
 
@@ -1417,6 +1422,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get mapFeedLoading => 'Descargando y preparando los datos oficiales…';
+
+  @override
+  String mapFeedProgress(int progress) {
+    return 'Preparando datos para planificar: $progress%';
+  }
 
   @override
   String get mapFeedDemoOnly =>

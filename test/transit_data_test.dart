@@ -156,13 +156,7 @@ void main() {
 
   test('trip data waits for an initial GTFS download and import', () async {
     final completion = Completer<FeedUpdateState>();
-    final pending = waitForOfficialTransitData(
-      const FeedUpdateState(
-        phase: FeedUpdatePhase.processing,
-        stage: 'procesando_archivos',
-      ),
-      () => completion.future,
-    );
+    final pending = waitForOfficialTransitData(null, () => completion.future);
     var finished = false;
     unawaited(
       pending.then<void>((_) {
@@ -187,10 +181,7 @@ void main() {
     'initial GTFS failure preserves its diagnostic for the planner',
     () async {
       final result = await waitForOfficialTransitData(
-        const FeedUpdateState(
-          phase: FeedUpdatePhase.downloading,
-          stage: 'conectando',
-        ),
+        null,
         () async => const FeedUpdateState(
           phase: FeedUpdatePhase.offline,
           message: 'El proxy rechazó la descarga del feed.',
@@ -200,6 +191,21 @@ void main() {
       expect(result?.phase, FeedUpdatePhase.offline);
       expect(result?.message, 'El proxy rechazó la descarga del feed.');
       expect(hasOfficialTransitData(result), isFalse);
+    },
+  );
+
+  test(
+    'initial GTFS exception is shown instead of a generic missing-feed error',
+    () async {
+      final result = await waitForOfficialTransitData(
+        null,
+        () => Future<FeedUpdateState>.error(
+          const TransitFeedNetworkException('HTTP 401 del proxy'),
+        ),
+      );
+
+      expect(result?.phase, FeedUpdatePhase.offline);
+      expect(result?.message, contains('HTTP 401 del proxy'));
     },
   );
 
@@ -750,7 +756,24 @@ void main() {
         (index) => jsonEncode(['t', 's', 3600, 3600, index + 1]),
       ).join('\n');
       await spool.writeAsString('$partialRows\ninvalid-json\n');
-      expect(() => store.replaceFeed(badFeed), throwsA(anything));
+      final legacyFeed = GtfsParseResult(
+        stops: badFeed.stops,
+        routes: badFeed.routes,
+        variants: badFeed.variants,
+        trips: badFeed.trips,
+        stopTimes: badFeed.stopTimes,
+        stopTimeCount: badFeed.stopTimeCount,
+        stopTimesFilePath: badFeed.stopTimesFilePath,
+        shapes: badFeed.shapes,
+        calendars: badFeed.calendars,
+        calendarExceptions: badFeed.calendarExceptions,
+        feedInfo: badFeed.feedInfo,
+        warningCount: badFeed.warningCount,
+        warnings: badFeed.warnings,
+        patterns: const [],
+        tripPatternIds: const {},
+      );
+      expect(() => store.replaceFeed(legacyFeed), throwsA(anything));
       database = await store.open();
       expect((await database.query('stops')).single['name'], 'Stop');
       expect((await database.query('routes')).length, 1);

@@ -195,24 +195,18 @@ class GtfsZipSource implements TransitFeedSource {
     final stopTimesPath =
         '${Directory.systemTemp.path}${Platform.pathSeparator}'
         'rumbo-stop-times-$stamp.csv';
-    final spoolPath =
-        '${Directory.systemTemp.path}${Platform.pathSeparator}'
-        'rumbo-stop-times-$stamp.jsonl';
     try {
       final result = await compute(parseGtfsZipFileToFile, {
         'zipPath': zipPath,
         'stopTimesPath': stopTimesPath,
-        'spoolPath': spoolPath,
       });
       final stopTimesCsv = File(stopTimesPath);
       if (await stopTimesCsv.exists()) await stopTimesCsv.delete();
       onProgress?.call('datos_procesados', 1);
       return result;
     } catch (_) {
-      for (final path in [stopTimesPath, spoolPath]) {
-        final file = File(path);
-        if (await file.exists()) await file.delete();
-      }
+      final stopTimesCsv = File(stopTimesPath);
+      if (await stopTimesCsv.exists()) await stopTimesCsv.delete();
       rethrow;
     } finally {
       final zipFile = File(zipPath);
