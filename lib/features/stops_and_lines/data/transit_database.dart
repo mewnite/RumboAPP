@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../domain/transit_models.dart';
 import 'gtfs_parser.dart';
 
 /// Writes a complete feed into a temporary database and swaps files only after
@@ -25,7 +26,7 @@ class TransitDatabase {
     return _factory.openDatabase(
       p.join(dir.path, 'rumbo_transit.db'),
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onCreate: (db, _) => _schema(db),
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -64,6 +65,32 @@ class TransitDatabase {
             await db.execute('DROP TABLE IF EXISTS trip_patterns');
             await db.execute('DROP TABLE IF EXISTS pattern_stops');
             await _schema(db);
+          }
+          if (oldVersion < 6) {
+            await db.execute('DROP TABLE IF EXISTS stop_times');
+            if (!await _columnExists(db, 'trips', 'pattern_id')) {
+              await db.execute('ALTER TABLE trips ADD COLUMN pattern_id TEXT');
+            }
+            if (!await _columnExists(db, 'trips', 'start_secs')) {
+              await db.execute(
+                'ALTER TABLE trips ADD COLUMN start_secs INTEGER',
+              );
+            }
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS trips_pattern_service_start ON trips(pattern_id, service_id, start_secs)',
+            );
+            await db.execute(
+              'CREATE TABLE IF NOT EXISTS trip_patterns(pattern_id TEXT PRIMARY KEY)',
+            );
+            await db.execute(
+              'CREATE TABLE IF NOT EXISTS pattern_stops(pattern_id TEXT,ordinal INTEGER,stop_id TEXT,arrival_offset_secs INTEGER,departure_offset_secs INTEGER,PRIMARY KEY(pattern_id,ordinal))',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS pattern_stops_stop_id ON pattern_stops(stop_id)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS pattern_stops_pattern_ordinal ON pattern_stops(pattern_id,ordinal)',
+            );
           }
         },
       ),
@@ -149,27 +176,81 @@ class TransitDatabase {
             'start_secs': t.startSecs,
           });
         }
-        if (feed.patterns != null) {
-          for (final p in feed.patterns!) {
-            await insertRow('trip_patterns', {'pattern_id': p.id});
-            for (final ps in p.stops) {
-              await insertRow('pattern_stops', {
-                'pattern_id': p.id,
-                'ordinal': ps.ordinal,
-                'stop_id': ps.stopId,
-                'arrival_offset_secs': ps.arrivalOffsetSecs,
-                'departure_offset_secs': ps.departureOffsetSecs,
-              });
-            }
+        late final List<TripPattern> patternsToWrite;
+        late final Map<String, String> tripPatternIdsToWrite;
+        late final Map<String, int> tripStartSecsToWrite;
+        if (feed.stopTimesFilePath != null) {
+          final spoolTimes = <StopTime>[];
+          final lines = File(feed.stopTimesFilePath!)
+              .openRead()
+              .transform(utf8.decoder)
+              .transform(const LineSplitter());
+          await for (final line in lines) {
+            if (line.isEmpty) continue;
+            final row = jsonDecode(line) as List<Object?>;
+            spoolTimes.add(
+              StopTime(
+                tripId: row[0] as String,
+                stopId: row[1] as String,
+                arrivalSeconds: row[2] as int,
+                departureSeconds: row[3] as int,
+                sequence: row[4] as int,
+              ),
+            );
           }
+          final computed = computePatternsFromTimes(spoolTimes);
+          patternsToWrite = computed.$1.toList(growable: false);
+          tripPatternIdsToWrite = computed.$2;
+          tripStartSecsToWrite = computed.$3;
+          // Actualizar los trips con los pattern_id y start_secs calculados.
+          for (var i = 0; i < feed.trips.length; i++) {
+            final t = feed.trips[i];
+            feed.trips[i] = Trip(
+              id: t.id,
+              routeId: t.routeId,
+              serviceId: t.serviceId,
+              variantId: t.variantId,
+              headsign: t.headsign,
+              patternId: tripPatternIdsToWrite[t.id],
+              startSecs: tripStartSecsToWrite[t.id],
+            );
+          }
+        } else if (feed.patterns?.isNotEmpty == true) {
+          patternsToWrite = feed.patterns!;
+          tripPatternIdsToWrite = {
+            for (final t in feed.trips) t.id: t.patternId ?? '',
+          };
+          tripStartSecsToWrite = {
+            for (final t in feed.trips) t.id: t.startSecs ?? 0,
+          };
         } else {
-          for (final t in feed.stopTimes) {
-            await insertRow('stop_times', {
-              'trip_id': t.tripId,
-              'stop_id': t.stopId,
-              'arrival': t.arrivalSeconds,
-              'departure': t.departureSeconds,
-              'sequence': t.sequence,
+          final computed = computePatternsFromTimes(feed.stopTimes);
+          patternsToWrite = computed.$1.toList(growable: false);
+          tripPatternIdsToWrite = computed.$2;
+          tripStartSecsToWrite = computed.$3;
+          for (var i = 0; i < feed.trips.length; i++) {
+            final t = feed.trips[i];
+            feed.trips[i] = Trip(
+              id: t.id,
+              routeId: t.routeId,
+              serviceId: t.serviceId,
+              variantId: t.variantId,
+              headsign: t.headsign,
+              patternId: tripPatternIdsToWrite[t.id],
+              startSecs: tripStartSecsToWrite[t.id],
+            );
+          }
+        }
+
+        for (final p in patternsToWrite) {
+          await insertRow('trip_patterns', {'pattern_id': p.id});
+          for (final ps in p.stops) {
+            await insertRow('pattern_stops', {
+              'pattern_id': p.id,
+              'ordinal': ps.ordinal,
+              'stop_id': ps.stopId,
+              'arrival_offset_secs': ps.arrivalOffsetSecs,
+              'departure_offset_secs': ps.departureOffsetSecs,
             });
           }
         }
@@ -226,26 +307,6 @@ class TransitDatabase {
           'synthetic': feed.feedInfo.synthetic ? 1 : 0,
         });
         await commitBatch();
-
-        final spoolPath = feed.stopTimesFilePath;
-        if (spoolPath != null) {
-          final lines = File(spoolPath)
-              .openRead()
-              .transform(utf8.decoder)
-              .transform(const LineSplitter());
-          await for (final line in lines) {
-            if (line.isEmpty) continue;
-            final row = jsonDecode(line) as List<Object?>;
-            await insertRow('stop_times', {
-              'trip_id': row[0],
-              'stop_id': row[1],
-              'arrival': row[2],
-              'departure': row[3],
-              'sequence': row[4],
-            });
-          }
-          await commitBatch();
-        }
       });
       await db.close();
       databaseClosed = true;
@@ -306,6 +367,15 @@ class TransitDatabase {
 }
 
 const _importBatchSize = 500;
+
+Future<bool> _columnExists(
+  DatabaseExecutor db,
+  String table,
+  String column,
+) async {
+  final info = await db.rawQuery('PRAGMA table_info($table)');
+  return info.any((row) => row['name'] == column);
+}
 
 DateTime? _latestEndDate(GtfsParseResult feed) {
   if (feed.calendars.isEmpty) return null;

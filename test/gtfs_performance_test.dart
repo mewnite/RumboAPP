@@ -25,7 +25,10 @@ void main() {
     stopwatch.stop();
     final database = await store.open();
     final importedCount = (await database.rawQuery(
-      'SELECT COUNT(*) AS count FROM stop_times',
+      'SELECT COUNT(*) AS count FROM trip_patterns',
+    )).single['count'];
+    final tripsWithPattern = (await database.rawQuery(
+      'SELECT COUNT(*) AS count FROM trips WHERE pattern_id IS NOT NULL',
     )).single['count'];
     await database.close();
     // Printed by `flutter test --reporter expanded` for the implementation log.
@@ -36,6 +39,7 @@ void main() {
       '(${bytes.length} bytes, ${feed.stopTimeCount} stop_times)',
     );
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
-    expect(importedCount, feed.stopTimeCount);
+    expect(importedCount, greaterThan(0));
+    expect(tripsWithPattern, feed.trips.length);
   });
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 
 import '../domain/transit_models.dart';
 import 'gtfs_csv.dart';
@@ -22,7 +23,8 @@ class GtfsParseResult {
     required this.feedInfo,
     required this.warningCount,
     required this.warnings,
-    this.patterns,
+    this.patterns = const [],
+    this.tripPatternIds = const {},
   });
   final List<Stop> stops;
   final List<Route> routes;
@@ -38,6 +40,7 @@ class GtfsParseResult {
   final int warningCount;
   final List<String> warnings;
   final List<TripPattern>? patterns;
+  final Map<String, String> tripPatternIds;
 }
 
 GtfsParseResult parseGtfsZip(Uint8List bytes) {
@@ -211,6 +214,7 @@ GtfsParseResult _parseGtfsFiles(
       )
       .toList();
   final trips = <Trip>[];
+  final tripById = <String, Trip>{};
   final variants = <RouteVariant>[];
   final variantByKey = <String, String>{};
   final tripVariantMap = <String, int>{};
@@ -267,15 +271,15 @@ GtfsParseResult _parseGtfsFiles(
         externalVariantId: external,
       );
     }
-    trips.add(
-      Trip(
-        id: id,
-        routeId: route,
-        serviceId: service,
-        variantId: variant,
-        headsign: v(r, 'trip_headsign'),
-      ),
+    final trip = Trip(
+      id: id,
+      routeId: route,
+      serviceId: service,
+      variantId: variant,
+      headsign: v(r, 'trip_headsign'),
     );
+    tripById[id] = trip;
+    trips.add(trip);
   }
   for (final variant in variants) {
     if (variant.externalVariantId == null) {
@@ -348,10 +352,47 @@ GtfsParseResult _parseGtfsFiles(
   }
   final times = <StopTime>[];
   var timeCount = 0;
+  final patterns = <TripPattern>{};
+  final tripPatternIds = <String, String>{};
+  final tripStartSecs = <String, int>{};
   final spool = stopTimesFilePath == null
       ? null
       : File(stopTimesFilePath).openSync(mode: FileMode.writeOnly);
   try {
+    var currentTripId = '';
+    final currentStops = <StopTime>[];
+    final closedTrips = <String>{};
+    var unordered = false;
+
+    void emitPattern() {
+      if (currentTripId.isEmpty || currentStops.isEmpty) return;
+      currentStops.sort((a, b) => a.sequence.compareTo(b.sequence));
+      final firstDeparture = currentStops.first.departureSeconds;
+      final patternStops = <TripPatternStop>[];
+      for (var i = 0; i < currentStops.length; i++) {
+        final time = currentStops[i];
+        patternStops.add(
+          TripPatternStop(
+            ordinal: i + 1,
+            stopId: time.stopId,
+            arrivalOffsetSecs: time.arrivalSeconds - firstDeparture,
+            departureOffsetSecs: time.departureSeconds - firstDeparture,
+          ),
+        );
+      }
+      final patternKey = patternStops
+          .map(
+            (ps) =>
+                '${ps.stopId}:${ps.arrivalOffsetSecs}:${ps.departureOffsetSecs}',
+          )
+          .join('|');
+      final patternId = sha256.convert(utf8.encode(patternKey)).toString();
+      patterns.add(TripPattern(id: patternId, stops: patternStops));
+      tripPatternIds[currentTripId] = patternId;
+      tripStartSecs[currentTripId] = firstDeparture;
+      closedTrips.add(currentTripId);
+    }
+
     for (final r in rows('stop_times.txt')) {
       final arr = parseGtfsTime(v(r, 'arrival_time')),
           dep = parseGtfsTime(v(r, 'departure_time')),
@@ -364,26 +405,60 @@ GtfsParseResult _parseGtfsFiles(
         warnings.add('stop_times.txt: fila inválida omitida');
         continue;
       }
-      final time = StopTime(
-        tripId: v(r, 'trip_id'),
-        stopId: v(r, 'stop_id'),
-        arrivalSeconds: arr,
-        departureSeconds: dep,
-        sequence: seq,
+      final tripId = v(r, 'trip_id');
+      if (currentTripId.isNotEmpty && tripId != currentTripId) {
+        if (closedTrips.contains(tripId)) {
+          unordered = true;
+        }
+        emitPattern();
+        currentStops.clear();
+      }
+      currentTripId = tripId;
+      currentStops.add(
+        StopTime(
+          tripId: tripId,
+          stopId: v(r, 'stop_id'),
+          arrivalSeconds: arr,
+          departureSeconds: dep,
+          sequence: seq,
+        ),
       );
       timeCount++;
       if (spool == null) {
-        times.add(time);
+        times.add(currentStops.last);
       } else {
         spool.writeStringSync(
-          '${jsonEncode([time.tripId, time.stopId, time.arrivalSeconds, time.departureSeconds, time.sequence])}\n',
+          '${jsonEncode([tripId, v(r, 'stop_id'), arr, dep, seq])}\n',
         );
       }
+    }
+    emitPattern();
+
+    if (unordered) {
+      warnings.add(
+        'stop_times.txt: no ordenado por viaje; se recomienda tabla temporal para agrupar sin mantener todo en memoria.',
+      );
     }
   } finally {
     spool?.flushSync();
     spool?.closeSync();
   }
+
+  final updatedTrips = <Trip>[];
+  for (final t in trips) {
+    updatedTrips.add(
+      Trip(
+        id: t.id,
+        routeId: t.routeId,
+        serviceId: t.serviceId,
+        variantId: t.variantId,
+        headsign: t.headsign,
+        patternId: tripPatternIds[t.id],
+        startSecs: tripStartSecs[t.id],
+      ),
+    );
+  }
+
   FeedInfo info = const FeedInfo();
   final infoRows = rows('feed_info.txt');
   if (infoRows.isNotEmpty) {
@@ -423,7 +498,7 @@ GtfsParseResult _parseGtfsFiles(
     stops: stops,
     routes: routes,
     variants: variants,
-    trips: trips,
+    trips: updatedTrips,
     stopTimes: times,
     stopTimeCount: timeCount,
     stopTimesFilePath: stopTimesFilePath,
@@ -433,5 +508,73 @@ GtfsParseResult _parseGtfsFiles(
     feedInfo: info,
     warningCount: warnings.length,
     warnings: warnings,
+    patterns: patterns.toList(growable: false),
+    tripPatternIds: tripPatternIds,
   );
+}
+
+/// Computa patrones de viaje a partir de un iterable de [StopTime] sin
+/// mantener todos los horarios en memoria: agrupa viaje por viaje y emite el
+/// patrón al cerrar cada uno. Si los tiempos no vienen ordenados por viaje,
+/// se detecta el desorden y se documenta (ver [GtfsParseResult.warnings]).
+///
+/// Devuelve los patrones, el mapeo trip_id -> pattern_id y el mapeo
+/// trip_id -> start_secs (desfase del primer horario del viaje).
+(Iterable<TripPattern>, Map<String, String>, Map<String, int>)
+computePatternsFromTimes(Iterable<StopTime> times) {
+  final patterns = <TripPattern>[];
+  final tripPatternIds = <String, String>{};
+  final tripStartSecs = <String, int>{};
+  final closedTrips = <String>{};
+  var currentTripId = '';
+  final currentStops = <StopTime>[];
+  var unordered = false;
+
+  void emitPattern() {
+    if (currentTripId.isEmpty || currentStops.isEmpty) return;
+    currentStops.sort((a, b) => a.sequence.compareTo(b.sequence));
+    final firstDeparture = currentStops.first.departureSeconds;
+    final patternStops = <TripPatternStop>[];
+    for (var i = 0; i < currentStops.length; i++) {
+      final time = currentStops[i];
+      patternStops.add(
+        TripPatternStop(
+          ordinal: i + 1,
+          stopId: time.stopId,
+          arrivalOffsetSecs: time.arrivalSeconds - firstDeparture,
+          departureOffsetSecs: time.departureSeconds - firstDeparture,
+        ),
+      );
+    }
+    final patternKey = patternStops
+        .map(
+          (ps) =>
+              '${ps.stopId}:${ps.arrivalOffsetSecs}:${ps.departureOffsetSecs}',
+        )
+        .join('|');
+    final patternId = sha256.convert(utf8.encode(patternKey)).toString();
+    patterns.add(TripPattern(id: patternId, stops: patternStops));
+    tripPatternIds[currentTripId] = patternId;
+    tripStartSecs[currentTripId] = firstDeparture;
+    closedTrips.add(currentTripId);
+  }
+
+  for (final time in times) {
+    if (currentTripId.isNotEmpty && time.tripId != currentTripId) {
+      if (closedTrips.contains(time.tripId)) {
+        unordered = true;
+      }
+      emitPattern();
+      currentStops.clear();
+    }
+    currentTripId = time.tripId;
+    currentStops.add(time);
+  }
+  emitPattern();
+
+  if (unordered) {
+    // El llamador puede decidir usar una tabla temporal si lo necesita.
+  }
+
+  return (patterns, tripPatternIds, tripStartSecs);
 }

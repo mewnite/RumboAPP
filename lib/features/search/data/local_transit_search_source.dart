@@ -62,8 +62,8 @@ class LocalTransitSearchSource implements LocalTransitSearchRepository {
         // Buscar algunas paradas destacadas de esta línea
         final stopRows = await db.rawQuery(
           'SELECT DISTINCT s.* FROM stops s '
-          'JOIN stop_times st ON st.stop_id = s.id '
-          'JOIN trips t ON t.id = st.trip_id '
+          'JOIN pattern_stops ps ON ps.stop_id = s.id '
+          'JOIN trips t ON t.pattern_id = ps.pattern_id '
           'WHERE t.route_id = ? '
           'LIMIT 5',
           [routeId],

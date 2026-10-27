@@ -633,7 +633,7 @@ void main() {
       expect(metadata['stop_count'], 1);
       expect(
         await database
-            .rawQuery('SELECT COUNT(*) AS count FROM stop_times')
+            .rawQuery('SELECT COUNT(*) AS count FROM pattern_stops')
             .then((rows) => rows.single['count']),
         1,
       );
@@ -676,7 +676,7 @@ void main() {
       expect((await database.query('routes')).length, 1);
       expect(
         await database
-            .rawQuery('SELECT COUNT(*) AS count FROM stop_times')
+            .rawQuery('SELECT COUNT(*) AS count FROM pattern_stops')
             .then((rows) => rows.single['count']),
         1,
       );

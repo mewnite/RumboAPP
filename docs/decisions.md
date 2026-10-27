@@ -35,22 +35,67 @@
 - SQLite usa tablas e índices geográficos, por parada/horario y por shape; los feeds se escriben en una base temporal en transacción y se renombran al finalizar para conservar la base anterior frente a fallos.
 - El feed de ejemplo es sintético, pequeño y marcado como no oficial. Sus paradas son puntos de demostración alrededor del centro de Montevideo, no paradas reales ni horarios del STM.
 - El vencimiento se deriva de `feed_info.txt` cuando está disponible; si no hay fecha final, el estado no se marca vencido. La app no declara condiciones de licencia no verificadas.
-## Migración de horarios
+## Migración de horarios (completada — Fase 1)
 
-Inventario (sin cambios de comportamiento):
+El esquema `stop_times` (2.2 M de filas en el feed oficial) se reemplazó por
+`trip_patterns` + `pattern_stops` para reducir el tamaño de la base y el tiempo
+de importación. Dos viajes con la misma secuencia ordenada de paradas y los
+mismos desfases (segundos de llegada/salida respecto del primer horario del
+viaje) comparten un patrón, identificado por un hash SHA-256 estable.
 
-- `lib/features/stops_and_lines/data/gtfs_parser.dart`: extrae/parsea `stop_times.txt` (streaming a disco en Android/iOS), construye `StopTime` por fila y los acumula en `GtfsFeed.stopTimes` para importación; también valida que exista `stop_times.txt`.
-- `lib/features/stops_and_lines/data/gtfs_csv.dart`: lector CSV para archivos GTFS, usado para leer `stop_times.txt` con chunks acotados.
-- `lib/features/stops_and_lines/data/transit_feed_source.dart`: controla `streamStopTimes` (true en móvil no web) y pasa flags al parser.
-- `lib/features/stops_and_lines/presentation/feed_update_controller.dart`: solicita parseo con `streamStopTimes: !kIsWeb`.
-- `lib/features/stops_and_lines/data/transit_database.dart`: esquema v1 con tabla `stop_times` (trip_id, stop_id, arrival, departure, sequence), índices `stop_times_stop_departure` y `stop_times_trip_seq`; importa filas de `GtfsFeed.stopTimes`.
-- `lib/features/stops_and_lines/data/sqflite_transit_repository.dart`: lee rutas/arribos vía `stop_times` (`routesForStop` hace join con `stop_times`, `upcomingDepartures` lee `stop_times` unido a `trips/routes`, `stopTimeRowsForTrips` consulta `stop_times` por `trip_id`, etc.); construye `StopTime` desde filas.
-- `lib/features/stops_and_lines/domain/transit_models.dart`: modelo `StopTime` (tripId/stopId/arrival/departure/sequence). `UpcomingDeparture.stopTime`, `GtfsFeed.stopTimes`.
-- `lib/features/trip_planner/domain/trip_planner.dart`: construye índices/itinerarios usando `StopTime`/`_AbsoluteStopTime` a partir de lo provisto por repositorio (no consulta `stop_times` directamente por SQL en esa clase).
-- `lib/features/stops_and_lines/data/fake_transit_repository.dart`: almacena `List<StopTime> times` para pruebas.
-- `lib/features/search/data/local_transit_search_source.dart`: hace join con `stop_times` para ranking/local search en algunos casos.
-- `lib/features/stops_and_lines/data/transit_arrivals_source.dart`: usa `repository.upcomingDepartures` / lógica que depende de `StopTime`.
-- Tests: `test/transit_data_test.dart`, `test/gtfs_performance_test.dart`, `test/transit_arrivals_source_test.dart` (y varios usan `StopTime`/`stop_times`). 
+Inventario de lo que usaba `stop_times`/`StopTime` y lo que cambió:
+
+- `lib/features/stops_and_lines/data/gtfs_parser.dart`: ya no acumula todos los
+  `StopTime` en `GtfsFeed.stopTimes`. Agrupa los tiempos por viaje en streaming
+  (sin mantener todos los horarios en memoria), computa `TripPattern` por viaje
+  con `pattern_id` (hash SHA-256 de la secuencia de `stop_id:arrival_offset:departure_offset`)
+  y asigna `pattern_id` y `start_secs` a cada `Trip`. Si `stop_times.txt` no
+  viene ordenado por viaje se detecta el desorden y se documenta en las
+  advertencias (se recomienda tabla temporal para feeds no ordenados).
+- `lib/features/stops_and_lines/data/gtfs_csv.dart`: sin cambios; sigue leyendo
+  `stop_times.txt` en chunks acotados.
+- `lib/features/stops_and_lines/data/transit_feed_source.dart`: sin cambios en
+  la API; `streamStopTimes` sigue controlando el volcado a JSONL.
+- `lib/features/stops_and_lines/data/transit_database.dart`: esquema v6.
+  `onUpgrade` de v5 a v6 elimina `stop_times`, agrega `pattern_id` y
+  `start_secs` a `trips` (si faltan), crea `trip_patterns` y `pattern_stops`
+  con índices por `stop_id` y `(pattern_id, ordinal)`. `replaceFeed` escribe
+  patrones (y sus paradas con desfases) en lugar de filas de `stop_times`;
+  cuando hay spool de JSONL lo lee y computa patrones en streaming. El importador
+  nunca mantiene todos los horarios en memoria.
+- `lib/features/stops_and_lines/data/sqflite_transit_repository.dart`:
+  `routesForStop`, `routesForStops`, `upcomingDepartures` y `scheduleForStops`
+  ahora consultan `pattern_stops` unido a `trips` (reconstruyendo `StopTime`
+  como `start_secs + offset`) en lugar de `stop_times`.
+- `lib/features/stops_and_lines/domain/transit_models.dart`: `StopTime` se
+  mantiene como modelo de dominio; `Trip` agregó `patternId` y `startSecs`.
+  `TripPattern` / `TripPatternStop` modelan el patrón compartido.
+- `lib/features/trip_planner/domain/trip_planner.dart`: sin cambios de lógica;
+  recibe `StopTime` ya reconstruidos con segundos absolutos desde el repositorio.
+- `lib/features/search/data/local_transit_search_source.dart`: el join a
+  `stop_times` se cambió a `pattern_stops` + `trips`.
+- `lib/features/stops_and_lines/data/fake_transit_repository.dart`: sin cambios
+  (usa `List<StopTime>` en memoria para pruebas).
+- `lib/features/stops_and_lines/data/transit_arrivals_source.dart`: sin cambios
+  (usa `repository.upcomingDepartures`).
+- Tests: `test/transit_data_test.dart`, `test/gtfs_performance_test.dart`,
+  `test/transit_arrivals_source_test.dart` actualizados al nuevo esquema;
+  nuevo `test/trip_patterns_test.dart` cubre patrones compartidos/distintos,
+  desfases, viaje post-medianoche, importación y migración v5→v6.
+
+Dependencia nueva: `crypto: ^3.0.3` — usada solo para el hash SHA-256 estable
+que identifica cada patrón de recorrido. No implica red, tracking, analítica ni
+publicidad.
+
+Esquema nuevo (v6):
+- `trip_patterns(pattern_id TEXT PRIMARY KEY)`
+- `pattern_stops(pattern_id, ordinal, stop_id, arrival_offset_secs, departure_offset_secs, PRIMARY KEY(pattern_id, ordinal))`, índices por `stop_id` y `(pattern_id, ordinal)`
+- `trips(... , pattern_id TEXT, start_secs INTEGER)`, índice `(pattern_id, service_id, start_secs)`
+- Se eliminó la tabla `stop_times`. Una base vieja (v5 o inferior) se descarta y se reimporta.
+
+Medición con el feed oficial: no medido (no hay acceso al feed oficial ni al
+proxy sin credenciales configuradas; la medición requiere entorno de producción
+autorizado).
 
 - Ruta de flota en vivo: el cliente construye la petición sobre `realtimeEndpoint` (con sufijo `/api`) llamando a `/buses?format=geojson`, por lo que la ruta efectiva es `/api/buses`. El proxy local `tool/montevideo_api_proxy.py` implementa `GET /api/buses` y lo reenvía al upstream. Se unificó la documentación para usar `/api/buses` como ruta del proxy.
 - El proxy de desarrollo (`tool/montevideo_api_proxy.py`) expone la flota como `GET /api/buses?format=geojson` y la reenvía al upstream `GET /buses`. El cliente Flutter configura `realtimeEndpoint` con sufijo `/api` y pide `/buses`, de modo que la ruta efectiva es `/api/buses`. docs/api, README y este archivo documentan la ruta del proxy, no el path upstream.

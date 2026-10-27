@@ -81,7 +81,10 @@ class SqfliteTransitRepository implements TransitRepository {
   @override
   Future<List<Route>> routesForStop(String stopId) async {
     final rows = await (await _database()).rawQuery(
-      'SELECT DISTINCT r.* FROM routes r JOIN trips t ON t.route_id = r.id JOIN stop_times st ON st.trip_id = t.id WHERE st.stop_id = ?',
+      'SELECT DISTINCT r.* FROM routes r '
+      'JOIN trips t ON t.route_id = r.id '
+      'JOIN pattern_stops ps ON ps.pattern_id = t.pattern_id '
+      'WHERE ps.stop_id = ?',
       [stopId],
     );
     return rows.map(_route).toList(growable: false);
@@ -95,12 +98,12 @@ class SqfliteTransitRepository implements TransitRepository {
     for (final chunk in _chunks(stopIds)) {
       final placeholders = List.filled(chunk.length, '?').join(',');
       final rows = await db.rawQuery(
-        'SELECT DISTINCT st.stop_id, r.id, r.short_name, r.long_name, '
+        'SELECT DISTINCT ps.stop_id, r.id, r.short_name, r.long_name, '
         'r.color, r.text_color FROM routes r '
         'JOIN trips t ON t.route_id = r.id '
-        'JOIN stop_times st ON st.trip_id = t.id '
-        'WHERE st.stop_id IN ($placeholders) '
-        'ORDER BY st.stop_id, r.short_name',
+        'JOIN pattern_stops ps ON ps.pattern_id = t.pattern_id '
+        'WHERE ps.stop_id IN ($placeholders) '
+        'ORDER BY ps.stop_id, r.short_name',
         chunk.toList(),
       );
       for (final row in rows) {
@@ -190,7 +193,12 @@ class SqfliteTransitRepository implements TransitRepository {
   }) async {
     final db = await _database();
     final rows = await db.rawQuery(
-      'SELECT st.trip_id, st.stop_id, st.arrival, st.departure, st.sequence, t.route_id, t.service_id, t.variant_id, t.headsign FROM stop_times st JOIN trips t ON t.id = st.trip_id WHERE st.stop_id = ?',
+      'SELECT t.id AS trip_id, ps.stop_id, t.start_secs, '
+      'ps.arrival_offset_secs, ps.departure_offset_secs, ps.ordinal AS sequence, '
+      't.route_id, t.service_id, t.variant_id, t.headsign '
+      'FROM pattern_stops ps '
+      'JOIN trips t ON t.pattern_id = ps.pattern_id '
+      'WHERE ps.stop_id = ?',
       [stopId],
     );
     final calendars = await db.query('calendars');
@@ -225,8 +233,11 @@ class SqfliteTransitRepository implements TransitRepository {
     final serviceDay = DateTime(now.year, now.month, now.day);
     final results = <UpcomingDeparture>[];
     for (final row in rows) {
-      final service = calendarById[row['service_id']];
+      final service = calendarById[row['service_id'] as String];
       if (service == null) continue;
+      final startSecs = row['start_secs'] as int?;
+      final departureOffset = row['departure_offset_secs'] as int?;
+      if (startSecs == null || departureOffset == null) continue;
       final trip = Trip(
         id: row['trip_id'] as String,
         routeId: row['route_id'] as String,
@@ -237,8 +248,8 @@ class SqfliteTransitRepository implements TransitRepository {
       final time = StopTime(
         tripId: trip.id,
         stopId: row['stop_id'] as String,
-        arrivalSeconds: row['arrival'] as int,
-        departureSeconds: row['departure'] as int,
+        arrivalSeconds: startSecs + (row['arrival_offset_secs'] as int),
+        departureSeconds: startSecs + departureOffset,
         sequence: row['sequence'] as int,
       );
       for (var offset = -1; offset <= 0; offset++) {
@@ -264,10 +275,12 @@ class SqfliteTransitRepository implements TransitRepository {
     for (final chunk in _chunks(stopIds)) {
       final placeholders = List.filled(chunk.length, '?').join(',');
       final rows = await db.rawQuery(
-        'SELECT DISTINCT trip_id FROM stop_times WHERE stop_id IN ($placeholders)',
+        'SELECT DISTINCT t.id FROM pattern_stops ps '
+        'JOIN trips t ON t.pattern_id = ps.pattern_id '
+        'WHERE ps.stop_id IN ($placeholders)',
         chunk.toList(),
       );
-      tripIds.addAll(rows.map((row) => row['trip_id'] as String));
+      tripIds.addAll(rows.map((row) => row['id'] as String));
     }
     if (tripIds.isEmpty) return const TransitScheduleData();
 
@@ -280,25 +293,40 @@ class SqfliteTransitRepository implements TransitRepository {
             serviceId: row['service_id'] as String,
             variantId: row['variant_id'] as String,
             headsign: row['headsign'] as String? ?? '',
+            patternId: row['pattern_id'] as String?,
+            startSecs: row['start_secs'] as int?,
           ),
         )
         .toList(growable: false);
     final serviceIds = trips.map((trip) => trip.serviceId).toSet();
     final routeIds = trips.map((trip) => trip.routeId).toSet();
     final variantIds = trips.map((trip) => trip.variantId).toSet();
-    final stopTimeRows = await _queryByIds(
-      db,
-      'stop_times',
-      'trip_id',
-      tripIds,
-    );
+
+    final stopTimeRows = <Map<String, Object?>>[];
+    for (final chunk in _chunks(tripIds)) {
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      stopTimeRows.addAll(
+        await db.rawQuery(
+          'SELECT t.id AS trip_id, ps.stop_id, t.start_secs, '
+          'ps.arrival_offset_secs, ps.departure_offset_secs, ps.ordinal AS sequence '
+          'FROM pattern_stops ps '
+          'JOIN trips t ON t.pattern_id = ps.pattern_id '
+          'WHERE t.id IN ($placeholders)',
+          chunk.toList(),
+        ),
+      );
+    }
     final stopTimes = stopTimeRows
         .map(
           (row) => StopTime(
             tripId: row['trip_id'] as String,
             stopId: row['stop_id'] as String,
-            arrivalSeconds: row['arrival'] as int,
-            departureSeconds: row['departure'] as int,
+            arrivalSeconds:
+                (row['start_secs'] as int) +
+                (row['arrival_offset_secs'] as int),
+            departureSeconds:
+                (row['start_secs'] as int) +
+                (row['departure_offset_secs'] as int),
             sequence: row['sequence'] as int,
           ),
         )
