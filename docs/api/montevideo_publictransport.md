@@ -4,6 +4,8 @@ Este documento describe la integración que Rumbo usa y documenta en el reposito
 
 ## 1. Alcance
 
+La [documentación oficial de Transporte Público](https://api.montevideo.gub.uy/apidocs/publictransport) indica que la API ofrece posiciones de buses y cálculo de tiempo estimado de arribo (ETA). El acceso requiere una cuenta gratuita y la Intendencia asigna un número razonable de consultas por segundo; no publica aquí un valor numérico fijo. Este repo no guarda credenciales ni asume autorización de producción.
+
 La app separa claramente tres tipos de datos:
 
 - GTFS estático: paradas, rutas, variantes, horarios, calendarios y shapes.
@@ -72,7 +74,13 @@ Notas:
 - El proxy aplica límites globales de frecuencia para evitar consultas masivas.
 - Los datos de flota se filtran localmente en el dispositivo por zona visible y líneas relevantes.
 
-### 4.3 Geocodificación / búsqueda de direcciones
+La documentación oficial describe en cada bus `id`, `timestamp` UTC, ubicación, línea, variante, origen y destino, entre otros atributos. El parser Flutter debe conservar la hora reportada y no confundirla con una ETA.
+
+### 4.3 Arribos estimados por parada
+
+La API oficial documenta `GET /buses/busstops/{busstopId}/upcomingbuses`; requiere informar las líneas a consultar (`lines` o `lineVariantIds`) y admite `amountperline` y `format`. La descripción oficial dice que retorna buses próximos a una parada y que la API calcula ETA. Sin embargo, el modelo de respuesta publicado para este recurso solo ejemplifica metadatos de línea/variante y no deja identificados los campos de segundos/minutos, hora estimada ni timestamp de cálculo. Por eso la app no interpreta todavía esa respuesta ni reemplaza el ETA local hasta obtener una respuesta oficial autorizada que cierre el contrato.
+
+### 4.4 Geocodificación / búsqueda de direcciones
 
 Ruta del proxy:
 
@@ -89,9 +97,9 @@ Notas:
 - La ubicación precisa del usuario solo se usa en el dispositivo para desempatar resultados y no se envía al backend.
 - La geocodificación solo se habilita si está documentada y configurada en la app.
 
-### 4.4 Planificación de rutas
+### 4.5 Planificación de rutas
 
-La app implementa un motor local de planificación basado en GTFS, no un endpoint oficial de la Intendencia.
+La app implementa un motor local de planificación basado en GTFS; la documentación consultada no publica un endpoint oficial de planificación A→B.
 
 No se documenta un endpoint de planificación real en este repositorio. La capa de planificación se resuelve localmente dentro del dispositivo para:
 

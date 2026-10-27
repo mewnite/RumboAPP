@@ -22,7 +22,7 @@
 ## Fase 3: variantes oficiales y arribos oficiales (diagnóstico completado)
 - El API/proxy documenta `lineVariantId` en buses y variantes, pero no un mapeo validado a `trip_id`/`shape_id` del GTFS.
 - No se genera `variant_map.csv` ni se emparejan variantes por texto; faltan fixtures oficiales para probar ese cruce.
-- El proxy reenvía `upcomingbuses`, pero docs/api no describe su respuesta; no se implementa cliente ni se consulta desde la app.
+- La API oficial documenta `upcomingbuses` como buses próximos/ETA y los filtros de línea, pero el esquema visible no expone los campos ni unidad del ETA; se mantiene pendiente el parser hasta tener respuesta autorizada. Se corrigió la documentación local con el contrato público disponible.
 - Se mantiene ETA local aproximado por shape; dependencia pendiente de contrato documentado y datos de prueba autorizados.
 - Pruebas manuales con servicios reales: no realizadas.
 
