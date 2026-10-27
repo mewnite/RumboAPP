@@ -9,3 +9,12 @@
 - Tests nuevos: `test/trip_patterns_test.dart` (patrones compartidos/distintos, desfases post-medianoche, importación, migración v5→v6). Total: 140 tests en verde.
 - `flutter analyze` sin errores ni warnings; `dart format .` aplicado.
 - Medición con feed oficial: no medido (falta acceso al feed oficial/proxy sin credenciales).
+
+## Fase 2: detalle de línea (completa, probada con tests)
+
+- Se creó `LineDetailsSheet` con nombre público, selector de variante, recorrido en mapa (shape o paradas), lista ordenada, horarios estimados y buses en vivo.
+- Botón de favorito persistente y acceso desde búsqueda, detalle de parada y Favoritos; tocar una parada abre su detalle.
+- Estados de carga, vacío, error y sin conexión implementados con localización en `es-UY` y tokens de tema.
+- Se agregaron `stopsForVariant` y `upcomingDeparturesForVariant` a `TransitRepository`, `SqfliteTransitRepository` y fake.
+- Tests nuevos: `test/line_details_sheet_test.dart` (selector de variante, orden de paradas, favorito, estados, buses en vivo). Total: 144 tests en verde.
+- No probado: visualización en emulador y dispositivo físico.

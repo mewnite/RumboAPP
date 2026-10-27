@@ -92,6 +92,17 @@ class SearchResult {
     if (stop != null) {
       return TripEndpoint.fromStop(stop!);
     }
+    if (kind == SearchEntityKind.route) {
+      final routeId = id.replaceFirst('stm:route:', '');
+      final routeLabel = lines.isNotEmpty
+          ? lines.first
+          : title.replaceFirst('Línea ', '');
+      return TripEndpoint.fromRoute(
+        Route(id: routeId, shortName: routeLabel),
+        latitude: latitude,
+        longitude: longitude,
+      );
+    }
     return TripEndpoint(name: title, latitude: latitude, longitude: longitude);
   }
 

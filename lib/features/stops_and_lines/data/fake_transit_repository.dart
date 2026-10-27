@@ -113,6 +113,67 @@ class FakeTransitRepository implements TransitRepository {
   }
 
   @override
+  Future<List<Stop>> stopsForVariant(String variantId) async {
+    final variantTrips = trips.where((t) => t.variantId == variantId).toList();
+    if (variantTrips.isEmpty) return const [];
+    final tripIds = variantTrips.map((t) => t.id).toSet();
+    final matchingTimes = times
+        .where((t) => tripIds.contains(t.tripId))
+        .toList();
+    if (matchingTimes.isEmpty) return const [];
+    final timesByTrip = <String, List<StopTime>>{};
+    for (final t in matchingTimes) {
+      timesByTrip.putIfAbsent(t.tripId, () => []).add(t);
+    }
+    final bestTripTimes = timesByTrip.values.reduce(
+      (a, b) => a.length >= b.length ? a : b,
+    )..sort((a, b) => a.sequence.compareTo(b.sequence));
+
+    final stopMap = {for (final s in stops) s.id: s};
+    return bestTripTimes
+        .map((t) => stopMap[t.stopId])
+        .whereType<Stop>()
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<DateTime>> upcomingDeparturesForVariant(
+    String variantId,
+    DateTime now, {
+    int limit = 10,
+  }) async {
+    final variantTrips = trips.where((t) => t.variantId == variantId).toList();
+    if (variantTrips.isEmpty) return const [];
+    final serviceDay = DateTime(now.year, now.month, now.day);
+    final departures = <DateTime>{};
+    final calendarById = {for (final c in calendars) c.serviceId: c};
+
+    for (final trip in variantTrips) {
+      final calendar = calendarById[trip.serviceId];
+      if (calendar == null) continue;
+      int? startSecs = trip.startSecs;
+      if (startSecs == null) {
+        final tripTimes = times.where((t) => t.tripId == trip.id).toList();
+        if (tripTimes.isNotEmpty) {
+          tripTimes.sort((a, b) => a.sequence.compareTo(b.sequence));
+          startSecs = tripTimes.first.departureSeconds;
+        }
+      }
+      if (startSecs == null) continue;
+      for (var offset = -1; offset <= 0; offset++) {
+        final day = serviceDay.add(Duration(days: offset));
+        if (!calendar.activeOn(day)) continue;
+        final dep = day.add(Duration(seconds: startSecs));
+        if (!dep.isBefore(now)) {
+          departures.add(dep);
+        }
+      }
+    }
+    final sorted = departures.toList()..sort();
+    return sorted.take(limit.clamp(0, sorted.length)).toList(growable: false);
+  }
+
+  @override
   Future<FeedStatus> feedStatus() async => status;
 
   @override

@@ -187,7 +187,7 @@ En otra terminal:
 
 ```powershell
 adb devices -l
-adb reverse tcp:8765 tcp:8765
+
 flutter run -d <ID-del-dispositivo> --dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765
 ```
 

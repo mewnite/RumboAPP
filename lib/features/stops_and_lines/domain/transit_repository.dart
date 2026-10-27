@@ -14,6 +14,12 @@ abstract interface class TransitRepository {
   Future<List<RouteVariant>> variantsForRoute(String routeId);
   Future<RouteVariant?> variantByExternalId(int externalVariantId);
   Future<Shape?> shapeForVariant(String variantId);
+  Future<List<Stop>> stopsForVariant(String variantId);
+  Future<List<DateTime>> upcomingDeparturesForVariant(
+    String variantId,
+    DateTime now, {
+    int limit = 10,
+  });
   Future<List<UpcomingDeparture>> upcomingDepartures(
     String stopId,
     DateTime now, {

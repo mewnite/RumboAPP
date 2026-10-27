@@ -1501,6 +1501,90 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'Favorito'**
   String get searchKindFavorite;
+
+  /// No description provided for @lineDetailTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Línea {name}'**
+  String lineDetailTitle(String name);
+
+  /// No description provided for @lineDetailVariant.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Variante'**
+  String get lineDetailVariant;
+
+  /// No description provided for @lineDetailDirection.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Hacia {destination}'**
+  String lineDetailDirection(String destination);
+
+  /// No description provided for @lineDetailStopsTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Paradas del recorrido'**
+  String get lineDetailStopsTitle;
+
+  /// No description provided for @lineDetailStopCount.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{count, plural, =1{1 parada} other{{count} paradas}}'**
+  String lineDetailStopCount(int count);
+
+  /// No description provided for @lineDetailUpcomingDepartures.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Próximas salidas estimadas'**
+  String get lineDetailUpcomingDepartures;
+
+  /// No description provided for @lineDetailNoDepartures.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No hay más salidas estimadas para hoy.'**
+  String get lineDetailNoDepartures;
+
+  /// No description provided for @lineDetailDepartureEstimated.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{time} · estimado'**
+  String lineDetailDepartureEstimated(String time);
+
+  /// No description provided for @lineDetailLiveBuses.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ómnibus en vivo'**
+  String get lineDetailLiveBuses;
+
+  /// No description provided for @lineDetailLiveBusesCount.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{count, plural, =0{Sin ómnibus en vivo en este momento} one{1 ómnibus en circulación} other{{count} ómnibus en circulación}}'**
+  String lineDetailLiveBusesCount(int count);
+
+  /// No description provided for @lineDetailEmpty.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No hay información disponible para esta línea.'**
+  String get lineDetailEmpty;
+
+  /// No description provided for @lineDetailNoVariants.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se encontraron recorridos para esta línea.'**
+  String get lineDetailNoVariants;
+
+  /// No description provided for @lineDetailError.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudo cargar el detalle de la línea: {message}'**
+  String lineDetailError(String message);
+
+  /// No description provided for @lineDetailOffline.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Sin conexión. Los horarios y paradas mostrados son los guardados.'**
+  String get lineDetailOffline;
 }
 
 class _AppLocalizationsDelegate

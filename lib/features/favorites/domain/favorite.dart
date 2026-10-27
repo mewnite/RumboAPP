@@ -36,6 +36,25 @@ class Favorite {
     );
   }
 
+  factory Favorite.line({required String id, required String name}) {
+    return Favorite(id: id, type: FavoriteType.line, name: name);
+  }
+
+  factory Favorite.stop({
+    required String id,
+    required String name,
+    required double latitude,
+    required double longitude,
+  }) {
+    return Favorite(
+      id: id,
+      type: FavoriteType.stop,
+      name: name,
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
   factory Favorite.fromJson(Map<String, Object?> json) {
     final typeName = json['type'];
     final type = FavoriteType.values

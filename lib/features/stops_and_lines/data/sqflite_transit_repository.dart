@@ -186,6 +186,97 @@ class SqfliteTransitRepository implements TransitRepository {
   }
 
   @override
+  Future<List<Stop>> stopsForVariant(String variantId) async {
+    final db = await _database();
+    final patternRows = await db.rawQuery(
+      'SELECT t.pattern_id, COUNT(*) as cnt '
+      'FROM trips t '
+      'WHERE t.variant_id = ? AND t.pattern_id IS NOT NULL '
+      'GROUP BY t.pattern_id '
+      'ORDER BY cnt DESC '
+      'LIMIT 1',
+      [variantId],
+    );
+    if (patternRows.isEmpty) return const [];
+    final patternId = patternRows.first['pattern_id'] as String;
+
+    final rows = await db.rawQuery(
+      'SELECT s.id, s.name, s.lat, s.lon, s.code FROM pattern_stops ps '
+      'JOIN stops s ON s.id = ps.stop_id '
+      'WHERE ps.pattern_id = ? '
+      'ORDER BY ps.ordinal ASC',
+      [patternId],
+    );
+    return rows.map(_stop).toList(growable: false);
+  }
+
+  @override
+  Future<List<DateTime>> upcomingDeparturesForVariant(
+    String variantId,
+    DateTime now, {
+    int limit = 10,
+  }) async {
+    final db = await _database();
+    final rows = await db.query(
+      'trips',
+      columns: ['id', 'service_id', 'start_secs'],
+      where: 'variant_id = ? AND start_secs IS NOT NULL',
+      whereArgs: [variantId],
+      orderBy: 'start_secs ASC',
+    );
+    if (rows.isEmpty) return const [];
+
+    final calendars = await db.query('calendars');
+    final calendarById = <String, ServiceCalendar>{};
+    for (final row in calendars) {
+      final service = row['service_id'] as String;
+      final exceptionRows = await db.query(
+        'calendar_exceptions',
+        where: 'service_id = ?',
+        whereArgs: [service],
+      );
+      final additions = <DateTime>{}, removals = <DateTime>{};
+      for (final exception in exceptionRows) {
+        final value = DateTime.parse(exception['date'] as String);
+        (exception['type'] == 1 ? additions : removals).add(
+          DateTime(value.year, value.month, value.day),
+        );
+      }
+      calendarById[service] = ServiceCalendar(
+        serviceId: service,
+        startDate: DateTime.parse(row['start_date'] as String),
+        endDate: DateTime.parse(row['end_date'] as String),
+        weekdays: (row['weekdays'] as String)
+            .split(',')
+            .where((day) => day.isNotEmpty)
+            .map(int.parse)
+            .toSet(),
+        addedDates: additions,
+        removedDates: removals,
+      );
+    }
+
+    final serviceDay = DateTime(now.year, now.month, now.day);
+    final departures = <DateTime>{};
+    for (final row in rows) {
+      final service = calendarById[row['service_id'] as String];
+      if (service == null) continue;
+      final startSecs = row['start_secs'] as int?;
+      if (startSecs == null) continue;
+      for (var offset = -1; offset <= 0; offset++) {
+        final day = serviceDay.add(Duration(days: offset));
+        if (!service.activeOn(day)) continue;
+        final dep = day.add(Duration(seconds: startSecs));
+        if (!dep.isBefore(now)) {
+          departures.add(dep);
+        }
+      }
+    }
+    final sorted = departures.toList()..sort();
+    return sorted.take(limit).toList(growable: false);
+  }
+
+  @override
   Future<List<UpcomingDeparture>> upcomingDepartures(
     String stopId,
     DateTime now, {

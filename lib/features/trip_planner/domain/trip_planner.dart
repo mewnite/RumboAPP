@@ -11,6 +11,7 @@ class TripEndpoint {
     required this.latitude,
     required this.longitude,
     this.stop,
+    this.route,
   });
 
   factory TripEndpoint.fromStop(Stop stop) => TripEndpoint(
@@ -20,10 +21,22 @@ class TripEndpoint {
     stop: stop,
   );
 
+  factory TripEndpoint.fromRoute(
+    Route route, {
+    double latitude = -34.9058,
+    double longitude = -56.1991,
+  }) => TripEndpoint(
+    name: route.shortName.isNotEmpty ? 'Línea ${route.shortName}' : route.id,
+    latitude: latitude,
+    longitude: longitude,
+    route: route,
+  );
+
   final String name;
   final double latitude;
   final double longitude;
   final Stop? stop;
+  final Route? route;
 }
 
 enum TripTimingMode { departNow, departAt, arriveBy }

@@ -838,6 +838,76 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get searchKindFavorite => 'Favorito';
+
+  @override
+  String lineDetailTitle(String name) {
+    return 'Línea $name';
+  }
+
+  @override
+  String get lineDetailVariant => 'Variante';
+
+  @override
+  String lineDetailDirection(String destination) {
+    return 'Hacia $destination';
+  }
+
+  @override
+  String get lineDetailStopsTitle => 'Paradas del recorrido';
+
+  @override
+  String lineDetailStopCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paradas',
+      one: '1 parada',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get lineDetailUpcomingDepartures => 'Próximas salidas estimadas';
+
+  @override
+  String get lineDetailNoDepartures => 'No hay más salidas estimadas para hoy.';
+
+  @override
+  String lineDetailDepartureEstimated(String time) {
+    return '$time · estimado';
+  }
+
+  @override
+  String get lineDetailLiveBuses => 'Ómnibus en vivo';
+
+  @override
+  String lineDetailLiveBusesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ómnibus en circulación',
+      one: '1 ómnibus en circulación',
+      zero: 'Sin ómnibus en vivo en este momento',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get lineDetailEmpty =>
+      'No hay información disponible para esta línea.';
+
+  @override
+  String get lineDetailNoVariants =>
+      'No se encontraron recorridos para esta línea.';
+
+  @override
+  String lineDetailError(String message) {
+    return 'No se pudo cargar el detalle de la línea: $message';
+  }
+
+  @override
+  String get lineDetailOffline =>
+      'Sin conexión. Los horarios y paradas mostrados son los guardados.';
 }
 
 /// The translations for Spanish Castilian, as used in Uruguay (`es_UY`).
@@ -1673,4 +1743,74 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get searchKindFavorite => 'Favorito';
+
+  @override
+  String lineDetailTitle(String name) {
+    return 'Línea $name';
+  }
+
+  @override
+  String get lineDetailVariant => 'Variante';
+
+  @override
+  String lineDetailDirection(String destination) {
+    return 'Hacia $destination';
+  }
+
+  @override
+  String get lineDetailStopsTitle => 'Paradas del recorrido';
+
+  @override
+  String lineDetailStopCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paradas',
+      one: '1 parada',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get lineDetailUpcomingDepartures => 'Próximas salidas estimadas';
+
+  @override
+  String get lineDetailNoDepartures => 'No hay más salidas estimadas para hoy.';
+
+  @override
+  String lineDetailDepartureEstimated(String time) {
+    return '$time · estimado';
+  }
+
+  @override
+  String get lineDetailLiveBuses => 'Ómnibus en vivo';
+
+  @override
+  String lineDetailLiveBusesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ómnibus en circulación',
+      one: '1 ómnibus en circulación',
+      zero: 'Sin ómnibus en vivo en este momento',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get lineDetailEmpty =>
+      'No hay información disponible para esta línea.';
+
+  @override
+  String get lineDetailNoVariants =>
+      'No se encontraron recorridos para esta línea.';
+
+  @override
+  String lineDetailError(String message) {
+    return 'No se pudo cargar el detalle de la línea: $message';
+  }
+
+  @override
+  String get lineDetailOffline =>
+      'Sin conexión. Los horarios y paradas mostrados son los guardados.';
 }

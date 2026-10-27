@@ -50,11 +50,13 @@ class StopDetailsSheet extends ConsumerWidget {
   const StopDetailsSheet({
     required this.stop,
     required this.onHowToGetThere,
+    this.onRouteSelected,
     super.key,
   });
 
   final Stop stop;
   final VoidCallback onHowToGetThere;
+  final ValueChanged<Route>? onRouteSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -113,11 +115,17 @@ class StopDetailsSheet extends ConsumerWidget {
                         runSpacing: 8,
                         children: [
                           for (final route in data.routes)
-                            LineChip(
-                              label: route.shortName.isEmpty
-                                  ? route.id
-                                  : route.shortName,
-                              backgroundColor: _routeColor(route),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: onRouteSelected == null
+                                  ? null
+                                  : () => onRouteSelected!(route),
+                              child: LineChip(
+                                label: route.shortName.isEmpty
+                                    ? route.id
+                                    : route.shortName,
+                                backgroundColor: _routeColor(route),
+                              ),
                             ),
                         ],
                       ),

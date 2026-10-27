@@ -19,6 +19,7 @@ import '../../../features/stops_and_lines/data/transit_database.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../features/stops_and_lines/domain/transit_repository.dart';
 import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
+import '../../../features/stops_and_lines/presentation/line_details_sheet.dart';
 import '../../../features/stops_and_lines/presentation/stop_details_sheet.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
@@ -559,6 +560,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
               Navigator.of(context).pop();
             }
           },
+          onRouteSelected: (Route route) {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+            unawaited(_showLineDetails(route));
+          },
           searchStops: (query) async {
             final feed = ref.read(feedUpdateControllerProvider).asData?.value;
             if (feed == null ||
@@ -681,6 +688,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
         onHowToGetThere: () {
           shouldPlan = true;
           Navigator.of(context).pop();
+        },
+        onRouteSelected: (route) {
+          Navigator.of(context).pop();
+          unawaited(_showLineDetails(route));
         },
       ),
     );
@@ -949,36 +960,90 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   Future<void> _showSavedRoute(Route route) async {
+    await _showLineDetails(route);
+  }
+
+  Future<void> _showLineDetails(Route route, {String? initialVariantId}) async {
     final hexColor = route.color.replaceFirst('#', '');
     final routeColor = RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hexColor)
         ? Color(int.parse('FF$hexColor', radix: 16))
         : AppColors.deepBlue;
     setState(() {
       _selectedTripPlan = null;
-      _selectedVariantId = null;
+      _selectedVariantId = initialVariantId;
       _selectedRoute = route;
       _selectedRouteColor = routeColor;
     });
-    final variants = await ref.read(routeVariantsProvider(route.id).future);
+
+    final variants = await ref.read(lineVariantsProvider(route.id).future);
     RouteVariant? variant;
-    for (final candidate in variants) {
-      if (candidate.shapeId != null) {
-        variant = candidate;
-        break;
+    if (initialVariantId != null) {
+      variant = variants.where((v) => v.id == initialVariantId).firstOrNull;
+    }
+    variant ??= variants.firstOrNull;
+
+    if (variant != null && mounted) {
+      setState(() => _selectedVariantId = variant!.id);
+      final shape = await ref.read(routeShapeProvider(variant.id).future);
+      var points = shape?.points;
+      if (points == null || points.isEmpty) {
+        final stops = await ref.read(variantStopsProvider(variant.id).future);
+        points = [
+          for (var i = 0; i < stops.length; i++)
+            ShapePoint(stops[i].latitude, stops[i].longitude, i),
+        ];
+      }
+      if (points.isNotEmpty && mounted) {
+        final middle = points[points.length ~/ 2];
+        await _mapController?.animateCamera(
+          center: Geographic(lon: middle.longitude, lat: middle.latitude),
+          zoom: 12.5,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+          ),
+        );
       }
     }
-    if (variant == null || !mounted || _selectedRoute?.id != route.id) return;
-    final shape = await ref.read(routeShapeProvider(variant.id).future);
-    if (!mounted || _selectedRoute?.id != route.id) return;
-    setState(() => _selectedVariantId = variant!.id);
-    final points = shape?.points;
-    if (points == null || points.isEmpty) return;
-    final middle = points[points.length ~/ 2];
-    await _mapController?.animateCamera(
-      center: Geographic(lon: middle.longitude, lat: middle.latitude),
-      zoom: 12.5,
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => LineDetailsSheet(
+        route: route,
+        initialVariantId: variant?.id,
+        onClose: () => Navigator.of(sheetContext).pop(),
+        onVariantSelected: (newVariant) async {
+          setState(() => _selectedVariantId = newVariant.id);
+          final shape = await ref.read(
+            routeShapeProvider(newVariant.id).future,
+          );
+          var points = shape?.points;
+          if (points == null || points.isEmpty) {
+            final stops = await ref.read(
+              variantStopsProvider(newVariant.id).future,
+            );
+            points = [
+              for (var i = 0; i < stops.length; i++)
+                ShapePoint(stops[i].latitude, stops[i].longitude, i),
+            ];
+          }
+          if (points.isNotEmpty && mounted) {
+            final middle = points[points.length ~/ 2];
+            await _mapController?.animateCamera(
+              center: Geographic(lon: middle.longitude, lat: middle.latitude),
+              zoom: 12.5,
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+              ),
+            );
+          }
+        },
+        onStopSelected: (stop) {
+          Navigator.of(sheetContext).pop();
+          unawaited(_showStopDetails(stop));
+        },
       ),
     );
   }
@@ -1062,6 +1127,25 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final selectedShape = _selectedVariantId == null
         ? null
         : ref.watch(routeShapeProvider(_selectedVariantId!)).asData?.value;
+    final fallbackStops = _selectedVariantId == null
+        ? null
+        : ref.watch(variantStopsProvider(_selectedVariantId!)).asData?.value;
+    final effectiveShape =
+        (selectedShape != null && selectedShape.points.length >= 2)
+        ? selectedShape
+        : (fallbackStops != null && fallbackStops.length >= 2
+              ? Shape(
+                  id: _selectedVariantId!,
+                  points: [
+                    for (var i = 0; i < fallbackStops.length; i++)
+                      ShapePoint(
+                        fallbackStops[i].latitude,
+                        fallbackStops[i].longitude,
+                        i,
+                      ),
+                  ],
+                )
+              : null);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mapBuilder =
         widget.mapBuilder ?? ref.watch(mapBuilderOverrideProvider);
@@ -1081,7 +1165,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           onEvent: _onMapEvent,
           layers: [
             ..._tripPlanLayers(_selectedTripPlan),
-            ..._selectedRouteLayers(selectedShape),
+            ..._selectedRouteLayers(effectiveShape),
             ..._stopLayers(stops),
             ..._locationLayers(locationState, isDark),
           ],

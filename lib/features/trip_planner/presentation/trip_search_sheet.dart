@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Route;
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -39,6 +39,7 @@ class TripSearchSheet extends StatefulWidget {
     this.searchService,
     this.initialDestination,
     this.onPlanSelected,
+    this.onRouteSelected,
     this.departureTimePicker,
     this.now,
     this.initialConfig = const PlannerConfig(),
@@ -53,6 +54,7 @@ class TripSearchSheet extends StatefulWidget {
   final PlaceSearchService? searchService;
   final TripEndpoint? initialDestination;
   final TripPlanSelected? onPlanSelected;
+  final ValueChanged<Route>? onRouteSelected;
   final DepartureTimePicker? departureTimePicker;
   final DateTime Function()? now;
   final PlannerConfig initialConfig;
@@ -537,6 +539,23 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   itemCount: _suggestions.length,
                   itemBuilder: (context, index) {
                     final endpoint = _suggestions[index];
+                    if (endpoint.route != null) {
+                      return ListTile(
+                        key: ValueKey(
+                          'trip-endpoint-${_endpointKey(endpoint)}',
+                        ),
+                        leading: const Icon(Symbols.alt_route_rounded),
+                        title: Text(endpoint.name),
+                        subtitle: Text(l10n.searchKindRoute),
+                        onTap: () {
+                          if (widget.onRouteSelected != null) {
+                            widget.onRouteSelected!(endpoint.route!);
+                          } else {
+                            _selectEndpoint(endpoint);
+                          }
+                        },
+                      );
+                    }
                     return ListTile(
                       key: ValueKey('trip-endpoint-${_endpointKey(endpoint)}'),
                       leading: Icon(

@@ -510,5 +510,19 @@
   "searchKindNeighborhood": "Barrio",
   "searchKindRoute": "Línea STM",
   "searchKindRecent": "Reciente",
-  "searchKindFavorite": "Favorito"
+  "searchKindFavorite": "Favorito",
+  "lineDetailTitle": "Línea {name}",
+  "lineDetailVariant": "Variante",
+  "lineDetailDirection": "Hacia {destination}",
+  "lineDetailStopsTitle": "Paradas del recorrido",
+  "lineDetailStopCount": "{count, plural, =1{1 parada} other{{count} paradas}}",
+  "lineDetailUpcomingDepartures": "Próximas salidas estimadas",
+  "lineDetailNoDepartures": "No hay más salidas estimadas para hoy.",
+  "lineDetailDepartureEstimated": "{time} · estimado",
+  "lineDetailLiveBuses": "Ómnibus en vivo",
+  "lineDetailLiveBusesCount": "{count, plural, =0{Sin ómnibus en vivo en este momento} one{1 ómnibus en circulación} other{{count} ómnibus en circulación}}",
+  "lineDetailEmpty": "No hay información disponible para esta línea.",
+  "lineDetailNoVariants": "No se encontraron recorridos para esta línea.",
+  "lineDetailError": "No se pudo cargar el detalle de la línea: {message}",
+  "lineDetailOffline": "Sin conexión. Los horarios y paradas mostrados son los guardados."
 }
