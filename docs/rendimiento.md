@@ -85,3 +85,21 @@ No se marcó ninguna pantalla como completamente sin tema: las pantallas usan
 `Theme.of(context)` o `AppColors`, aunque todavía existen tokens heredados y
 estilos puntuales que Fase 2 debe centralizar.
 
+## Fase 1: búsqueda y datos más rápidos
+
+Implementado sin agregar dependencias:
+
+- Índice local normalizado, construido una vez por feed mediante `compute`,
+  reutilizado por SQLite y web, con coincidencia por código, prefijo, palabra
+  y contenido, máximo 20 resultados y orden estable.
+- El índice incluye nombres y códigos de paradas, nombres de líneas y destinos
+  de variantes.
+- Debounce remoto de 200 ms, timeout de 8 s, cancelación lógica de respuestas
+  viejas y caché LRU de 20 consultas.
+- La planificación consulta como máximo 15 paradas cercanas por extremo.
+
+Los presupuestos de Fase 1 siguen **no medidos** en un dispositivo Android
+profile con el feed oficial: no se pudo iniciar una sesión profile utilizable
+con el proxy activo. `EXPLAIN QUERY PLAN` de las consultas SQLite y la
+validación de apertura read-only quedan pendientes para la siguiente iteración
+de datos.

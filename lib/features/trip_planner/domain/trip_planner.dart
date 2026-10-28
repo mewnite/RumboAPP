@@ -276,7 +276,7 @@ List<TripPlan> searchPlansSync(PlanSearchPayload payload) =>
 
 const _arrivalSearchStepMinutes = 10;
 const _arrivalSearchWindowMinutes = 180;
-const _maximumEndpointStopCandidates = 8;
+const _maximumEndpointStopCandidates = 15;
 
 class TransitRouteSearch {
   const TransitRouteSearch();

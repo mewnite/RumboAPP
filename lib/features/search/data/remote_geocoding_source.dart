@@ -14,7 +14,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
 
   final String endpoint;
   final http.Client _client;
-  final Map<String, List<SearchResult>> _cache = {};
+  final Map<String, List<SearchResult>> _cache = <String, List<SearchResult>>{};
 
   void close() => _client.close();
 
@@ -32,8 +32,11 @@ class RemoteGeocodingSource implements GeocodingRepository {
 
     final cacheKey =
         '${queryText.toLowerCase()}_${biasLatitude?.toStringAsFixed(3)}_${biasLongitude?.toStringAsFixed(3)}';
-    final cached = _cache[cacheKey];
-    if (cached != null) return cached;
+    final cached = _cache.remove(cacheKey);
+    if (cached != null) {
+      _cache[cacheKey] = cached;
+      return cached;
+    }
 
     final baseUri = Uri.tryParse(endpoint);
     final localDevelopmentHost =
@@ -69,7 +72,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
             'User-Agent': 'RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)',
           },
         )
-        .timeout(const Duration(seconds: 12));
+        .timeout(const Duration(seconds: 8));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
@@ -98,6 +101,9 @@ class RemoteGeocodingSource implements GeocodingRepository {
 
     final immutable = List<SearchResult>.unmodifiable(results);
     _cache[cacheKey] = immutable;
+    while (_cache.length > 20) {
+      _cache.remove(_cache.keys.first);
+    }
     return immutable;
   }
 

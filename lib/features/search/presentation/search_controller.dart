@@ -139,7 +139,7 @@ class DestinationSearchController extends Notifier<SearchState> {
 
     state = state.copyWith(isLocalOnly: isOffline);
     if (allowRemote && !isOffline && trimmed.length >= 3) {
-      _remoteDebounce = Timer(const Duration(milliseconds: 450), () {
+      _remoteDebounce = Timer(const Duration(milliseconds: 200), () {
         if (_searchGeneration != currentId) return;
         final remoteId = ++_searchGeneration;
         state = state.copyWith(status: SearchStatus.loading);

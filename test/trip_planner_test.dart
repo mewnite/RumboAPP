@@ -166,53 +166,52 @@ void main() {
     expect(plans.last.transferCount, 0);
   });
 
-  test('limits schedule loading to the eight closest endpoint stops', () async {
-    final stops = [
-      for (var index = 0; index < 9; index++)
-        Stop(
-          id: 'origin-$index',
-          name: 'Origen $index',
-          latitude: 0,
-          longitude: index * .0001,
-        ),
-      for (var index = 0; index < 9; index++)
-        Stop(
-          id: 'destination-$index',
-          name: 'Destino $index',
-          latitude: 0,
-          longitude: .1 + index * .0001,
-        ),
-    ];
-    final repository = _CountingTransitRepository(
-      stops: stops,
-      routes: const [],
-      variants: const [],
-      trips: const [],
-      times: const [],
-      calendars: const [],
-    );
+  test(
+    'limits schedule loading to the fifteen closest endpoint stops',
+    () async {
+      final stops = [
+        for (var index = 0; index < 9; index++)
+          Stop(
+            id: 'origin-$index',
+            name: 'Origen $index',
+            latitude: 0,
+            longitude: index * .0001,
+          ),
+        for (var index = 0; index < 9; index++)
+          Stop(
+            id: 'destination-$index',
+            name: 'Destino $index',
+            latitude: 0,
+            longitude: .1 + index * .0001,
+          ),
+      ];
+      final repository = _CountingTransitRepository(
+        stops: stops,
+        routes: const [],
+        variants: const [],
+        trips: const [],
+        times: const [],
+        calendars: const [],
+      );
 
-    await TransitTripPlanner(
-      repository,
-      now: () => DateTime(2026, 6, 2, 9),
-    ).plan(
-      TripRequest(
-        originLatitude: 0,
-        originLongitude: 0,
-        destinationLatitude: 0,
-        destinationLongitude: .1,
-        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
-      ),
-    );
+      await TransitTripPlanner(
+        repository,
+        now: () => DateTime(2026, 6, 2, 9),
+      ).plan(
+        TripRequest(
+          originLatitude: 0,
+          originLongitude: 0,
+          destinationLatitude: 0,
+          destinationLongitude: .1,
+          timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+        ),
+      );
 
-    expect(repository.scheduleStopRequests, hasLength(1));
-    expect(repository.scheduleStopRequests.single, hasLength(16));
-    expect(repository.scheduleStopRequests.single, isNot(contains('origin-8')));
-    expect(
-      repository.scheduleStopRequests.single,
-      isNot(contains('destination-8')),
-    );
-  });
+      expect(repository.scheduleStopRequests, hasLength(1));
+      expect(repository.scheduleStopRequests.single, hasLength(18));
+      expect(repository.scheduleStopRequests.single, contains('origin-8'));
+    },
+  );
 
   test('uses the previous service day for post-midnight GTFS times', () {
     final tuesdayOnly = ServiceCalendar(
