@@ -159,60 +159,74 @@ class TransitDatabase {
           pendingRows = 0;
         }
 
-        Future<void> insertRow(
+        Future<void> insertRows(
           String table,
-          Map<String, Object?> values,
+          Iterable<Map<String, Object?>> rows,
         ) async {
-          batch.insert(table, values);
-          pendingRows++;
-          insertedRows++;
-          final progress = insertedRows / totalRows;
-          if (progress - lastReportedProgress >= .01) {
-            lastReportedProgress = progress;
-            onProgress?.call(progress.clamp(0.0, 1.0));
+          for (final values in rows) {
+            batch.insert(table, values);
+            pendingRows++;
+            insertedRows++;
+            final progress = insertedRows / totalRows;
+            if (progress - lastReportedProgress >= .01) {
+              lastReportedProgress = progress;
+              onProgress?.call(progress.clamp(0.0, 1.0));
+            }
+            if (pendingRows >= _importBatchSize) await commitBatch();
           }
-          if (pendingRows >= _importBatchSize) await commitBatch();
         }
 
-        for (final s in feed.stops) {
-          await insertRow('stops', {
-            'id': s.id,
-            'name': s.name,
-            'lat': s.latitude,
-            'lon': s.longitude,
-            'code': s.code,
-          });
-        }
-        for (final r in feed.routes) {
-          await insertRow('routes', {
-            'id': r.id,
-            'short_name': r.shortName,
-            'long_name': r.longName,
-            'color': r.color,
-            'text_color': r.textColor,
-          });
-        }
-        for (final v in feed.variants) {
-          await insertRow('variants', {
-            'id': v.id,
-            'route_id': v.routeId,
-            'direction_id': v.directionId,
-            'destination': v.destination,
-            'shape_id': v.shapeId,
-            'external_variant_id': v.externalVariantId,
-          });
-        }
-        for (final t in feed.trips) {
-          await insertRow('trips', {
-            'id': t.id,
-            'route_id': t.routeId,
-            'service_id': t.serviceId,
-            'variant_id': t.variantId,
-            'headsign': t.headsign,
-            'pattern_id': t.patternId,
-            'start_secs': t.startSecs,
-          });
-        }
+        await insertRows(
+          'stops',
+          feed.stops.map(
+            (s) => {
+              'id': s.id,
+              'name': s.name,
+              'lat': s.latitude,
+              'lon': s.longitude,
+              'code': s.code,
+            },
+          ),
+        );
+        await insertRows(
+          'routes',
+          feed.routes.map(
+            (r) => {
+              'id': r.id,
+              'short_name': r.shortName,
+              'long_name': r.longName,
+              'color': r.color,
+              'text_color': r.textColor,
+            },
+          ),
+        );
+        await insertRows(
+          'variants',
+          feed.variants.map(
+            (v) => {
+              'id': v.id,
+              'route_id': v.routeId,
+              'direction_id': v.directionId,
+              'destination': v.destination,
+              'shape_id': v.shapeId,
+              'external_variant_id': v.externalVariantId,
+            },
+          ),
+        );
+        await insertRows(
+          'trips',
+          feed.trips.map(
+            (t) => {
+              'id': t.id,
+              'route_id': t.routeId,
+              'service_id': t.serviceId,
+              'variant_id': t.variantId,
+              'headsign': t.headsign,
+              'pattern_id': t.patternId,
+              'start_secs': t.startSecs,
+            },
+          ),
+        );
         late final List<TripPattern> patternsToWrite;
         // The GTFS parser already groups rows into patterns as it streams the
         // file. Prefer that compact result; rereading every stop_time into a
@@ -269,70 +283,91 @@ class TransitDatabase {
           }
         }
 
-        for (final p in patternsToWrite) {
-          await insertRow('trip_patterns', {'pattern_id': p.id});
-          for (final ps in p.stops) {
-            await insertRow('pattern_stops', {
-              'pattern_id': p.id,
-              'ordinal': ps.ordinal,
-              'stop_id': ps.stopId,
-              'arrival_offset_secs': ps.arrivalOffsetSecs,
-              'departure_offset_secs': ps.departureOffsetSecs,
-            });
-          }
-        }
-        for (final s in feed.shapes) {
-          for (final point in s.points) {
-            await insertRow('shapes', {
-              'shape_id': s.id,
-              'lat': point.latitude,
-              'lon': point.longitude,
-              'sequence': point.sequence,
-            });
-          }
-        }
-        for (final c in feed.calendars) {
-          await insertRow('calendars', {
-            'service_id': c.serviceId,
-            'start_date': c.startDate.toIso8601String(),
-            'end_date': c.endDate.toIso8601String(),
-            'weekdays': c.weekdays.join(','),
-          });
-          for (final date in c.addedDates) {
-            await insertRow('calendar_exceptions', {
-              'service_id': c.serviceId,
-              'date': date.toIso8601String(),
-              'type': 1,
-            });
-          }
-          for (final date in c.removedDates) {
-            await insertRow('calendar_exceptions', {
-              'service_id': c.serviceId,
-              'date': date.toIso8601String(),
-              'type': 2,
-            });
-          }
-        }
-        await insertRow('feed_metadata', {
-          'source': sourceName,
-          'version': feed.feedInfo.version,
-          'downloaded_at': (downloadedAt ?? DateTime.now()).toIso8601String(),
-          'etag': etag,
-          'valid_until': (feed.feedInfo.endDate ?? _latestEndDate(feed))
-              ?.toIso8601String(),
-          'stop_count': feed.stops.length,
-          'route_count': feed.routes.length,
-          'variant_count': feed.variants.length,
-          'trip_count': feed.trips.length,
-          'stop_time_count': feed.stopTimeCount,
-          'shape_point_count': feed.shapes.fold<int>(
-            0,
-            (total, shape) => total + shape.points.length,
+        await insertRows(
+          'trip_patterns',
+          patternsToWrite.map((pattern) => {'pattern_id': pattern.id}),
+        );
+        await insertRows(
+          'pattern_stops',
+          patternsToWrite.expand(
+            (pattern) => pattern.stops.map(
+              (point) => {
+                'pattern_id': pattern.id,
+                'ordinal': point.ordinal,
+                'stop_id': point.stopId,
+                'arrival_offset_secs': point.arrivalOffsetSecs,
+                'departure_offset_secs': point.departureOffsetSecs,
+              },
+            ),
           ),
-          'calendar_count': feed.calendars.length,
-          'warning_count': feed.warningCount,
-          'synthetic': feed.feedInfo.synthetic ? 1 : 0,
-        });
+        );
+        await insertRows(
+          'shapes',
+          feed.shapes.expand(
+            (shape) => shape.points.map(
+              (point) => {
+                'shape_id': shape.id,
+                'lat': point.latitude,
+                'lon': point.longitude,
+                'sequence': point.sequence,
+              },
+            ),
+          ),
+        );
+        await insertRows(
+          'calendars',
+          feed.calendars.map(
+            (c) => {
+              'service_id': c.serviceId,
+              'start_date': c.startDate.toIso8601String(),
+              'end_date': c.endDate.toIso8601String(),
+              'weekdays': c.weekdays.join(','),
+            },
+          ),
+        );
+        await insertRows(
+          'calendar_exceptions',
+          feed.calendars.expand(
+            (calendar) => [
+              ...calendar.addedDates.map(
+                (date) => {
+                  'service_id': calendar.serviceId,
+                  'date': date.toIso8601String(),
+                  'type': 1,
+                },
+              ),
+              ...calendar.removedDates.map(
+                (date) => {
+                  'service_id': calendar.serviceId,
+                  'date': date.toIso8601String(),
+                  'type': 2,
+                },
+              ),
+            ],
+          ),
+        );
+        await insertRows('feed_metadata', [
+          {
+            'source': sourceName,
+            'version': feed.feedInfo.version,
+            'downloaded_at': (downloadedAt ?? DateTime.now()).toIso8601String(),
+            'etag': etag,
+            'valid_until': (feed.feedInfo.endDate ?? _latestEndDate(feed))
+                ?.toIso8601String(),
+            'stop_count': feed.stops.length,
+            'route_count': feed.routes.length,
+            'variant_count': feed.variants.length,
+            'trip_count': feed.trips.length,
+            'stop_time_count': feed.stopTimeCount,
+            'shape_point_count': feed.shapes.fold<int>(
+              0,
+              (total, shape) => total + shape.points.length,
+            ),
+            'calendar_count': feed.calendars.length,
+            'warning_count': feed.warningCount,
+            'synthetic': feed.feedInfo.synthetic ? 1 : 0,
+          },
+        ]);
         await commitBatch();
       });
       await db.close();

@@ -14,7 +14,7 @@ void main() {
   );
 
   test('ranks a faster one-transfer route ahead of a slower direct route', () async {
-    final repo = FakeTransitRepository(
+    final repo = _CountingTransitRepository(
       stops: const [
         Stop(id: 'origin-stop', name: 'Origen', latitude: 0, longitude: .001),
         Stop(
@@ -137,6 +137,15 @@ void main() {
           ),
         );
 
+    expect(repo.nearbyStopCalls, 2);
+    expect(repo.scheduleStopRequests, hasLength(1));
+    expect(repo.scheduleStopRequests.single, {
+      'origin-stop',
+      'destination-stop',
+    });
+    expect(repo.scheduleWindows, hasLength(1));
+    expect(repo.scheduleWindows.single.windowStart, DateTime(2026, 6, 2, 10));
+    expect(repo.scheduleWindows.single.windowEnd, DateTime(2026, 6, 2, 13, 45));
     expect(
       plans,
       hasLength(2),
@@ -155,6 +164,54 @@ void main() {
     );
     expect(plans.first.timeAccuracy, TripTimeAccuracy.scheduled);
     expect(plans.last.transferCount, 0);
+  });
+
+  test('limits schedule loading to the eight closest endpoint stops', () async {
+    final stops = [
+      for (var index = 0; index < 9; index++)
+        Stop(
+          id: 'origin-$index',
+          name: 'Origen $index',
+          latitude: 0,
+          longitude: index * .0001,
+        ),
+      for (var index = 0; index < 9; index++)
+        Stop(
+          id: 'destination-$index',
+          name: 'Destino $index',
+          latitude: 0,
+          longitude: .1 + index * .0001,
+        ),
+    ];
+    final repository = _CountingTransitRepository(
+      stops: stops,
+      routes: const [],
+      variants: const [],
+      trips: const [],
+      times: const [],
+      calendars: const [],
+    );
+
+    await TransitTripPlanner(
+      repository,
+      now: () => DateTime(2026, 6, 2, 9),
+    ).plan(
+      TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .1,
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+      ),
+    );
+
+    expect(repository.scheduleStopRequests, hasLength(1));
+    expect(repository.scheduleStopRequests.single, hasLength(16));
+    expect(repository.scheduleStopRequests.single, isNot(contains('origin-8')));
+    expect(
+      repository.scheduleStopRequests.single,
+      isNot(contains('destination-8')),
+    );
   });
 
   test('uses the previous service day for post-midnight GTFS times', () {
@@ -909,6 +966,42 @@ FakeTransitRepository _singleTripRepository({
 }
 
 int _seconds(int hour, int minute) => hour * 3600 + minute * 60;
+
+class _CountingTransitRepository extends FakeTransitRepository {
+  _CountingTransitRepository({
+    required super.stops,
+    required super.routes,
+    required super.variants,
+    required super.trips,
+    required super.times,
+    required super.calendars,
+  });
+
+  int nearbyStopCalls = 0;
+  final scheduleStopRequests = <Set<String>>[];
+  final scheduleWindows = <({DateTime? windowStart, DateTime? windowEnd})>[];
+
+  @override
+  Future<List<Stop>> nearbyStops(double lat, double lon, double radiusMeters) {
+    nearbyStopCalls++;
+    return super.nearbyStops(lat, lon, radiusMeters);
+  }
+
+  @override
+  Future<TransitScheduleData> scheduleForStops(
+    Set<String> stopIds, {
+    DateTime? windowStart,
+    DateTime? windowEnd,
+  }) {
+    scheduleStopRequests.add(Set.of(stopIds));
+    scheduleWindows.add((windowStart: windowStart, windowEnd: windowEnd));
+    return super.scheduleForStops(
+      stopIds,
+      windowStart: windowStart,
+      windowEnd: windowEnd,
+    );
+  }
+}
 
 TripPlan _planAt({
   required int arrivalMinute,

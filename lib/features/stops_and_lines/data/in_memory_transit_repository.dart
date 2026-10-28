@@ -241,7 +241,11 @@ class InMemoryTransitRepository implements TransitRepository {
   }
 
   @override
-  Future<TransitScheduleData> scheduleForStops(Set<String> stopIds) async {
+  Future<TransitScheduleData> scheduleForStops(
+    Set<String> stopIds, {
+    DateTime? windowStart,
+    DateTime? windowEnd,
+  }) async {
     if (stopIds.isEmpty) return const TransitScheduleData();
     final selectedTripIds = <String>{};
     for (final stopId in stopIds) {

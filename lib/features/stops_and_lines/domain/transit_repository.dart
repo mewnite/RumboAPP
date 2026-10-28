@@ -25,7 +25,11 @@ abstract interface class TransitRepository {
     DateTime now, {
     int limit = 10,
   });
-  Future<TransitScheduleData> scheduleForStops(Set<String> stopIds);
+  Future<TransitScheduleData> scheduleForStops(
+    Set<String> stopIds, {
+    DateTime? windowStart,
+    DateTime? windowEnd,
+  });
   Future<FeedStatus> feedStatus();
 }
 

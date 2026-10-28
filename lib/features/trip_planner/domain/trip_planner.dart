@@ -184,41 +184,52 @@ class TransitTripPlanner {
     final current = now?.call() ?? DateTime.now();
     if (request.timing.isPast(current)) return const [];
     final config = request.config;
-    final origins = await _repository.nearbyStops(
-      request.originLatitude,
-      request.originLongitude,
-      config.maximumWalkingMeters,
-    );
-    final destinations = await _repository.nearbyStops(
-      request.destinationLatitude,
-      request.destinationLongitude,
-      config.maximumWalkingMeters,
-    );
+    final scheduleWindowStart = switch (request.timing.mode) {
+      TripTimingMode.departNow => current,
+      TripTimingMode.departAt => request.timing.dateTime!,
+      TripTimingMode.arriveBy => request.timing.dateTime!.subtract(
+        const Duration(minutes: _arrivalSearchWindowMinutes),
+      ),
+    };
+    final scheduleWindowEnd = switch (request.timing.mode) {
+      TripTimingMode.arriveBy => request.timing.dateTime!,
+      TripTimingMode.departNow || TripTimingMode.departAt =>
+        scheduleWindowStart.add(config.maximumWait + const Duration(hours: 3)),
+    };
+    final nearbyEndpoints = await Future.wait([
+      _repository.nearbyStops(
+        request.originLatitude,
+        request.originLongitude,
+        config.maximumWalkingMeters,
+      ),
+      _repository.nearbyStops(
+        request.destinationLatitude,
+        request.destinationLongitude,
+        config.maximumWalkingMeters,
+      ),
+    ]);
+    final origins = nearbyEndpoints[0]
+        .take(_maximumEndpointStopCandidates)
+        .toList(growable: false);
+    final destinations = nearbyEndpoints[1]
+        .take(_maximumEndpointStopCandidates)
+        .toList(growable: false);
 
     var data = const TransitScheduleData();
     if (origins.isNotEmpty) {
-      final initialData = await _repository.scheduleForStops(
-        origins.map((stop) => stop.id).toSet(),
-      );
-      final transferStopIds = <String>{
-        ...initialData.stops.map((stop) => stop.id),
+      // A viable first leg must serve an origin stop; a viable final leg must
+      // serve a destination stop. Each schedule query returns the full trip
+      // pattern, so nearby transfer points are present in these two route
+      // sets without expanding schedules across every stop in the area.
+      final relevantStopIds = <String>{
+        ...origins.map((stop) => stop.id),
         ...destinations.map((stop) => stop.id),
       };
-      if (config.maximumTransfers > 0 &&
-          config.maximumTransferWalkingMeters > 0) {
-        for (final stop in initialData.stops) {
-          final nearby = await _repository.nearbyStops(
-            stop.latitude,
-            stop.longitude,
-            config.maximumTransferWalkingMeters,
-          );
-          transferStopIds.addAll(nearby.map((stop) => stop.id));
-        }
-      }
-      final additionalData = await _repository.scheduleForStops(
-        transferStopIds,
+      data = await _repository.scheduleForStops(
+        relevantStopIds,
+        windowStart: scheduleWindowStart,
+        windowEnd: scheduleWindowEnd,
       );
-      data = _mergeScheduleData(initialData, additionalData);
     }
 
     return runPlanSearch(
@@ -261,6 +272,7 @@ List<TripPlan> searchPlansSync(PlanSearchPayload payload) =>
 
 const _arrivalSearchStepMinutes = 10;
 const _arrivalSearchWindowMinutes = 180;
+const _maximumEndpointStopCandidates = 8;
 
 class TransitRouteSearch {
   const TransitRouteSearch();
@@ -359,35 +371,39 @@ class TransitRouteSearch {
     );
     final config = request.config;
     final transferTargetsByStop = <String, List<_TransferTarget>>{};
+    final destinationIndicesByInstance = <_TripInstance, List<int>>{};
+    for (final instance in index.instances) {
+      for (var stopIndex = 0; stopIndex < instance.times.length; stopIndex++) {
+        if (destinationStopIds.contains(instance.times[stopIndex].stopId)) {
+          destinationIndicesByInstance
+              .putIfAbsent(instance, () => <int>[])
+              .add(stopIndex);
+        }
+      }
+    }
 
     final plans = <TripPlan>[];
-    for (final first in index.instances) {
-      final firstTimes = first.absoluteTimes;
-      for (
-        var boardIndex = 0;
-        boardIndex < first.times.length - 1;
-        boardIndex++
-      ) {
-        final board = first.times[boardIndex];
-        if (!originStopIds.contains(board.stopId)) continue;
-        final boardStop = index.stopsById[board.stopId];
-        if (boardStop == null) continue;
-        final initialWalk = _walkingLeg(
-          request.originLatitude,
-          request.originLongitude,
-          departureTime,
-          config,
-          toStop: boardStop,
-          toLatitude: boardStop.latitude,
-          toLongitude: boardStop.longitude,
-        );
-        final transitDeparture = firstTimes[boardIndex].departure;
-        if (transitDeparture.isBefore(initialWalk.arrivalTime) ||
-            transitDeparture.isAfter(
-              initialWalk.arrivalTime.add(config.maximumWait),
-            )) {
-          continue;
-        }
+    for (final originStopId in originStopIds) {
+      final boardStop = index.stopsById[originStopId];
+      if (boardStop == null) continue;
+      final initialWalk = _walkingLeg(
+        request.originLatitude,
+        request.originLongitude,
+        departureTime,
+        config,
+        toStop: boardStop,
+        toLatitude: boardStop.latitude,
+        toLongitude: boardStop.longitude,
+      );
+      final originConnections = index.connectionsBetween(
+        originStopId,
+        initialWalk.arrivalTime,
+        initialWalk.arrivalTime.add(config.maximumWait),
+      );
+      for (final originConnection in originConnections) {
+        final first = originConnection.$1;
+        final boardIndex = originConnection.$2;
+        final firstTimes = first.absoluteTimes;
 
         for (
           var alightIndex = boardIndex + 1;
@@ -431,46 +447,42 @@ class TransitRouteSearch {
             () => _transferTargets(alightStop, index, config),
           );
           for (final target in targets) {
-            final connections =
-                index.instancesByStop[target.stop.id] ??
-                <(_TripInstance, int)>[];
+            final transferArrival = firstTimes[alightIndex].arrival;
+            final transferWalk = target.stop.id == alightStop.id
+                ? null
+                : _walkingLeg(
+                    alightStop.latitude,
+                    alightStop.longitude,
+                    transferArrival,
+                    config,
+                    fromStop: alightStop,
+                    toStop: target.stop,
+                    toLatitude: target.stop.latitude,
+                    toLongitude: target.stop.longitude,
+                  );
+            final readyTime = transferWalk?.arrivalTime ?? transferArrival;
+            final minimumDeparture = transferArrival.add(
+              config.minimumTransferTime,
+            );
+            final earliestDeparture = readyTime.isAfter(minimumDeparture)
+                ? readyTime
+                : minimumDeparture;
+            final latestDeparture = transferArrival.add(config.maximumWait);
+            if (earliestDeparture.isAfter(latestDeparture)) continue;
+            final connections = index.connectionsBetween(
+              target.stop.id,
+              earliestDeparture,
+              latestDeparture,
+            );
             for (final connection in connections) {
               final second = connection.$1;
               final secondBoardIndex = connection.$2;
               if (second.trip.id == first.trip.id) continue;
               final secondTimes = second.absoluteTimes;
-              final nextDeparture = secondTimes[secondBoardIndex].departure;
-              final transferArrival = firstTimes[alightIndex].arrival;
-              final transferWalk = target.stop.id == alightStop.id
-                  ? null
-                  : _walkingLeg(
-                      alightStop.latitude,
-                      alightStop.longitude,
-                      transferArrival,
-                      config,
-                      fromStop: alightStop,
-                      toStop: target.stop,
-                      toLatitude: target.stop.latitude,
-                      toLongitude: target.stop.longitude,
-                    );
-              final readyTime = transferWalk?.arrivalTime ?? transferArrival;
-              final transferDuration = nextDeparture.difference(
-                transferArrival,
-              );
-              if (transferDuration < config.minimumTransferTime ||
-                  nextDeparture.isBefore(readyTime) ||
-                  transferDuration > config.maximumWait) {
-                continue;
-              }
-              for (
-                var secondAlightIndex = secondBoardIndex + 1;
-                secondAlightIndex < second.times.length;
-                secondAlightIndex++
-              ) {
+              for (final secondAlightIndex
+                  in destinationIndicesByInstance[second] ?? const <int>[]) {
+                if (secondAlightIndex <= secondBoardIndex) continue;
                 final finalStopTime = second.times[secondAlightIndex];
-                if (!destinationStopIds.contains(finalStopTime.stopId)) {
-                  continue;
-                }
                 final finalStop = index.stopsById[finalStopTime.stopId];
                 if (finalStop == null) continue;
                 final finalWalk = _walkingLeg(
@@ -520,7 +532,10 @@ class TransitRouteSearch {
     PlannerConfig config,
   ) {
     final targets = <_TransferTarget>[];
-    for (final stop in index.stopsById.values) {
+    for (final stop in index.nearbyStops(
+      from,
+      config.maximumTransferWalkingMeters,
+    )) {
       if (stop.id == from.id) {
         targets.add(_TransferTarget(stop));
         continue;
@@ -593,23 +608,36 @@ List<TripPlan> _finalizePlans(List<TripPlan> plans, TripRequest request) {
     unique.putIfAbsent(key, () => plan);
   }
   final kept = <TripPlan>[];
+  var fastestNoTransferWalking = double.infinity;
+  var fastestOneTransferWalking = double.infinity;
   for (final plan in unique.values) {
-    if (kept.any((other) => _dominates(other, plan))) continue;
+    final minimumWalking = plan.transferCount == 0
+        ? fastestNoTransferWalking
+        : math.min(fastestNoTransferWalking, fastestOneTransferWalking);
+    if (minimumWalking <= plan.totalWalkingMeters) continue;
     kept.add(plan);
+    if (plan.transferCount == 0) {
+      fastestNoTransferWalking = math.min(
+        fastestNoTransferWalking,
+        plan.totalWalkingMeters,
+      );
+    } else {
+      fastestOneTransferWalking = math.min(
+        fastestOneTransferWalking,
+        plan.totalWalkingMeters,
+      );
+    }
   }
   return kept.take(request.config.resultLimit).toList(growable: false);
 }
-
-bool _dominates(TripPlan first, TripPlan second) =>
-    !first.arrivalTime.isAfter(second.arrivalTime) &&
-    first.transferCount <= second.transferCount &&
-    first.totalWalkingMeters <= second.totalWalkingMeters;
 
 class _ScheduleIndex {
   const _ScheduleIndex._({
     required this.stopsById,
     required this.instances,
     required this.instancesByStop,
+    required this.stopsByCell,
+    required this.cellSizeDegrees,
   });
 
   factory _ScheduleIndex.build(TransitScheduleData data, DateTime serviceDay) {
@@ -640,7 +668,7 @@ class _ScheduleIndex {
           route == null) {
         continue;
       }
-      for (final offset in [-1, 0]) {
+      for (final offset in [-1, 0, 1]) {
         final day = serviceDay.add(Duration(days: offset));
         if (!calendar.activeOn(day)) continue;
         instances.add(
@@ -674,16 +702,105 @@ class _ScheduleIndex {
             .add((instance, index));
       }
     }
+    for (final connections in instancesByStop.values) {
+      connections.sort((first, second) {
+        final firstDeparture = first.$1.absoluteTimes[first.$2].departure;
+        final secondDeparture = second.$1.absoluteTimes[second.$2].departure;
+        return firstDeparture.compareTo(secondDeparture);
+      });
+    }
+    final cellSizeMeters = 150.0;
+    final cellSizeDegrees = cellSizeMeters / 111320;
+    final stopsByCell = <(int, int), List<Stop>>{};
+    for (final stop in stopsById.values) {
+      final cell = (
+        (stop.latitude / cellSizeDegrees).floor(),
+        (stop.longitude / cellSizeDegrees).floor(),
+      );
+      stopsByCell.putIfAbsent(cell, () => <Stop>[]).add(stop);
+    }
     return _ScheduleIndex._(
       stopsById: stopsById,
       instances: instances,
       instancesByStop: instancesByStop,
+      stopsByCell: stopsByCell,
+      cellSizeDegrees: cellSizeDegrees,
     );
   }
 
   final Map<String, Stop> stopsById;
   final List<_TripInstance> instances;
   final Map<String, List<(_TripInstance, int)>> instancesByStop;
+  final Map<(int, int), List<Stop>> stopsByCell;
+  final double cellSizeDegrees;
+
+  Iterable<(_TripInstance, int)> connectionsBetween(
+    String stopId,
+    DateTime earliest,
+    DateTime latest,
+  ) sync* {
+    final connections = instancesByStop[stopId];
+    if (connections == null) return;
+    var low = 0;
+    var high = connections.length;
+    while (low < high) {
+      final middle = (low + high) >> 1;
+      final departure = connections[middle]
+          .$1
+          .absoluteTimes[connections[middle].$2]
+          .departure;
+      if (departure.isBefore(earliest)) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    for (var index = low; index < connections.length; index++) {
+      final connection = connections[index];
+      final departure = connection.$1.absoluteTimes[connection.$2].departure;
+      if (departure.isAfter(latest)) break;
+      yield connection;
+    }
+  }
+
+  Iterable<Stop> nearbyStops(Stop center, double radiusMeters) sync* {
+    if (radiusMeters < 0) return;
+    final latitudeDelta = radiusMeters / 111320;
+    final longitudeDelta =
+        latitudeDelta / math.cos(_radians(center.latitude)).abs().clamp(.01, 1);
+    final minimumLatitudeCell =
+        ((center.latitude - latitudeDelta) / cellSizeDegrees).floor();
+    final maximumLatitudeCell =
+        ((center.latitude + latitudeDelta) / cellSizeDegrees).floor();
+    final minimumLongitudeCell =
+        ((center.longitude - longitudeDelta) / cellSizeDegrees).floor();
+    final maximumLongitudeCell =
+        ((center.longitude + longitudeDelta) / cellSizeDegrees).floor();
+    for (
+      var latitudeCell = minimumLatitudeCell;
+      latitudeCell <= maximumLatitudeCell;
+      latitudeCell++
+    ) {
+      for (
+        var longitudeCell = minimumLongitudeCell;
+        longitudeCell <= maximumLongitudeCell;
+        longitudeCell++
+      ) {
+        for (final stop
+            in stopsByCell[(latitudeCell, longitudeCell)] ?? const []) {
+          if (_distanceMeters(
+                center.latitude,
+                center.longitude,
+                stop.latitude,
+                stop.longitude,
+              ) <=
+              radiusMeters) {
+            yield stop;
+          }
+        }
+      }
+    }
+  }
 }
 
 TripPlan _buildPlan({
@@ -824,35 +941,6 @@ double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
 }
 
 double _radians(double degrees) => degrees * math.pi / 180;
-
-TransitScheduleData _mergeScheduleData(
-  TransitScheduleData first,
-  TransitScheduleData second,
-) => TransitScheduleData(
-  stops: _uniqueById([...first.stops, ...second.stops], (item) => item.id),
-  routes: _uniqueById([...first.routes, ...second.routes], (item) => item.id),
-  variants: _uniqueById([
-    ...first.variants,
-    ...second.variants,
-  ], (item) => item.id),
-  trips: _uniqueById([...first.trips, ...second.trips], (item) => item.id),
-  stopTimes: _uniqueById([
-    ...first.stopTimes,
-    ...second.stopTimes,
-  ], (item) => '${item.tripId}:${item.sequence}'),
-  calendars: _uniqueById([
-    ...first.calendars,
-    ...second.calendars,
-  ], (item) => item.serviceId),
-);
-
-List<T> _uniqueById<T>(Iterable<T> values, String Function(T) id) {
-  final unique = <String, T>{};
-  for (final value in values) {
-    unique.putIfAbsent(id(value), () => value);
-  }
-  return unique.values.toList(growable: false);
-}
 
 void _validateRequest(TripRequest request) {
   final coordinates = [

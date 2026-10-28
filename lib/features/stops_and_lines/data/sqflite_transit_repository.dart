@@ -359,18 +359,93 @@ class SqfliteTransitRepository implements TransitRepository {
   }
 
   @override
-  Future<TransitScheduleData> scheduleForStops(Set<String> stopIds) async {
+  Future<TransitScheduleData> scheduleForStops(
+    Set<String> stopIds, {
+    DateTime? windowStart,
+    DateTime? windowEnd,
+  }) async {
     if (stopIds.isEmpty) return const TransitScheduleData();
+    if (windowStart != null &&
+        windowEnd != null &&
+        windowEnd.isBefore(windowStart)) {
+      return const TransitScheduleData();
+    }
     final db = await _database();
     final tripIds = <String>{};
+    final earliestTripStart = windowStart?.subtract(const Duration(hours: 6));
+    final scheduleDays = <DateTime>[];
+    if (earliestTripStart != null && windowEnd != null) {
+      final firstServiceDay = DateTime(
+        earliestTripStart.year,
+        earliestTripStart.month,
+        earliestTripStart.day,
+      ).subtract(const Duration(days: 1));
+      final lastServiceDay = DateTime(
+        windowEnd.year,
+        windowEnd.month,
+        windowEnd.day,
+      );
+      for (
+        var day = firstServiceDay;
+        !day.isAfter(lastServiceDay);
+        day = day.add(const Duration(days: 1))
+      ) {
+        scheduleDays.add(day);
+      }
+    }
     for (final chunk in _chunks(stopIds)) {
       final placeholders = List.filled(chunk.length, '?').join(',');
-      final rows = await db.rawQuery(
-        'SELECT DISTINCT t.id FROM pattern_stops ps '
-        'JOIN trips t ON t.pattern_id = ps.pattern_id '
-        'WHERE ps.stop_id IN ($placeholders)',
-        chunk.toList(),
-      );
+      final List<Map<String, Object?>> rows;
+      if (earliestTripStart == null || windowEnd == null) {
+        rows = await db.rawQuery(
+          'SELECT DISTINCT t.id FROM pattern_stops ps '
+          'JOIN trips t ON t.pattern_id = ps.pattern_id '
+          'WHERE ps.stop_id IN ($placeholders)',
+          chunk.toList(),
+        );
+      } else {
+        final dayClauses = <String>[];
+        final arguments = <Object?>[...chunk];
+        for (final day in scheduleDays) {
+          final startSeconds = math.max(
+            0,
+            earliestTripStart.difference(day).inSeconds,
+          );
+          final endSeconds = windowEnd.difference(day).inSeconds;
+          if (endSeconds < startSeconds) continue;
+          final date = _dateKey(day);
+          dayClauses.add(
+            '''(t.start_secs BETWEEN ? AND ? AND
+            ((substr(c.start_date,1,10) <= ? AND
+            substr(c.end_date,1,10) >= ? AND
+            instr(',' || c.weekdays || ',', ?) > 0) OR
+            EXISTS (SELECT 1 FROM calendar_exceptions add_date
+            WHERE add_date.service_id = t.service_id
+            AND substr(add_date.date,1,10) = ? AND add_date.type = 1))
+            AND NOT EXISTS (SELECT 1 FROM calendar_exceptions remove_date
+            WHERE remove_date.service_id = t.service_id
+            AND substr(remove_date.date,1,10) = ? AND remove_date.type = 2))''',
+          );
+          arguments.addAll([
+            startSeconds,
+            endSeconds,
+            date,
+            date,
+            ',${day.weekday},',
+            date,
+            date,
+          ]);
+        }
+        if (dayClauses.isEmpty) continue;
+        rows = await db.rawQuery(
+          'SELECT DISTINCT t.id FROM pattern_stops ps '
+          'JOIN trips t ON t.pattern_id = ps.pattern_id '
+          'JOIN calendars c ON c.service_id = t.service_id '
+          'WHERE ps.stop_id IN ($placeholders) '
+          'AND (${dayClauses.join(' OR ')})',
+          arguments,
+        );
+      }
       tripIds.addAll(rows.map((row) => row['id'] as String));
     }
     if (tripIds.isEmpty) return const TransitScheduleData();
@@ -541,6 +616,13 @@ Iterable<List<String>> _chunks(
     }
   }
   if (chunk.isNotEmpty) yield chunk;
+}
+
+String _dateKey(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
 }
 
 Stop _stop(Map<String, Object?> row) => Stop(

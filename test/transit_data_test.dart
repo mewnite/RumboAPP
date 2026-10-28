@@ -728,6 +728,20 @@ void main() {
       expect(schedule.trips.map((trip) => trip.id), ['t1']);
       expect(schedule.stopTimes.map((time) => time.stopId), ['s']);
       expect(schedule.calendars, hasLength(1));
+      final overnightSchedule =
+          await SqfliteTransitRepository(() async => database).scheduleForStops(
+            {'s'},
+            windowStart: DateTime(2026, 6, 3, 1),
+            windowEnd: DateTime(2026, 6, 3, 1, 45),
+          );
+      expect(overnightSchedule.trips.map((trip) => trip.id), ['t1']);
+      final outsideSchedule =
+          await SqfliteTransitRepository(() async => database).scheduleForStops(
+            {'s'},
+            windowStart: DateTime(2026, 6, 3, 8),
+            windowEnd: DateTime(2026, 6, 3, 9),
+          );
+      expect(outsideSchedule.trips, isEmpty);
       final routesByStop = await SqfliteTransitRepository(() async => database)
           .routesForStops({'s', 'missing'});
       expect(routesByStop['s']?.map((route) => route.shortName), ['R']);

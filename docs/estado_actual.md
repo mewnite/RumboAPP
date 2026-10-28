@@ -1,11 +1,13 @@
 # Estado actual del proyecto
 
-Revisión: 2026-10-27. La versión anterior se instaló en el emulador con el proxy activo: el GTFS terminó de importarse sin error, creó una base de 198 MB en unos 3 minutos y mostró paradas cercanas. Esto reprodujo el error anterior: patrones idénticos se insertaban varias veces y SQLite rechazaba la clave primaria. La revisión actual deduplica los patrones, evita releer 2,2 millones de filas, muestra avance y espera correctamente el primer estado; falta validar estos últimos cambios en Android.
+Revisión: 2026-10-27. La versión anterior se instaló en el emulador con el proxy activo: el GTFS terminó de importarse sin error, creó una base de 198 MB en unos 3 minutos y mostró paradas cercanas. Esto reprodujo el error anterior: patrones idénticos se insertaban varias veces y SQLite rechazaba la clave primaria. La revisión actual conserva esas correcciones; ya se instaló en Android sin borrar su base. Falta medir importación y planificación en ese emulador, donde el primer render del mapa todavía reportó cuadros omitidos.
+
+En esta revisión se redujo el trabajo del planificador: consulta horarios solo para las ocho paradas más cercanas a cada extremo, filtra viajes por calendario y ventana horaria, inicia desde salidas posibles del origen y usa búsquedas acotadas por hora para transbordos. Una medición de extremo a extremo con el feed oficial guardado en una base temporal, para Montevideo Shopping → Nuevo Centro y salida programada, devolvió cuatro opciones en 4,1 s en el equipo de desarrollo. La importación SQLite agrupa registros y espera únicamente al confirmar cada lote; en el mismo equipo, analizar e importar 4.920 paradas, 37.445 viajes y 2.221.190 horarios llevó 9,6 s + 13,9 s (23,5 s total). Ninguna de estas mediciones representa Android: la referencia de ~3 min es de una implementación anterior y todavía falta repetir ambas pruebas en el emulador o teléfono.
 
 ## 1. Salud técnica
 
 - `flutter analyze`: 0 errores, 0 warnings y 0 infos (`No issues found`).
-- `flutter test`: 161 pruebas pasan, 0 fallan. Fallidas: ninguna.
+- `flutter test`: 162 pruebas pasan, 0 fallan. Fallidas: ninguna.
 - `git log --oneline -15`: 10 commits; los más recientes completan los arribos por parada (A3) y el detalle del planificador (B3).
 - Dependencias directas de `pubspec.yaml`: `flutter` y `flutter_localizations` (SDK); `flutter_riverpod ^3.4.3`; `go_router ^18.1.1`; `shared_preferences ^2.5.6`; `material_symbols_icons ^4.2960.0`; `maplibre 0.3.7`; `geolocator 14.1.2`; `connectivity_plus ^7.3.1`; `http ^1.6.0`; `archive ^4.5.2`; `sqflite ^2.4.5`; `path ^1.9.1`; `path_provider ^2.1.6`; `flutter_local_notifications ^22.3.2`.
 - Desarrollo: `flutter_test` (SDK), `flutter_lints ^6.0.0`, `sqflite_common_ffi ^2.4.5`.
@@ -52,6 +54,7 @@ Revisión: 2026-10-27. La versión anterior se instaló en el emulador con el pr
 - Si el planificador se abre antes de que Riverpod emita su primer estado, espera el resultado real del GTFS y no dispara la excepción genérica de “GTFS no disponible”. Los errores de red/parser se preservan con su diagnóstico.
 - El parser deduplica por `pattern_id`; antes se fallaba con `UNIQUE constraint failed: trip_patterns.pattern_id` porque se comparaba identidad de objetos. Se agregó una prueba SQLite con dos viajes del mismo patrón.
 - La importación nativa usa patrones ya calculados y omite el JSONL duplicado de 2.221.437 filas. Reporta avance y desactiva journaling solo en la base temporal, que reemplaza la vigente al terminar.
+- La importación y el planificador se optimizaron en código; falta medir el tiempo de extremo a extremo en Android y el tiempo de una planificación con el feed real. La base del emulador no se borró.
 - La revisión anterior se ejecutó en un emulador Android y verificó el mapa, búsqueda de direcciones e importación del feed oficial. Permisos de ubicación, tema oscuro, escala de fuente y un teléfono físico quedan sin verificar en esta revisión.
 - El ETA en vivo usa la proyección sobre el shape y una velocidad de 18 km/h cuando el dato reportado es menor a 8 km/h; no se validó contra arribos oficiales ni contra el comportamiento real de la flota.
 - El detalle de parada actualiza sus arribos locales cuando se refrescan las posiciones observadas; el cálculo ETA local no equivale a una llegada oficial ni validada.

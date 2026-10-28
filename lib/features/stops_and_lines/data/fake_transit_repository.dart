@@ -177,7 +177,11 @@ class FakeTransitRepository implements TransitRepository {
   Future<FeedStatus> feedStatus() async => status;
 
   @override
-  Future<TransitScheduleData> scheduleForStops(Set<String> stopIds) async {
+  Future<TransitScheduleData> scheduleForStops(
+    Set<String> stopIds, {
+    DateTime? windowStart,
+    DateTime? windowEnd,
+  }) async {
     final tripIds = times
         .where((time) => stopIds.contains(time.stopId))
         .map((time) => time.tripId)
