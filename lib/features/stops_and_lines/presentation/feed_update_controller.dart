@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/transit_config.dart';
+import '../../../core/debug/performance_measurement.dart';
 import '../data/gtfs_parser.dart';
 import '../data/sqflite_transit_repository.dart';
 import '../data/transit_database.dart';
@@ -96,6 +97,7 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
   Future<FeedUpdateState> build() => _loadData();
 
   Future<FeedUpdateState> _loadData() async {
+    final measurement = PerformanceMeasurement.start('startup.feed');
     state = const AsyncData(
       FeedUpdateState(phase: FeedUpdatePhase.downloading, stage: 'conectando'),
     );
@@ -106,8 +108,10 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
         final cachedStatus = await SqfliteTransitRepository(
           () async => cachedDatabase,
         ).feedStatus();
+        final cachedFeedIsUsable = await database.hasUsableFeed(cachedDatabase);
         await cachedDatabase.close();
-        if (!cachedStatus.synthetic &&
+        if (cachedFeedIsUsable &&
+            !cachedStatus.synthetic &&
             (cachedStatus.stopCount > 0 || cachedStatus.routeCount > 0)) {
           final cached = FeedUpdateState(
             phase: FeedUpdatePhase.updated,
@@ -118,11 +122,14 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
           state = AsyncData(cached);
           _lastGood = cached;
           await _checkForUpdate(cached);
+          measurement.finish(details: 'source=cache');
           return cached;
         }
       }
       if (transitConfig.demoMode) {
-        return await _loadBundledDemo();
+        final result = await _loadBundledDemo();
+        measurement.finish(details: 'source=demo');
+        return result;
       }
       if (transitConfig.url.isEmpty) {
         const unavailable = FeedUpdateState(
@@ -130,6 +137,7 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
           message: 'No hay una fuente GTFS oficial configurada.',
         );
         state = const AsyncData(unavailable);
+        measurement.finish(details: 'source=unavailable');
         return unavailable;
       }
       const empty = FeedUpdateState(
@@ -137,7 +145,9 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
         status: FeedStatus(),
       );
       await _refresh(empty);
-      return state.asData?.value ?? empty;
+      final result = state.asData?.value ?? empty;
+      measurement.finish(details: 'source=network');
+      return result;
     } catch (e) {
       final stale = _lastGood;
       final result = FeedUpdateState(
@@ -149,6 +159,7 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
         status: stale?.status ?? const FeedStatus(),
       );
       state = AsyncData(result);
+      measurement.finish(details: 'source=error');
       return result;
     }
   }

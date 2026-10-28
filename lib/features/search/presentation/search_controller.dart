@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/transit_config.dart';
-import '../../../features/stops_and_lines/data/transit_database.dart';
+import '../../../core/debug/performance_measurement.dart';
 import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
 import '../../../features/stops_and_lines/presentation/transit_repository_provider.dart';
 import '../data/in_memory_transit_search_source.dart';
@@ -24,7 +24,7 @@ final searchServiceProvider = Provider<PlaceSearchService>((ref) {
   final repository = ref.watch(transitRepositoryProvider);
   final localSource = kIsWeb
       ? InMemoryTransitSearchSource(feed, repository)
-      : LocalTransitSearchSource(() => TransitDatabase().open());
+      : LocalTransitSearchSource(() => ref.read(transitDatabaseProvider));
   final remoteSource = RemoteGeocodingSource(
     endpoint: endpoint.isNotEmpty ? endpoint : defaultTargetPlatformUrl,
   );
@@ -173,6 +173,7 @@ class DestinationSearchController extends Notifier<SearchState> {
     double? userLongitude, {
     bool isLocalOnly = false,
   }) async {
+    final measurement = PerformanceMeasurement.start('search.local.$query');
     try {
       final localResults = await _service.searchLocal(
         query: query,
@@ -191,7 +192,9 @@ class DestinationSearchController extends Notifier<SearchState> {
           errorMessage: null,
         );
       }
+      measurement.finish(details: 'results=${localResults.length}');
     } on Exception catch (error) {
+      measurement.finish(details: 'error=${error.runtimeType}');
       if (_searchGeneration == generationId) {
         state = state.copyWith(
           query: query,
@@ -209,6 +212,7 @@ class DestinationSearchController extends Notifier<SearchState> {
     double? userLatitude,
     double? userLongitude,
   ) async {
+    final measurement = PerformanceMeasurement.start('search.remote.$query');
     try {
       final results = await _service.search(
         query: query,
@@ -228,7 +232,9 @@ class DestinationSearchController extends Notifier<SearchState> {
           errorMessage: null,
         );
       }
+      measurement.finish(details: 'results=${results.length}');
     } on Exception catch (error) {
+      measurement.finish(details: 'error=${error.runtimeType}');
       if (_searchGeneration == generationId) {
         if (state.results.isNotEmpty) {
           state = state.copyWith(

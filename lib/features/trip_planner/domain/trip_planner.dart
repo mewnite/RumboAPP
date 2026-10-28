@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../../core/debug/performance_measurement.dart';
 import '../../stops_and_lines/domain/transit_models.dart';
 import '../../stops_and_lines/domain/transit_repository.dart';
 import 'plan_search_isolate.dart';
@@ -180,6 +181,7 @@ class TransitTripPlanner {
   final DateTime Function()? now;
 
   Future<List<TripPlan>> plan(TripRequest request) async {
+    final measurement = PerformanceMeasurement.start('trip.plan');
     _validateRequest(request);
     final current = now?.call() ?? DateTime.now();
     if (request.timing.isPast(current)) return const [];
@@ -232,7 +234,7 @@ class TransitTripPlanner {
       );
     }
 
-    return runPlanSearch(
+    final plans = await runPlanSearch(
       PlanSearchPayload(
         request: request,
         data: data,
@@ -241,6 +243,8 @@ class TransitTripPlanner {
         now: current,
       ),
     );
+    measurement.finish(details: 'plans=${plans.length}');
+    return plans;
   }
 }
 

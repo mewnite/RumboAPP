@@ -130,6 +130,22 @@ diseñado para movilidad urbana en Montevideo:
 - **Resiliencia sin conexión:** En modo avión o sin red, la interfaz notifica el estado
   offline y responde de inmediato con las paradas y líneas almacenadas localmente.
 
+### Objetivo de tiempo de planificación
+
+La ruta de planificación no debe esperar una actualización del feed: en Android e
+iOS usa la última base GTFS oficial válida guardada en SQLite, y la actualización
+se ejecuta en segundo plano. La búsqueda y el planificador reutilizan la misma
+conexión SQLite durante la sesión para evitar reaperturas y consultas de
+inicialización innecesarias; el cálculo de rutas se ejecuta fuera del hilo de UI.
+
+Esto permite que los arranques posteriores y las búsquedas con caché local sean
+inmediatos. En una instalación sin una base oficial previa, la primera descarga e
+importación depende del tamaño del ZIP y no puede garantizar menos de 10 segundos.
+Para garantizar ese objetivo también en el primer arranque, el pipeline de release
+debe generar y distribuir un snapshot SQLite oficial versionado junto con la
+aplicación, sustituyéndolo mediante actualización en segundo plano cuando cambie
+el feed. No se incluye un snapshot inventado ni una URL oficial no confirmada.
+
 Al elegir cualquier lugar/dirección el planificador usa sus coordenadas para
 encontrar paradas de acceso y propone alternativas con hasta un transbordo. La
 muestra incluida es sintética y no debe usarse para orientar viajes reales.

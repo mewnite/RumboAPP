@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/debug/performance_measurement.dart';
 import '../domain/transit_models.dart';
 import '../domain/transit_repository.dart';
 
@@ -15,6 +16,7 @@ class SqfliteTransitRepository implements TransitRepository {
     double longitude,
     double radiusMeters,
   ) async {
+    final measurement = PerformanceMeasurement.start('transit.nearby_stops');
     final db = await _database();
     final latitudeDelta = radiusMeters / 111320;
     final longitudeDelta =
@@ -47,7 +49,9 @@ class SqfliteTransitRepository implements TransitRepository {
             .where((item) => item.distance <= radiusMeters)
             .toList()
           ..sort((a, b) => a.distance.compareTo(b.distance));
-    return candidates.map((item) => item.stop).toList(growable: false);
+    final result = candidates.map((item) => item.stop).toList(growable: false);
+    measurement.finish(details: 'results=${result.length}');
+    return result;
   }
 
   @override

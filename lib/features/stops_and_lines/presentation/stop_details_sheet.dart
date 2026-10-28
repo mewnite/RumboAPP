@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../core/debug/performance_measurement.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
@@ -26,6 +27,7 @@ final stopDetailsProvider = FutureProvider.family<StopDetailsData, String>((
   ref,
   stopId,
 ) async {
+  final measurement = PerformanceMeasurement.start('transit.stop_details');
   final repository = ref.watch(transitRepositoryProvider);
   final routes = await repository.routesForStop(stopId);
   // Recompute arrivals when fresh bus positions arrive while the stop sheet is open.
@@ -39,7 +41,11 @@ final stopDetailsProvider = FutureProvider.family<StopDetailsData, String>((
     repository,
     livePositions: livePositions,
   ).arrivalsForStop(stopId, DateTime.now(), limit: 8);
-  return StopDetailsData(routes: routes, arrivals: arrivals);
+  final result = StopDetailsData(routes: routes, arrivals: arrivals);
+  measurement.finish(
+    details: 'routes=${routes.length} arrivals=${arrivals.length}',
+  );
+  return result;
 });
 
 class StopDetailsSheet extends ConsumerWidget {

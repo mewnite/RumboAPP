@@ -26,7 +26,7 @@ class TransitDatabase {
     return _factory.openDatabase(
       p.join(dir.path, 'rumbo_transit.db'),
       options: OpenDatabaseOptions(
-        version: 6,
+        version: _databaseVersion,
         onCreate: (db, _) => _schema(db),
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -97,6 +97,23 @@ class TransitDatabase {
     );
   }
 
+  Future<bool> hasUsableFeed(Database db) async {
+    final rows = await db.rawQuery('''
+      SELECT
+        (SELECT COUNT(*) FROM stops) AS stops,
+        (SELECT COUNT(*) FROM routes) AS routes,
+        (SELECT COUNT(*) FROM trips) AS trips,
+        (SELECT COUNT(*) FROM trip_patterns) AS patterns,
+        (SELECT COUNT(*) FROM pattern_stops) AS pattern_stops
+    ''');
+    final row = rows.single;
+    return (row['stops'] as int? ?? 0) > 0 &&
+        (row['routes'] as int? ?? 0) > 0 &&
+        (row['trips'] as int? ?? 0) > 0 &&
+        (row['patterns'] as int? ?? 0) > 0 &&
+        (row['pattern_stops'] as int? ?? 0) > 0;
+  }
+
   Future<void> replaceFeed(
     GtfsParseResult feed, {
     String sourceName = 'Datos sintéticos de prueba',
@@ -112,7 +129,10 @@ class TransitDatabase {
     final db = await _factory.openDatabase(
       temp,
       options: OpenDatabaseOptions(
-        version: 5,
+        // Keep the replacement database at the same schema version as the
+        // live database. Opening a v5 replacement as v6 runs the legacy
+        // migration and can remove the pattern tables just imported.
+        version: _databaseVersion,
         onCreate: (db, _) => _schema(db),
       ),
     );
@@ -429,6 +449,7 @@ class TransitDatabase {
 }
 
 const _importBatchSize = 500;
+const _databaseVersion = 6;
 
 Future<bool> _columnExists(
   DatabaseExecutor db,
