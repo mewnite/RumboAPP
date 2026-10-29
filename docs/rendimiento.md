@@ -145,3 +145,31 @@ No se estiman tiempos ni tamaños.
 | Arranque en frío | no medido | no medido | no se pudo iniciar la app profile |
 | Tamaño de base | no medido | no medido | no se accedió a la base del dispositivo |
 | Memoria aproximada | no medido | no medido | no se pudo capturar una sesión profile |
+
+## Línea base de optimización
+
+Fecha de ejecución: 2026-10-29. El comando solicitado con
+`--split-per-abi --analyze-size` no es aceptado por la versión instalada de
+Flutter; el análisis se ejecutó por separado para `android-arm64` y la
+compilación split se ejecutó para las tres ABI.
+
+| Medición | Resultado | Estado |
+|---|---:|---|
+| APK `armeabi-v7a` release split | 27,9 MB | medido |
+| APK `arm64-v8a` release split | 32,9 MB | medido |
+| APK `x86_64` release split | 34,6 MB | medido |
+| Análisis `android-arm64` | `lib` 48,45 MB; `classes.dex` 1,00 MB; assets 0,96 MB; recursos 0,64 MB | medido |
+| Código Dart/native dentro de `lib` | 48,45 MB | medido; el reporte no separa Dart de bibliotecas nativas |
+| Fuentes en assets | Inter 783,6 KB; Material Symbols Rounded 65,2 KB | medido |
+| Datos de ejemplo en assets | `sample_gtfs.zip` 1,7 KB | medido |
+| Base GTFS importada | no medido | no se accedió a una base del dispositivo |
+| Arranque en frío | no medido | no hubo sesión Android profile/release conectada |
+| Memoria con mapa y buses | no medido | no hubo sesión conectada |
+| Fotogramas perdidos y reconstrucciones | no medido | no hubo sesión DevTools conectada |
+| Búsquedas, detalle y planificación | no medido | no hubo sesión profile conectada |
+| Datos móviles en 5 minutos | no medido | no se ejecutó una sesión de red controlada |
+
+El build informó que Material Symbols Outlined y Sharp fueron tree-shaken a
+aproximadamente 2,4 KB cada una, y Rounded a 135,3 KB antes de compresión;
+por tanto la fuente de iconos ya está siendo recortada y no se reemplaza en
+esta fase.

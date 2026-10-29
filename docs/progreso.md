@@ -1,5 +1,11 @@
 # Progreso
 
+## Línea base de optimización (completa)
+- Medidos APK release split: 27,9 MB armeabi-v7a, 32,9 MB arm64-v8a y 34,6 MB x86_64.
+- Medido análisis arm64: `lib` 48,45 MB, assets 0,96 MB y fuentes Inter 783,6 KB.
+- La base GTFS, arranque, memoria, fluidez, reconstrucciones y consumo de red quedan no medidos por falta de sesión conectada.
+- El comando combinado `--split-per-abi --analyze-size` no es compatible con el Flutter instalado; se documentó el equivalente ejecutable.
+
 ## Fase 1: horarios compactos por patrón de recorrido (completa, probada con tests)
 
 - Se reemplazó el esquema `stop_times` por `trip_patterns` + `pattern_stops` (DB v6, esquema viejo se descarta y reimporta).
