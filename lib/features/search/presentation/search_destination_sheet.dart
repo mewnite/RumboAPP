@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/line_chip.dart';
+import '../../../core/widgets/rumbo_components.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../map/data/connectivity_provider.dart';
 import '../domain/search_models.dart';
@@ -36,7 +35,7 @@ class _SearchDestinationSheetState
     extends ConsumerState<SearchDestinationSheet> {
   late final TextEditingController _textController;
   final FocusNode _focusNode = FocusNode();
-  bool _askedRemoteConsent = false;
+  bool _showRemotePrivacy = false;
 
   @override
   void initState() {
@@ -57,10 +56,9 @@ class _SearchDestinationSheetState
   }
 
   void _triggerSearch(String query) {
+    _showRemotePrivacy = false;
     final hasNetwork = ref.read(networkAvailableProvider).asData?.value ?? true;
     final isOffline = !hasNetwork;
-    final remoteEnabled =
-        ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
     ref
         .read(searchControllerProvider.notifier)
         .onQueryChanged(
@@ -68,19 +66,34 @@ class _SearchDestinationSheetState
           userLatitude: widget.userLatitude,
           userLongitude: widget.userLongitude,
           isOffline: isOffline,
-          allowRemote: remoteEnabled,
         );
-    if (!remoteEnabled &&
-        !isOffline &&
-        !_askedRemoteConsent &&
-        query.trim().length >= 3 &&
-        RegExp(r'[a-zA-ZáéíóúñÁÉÍÓÚÑ]').hasMatch(query)) {
-      _askedRemoteConsent = true;
-      unawaited(_requestRemoteConsent());
+  }
+
+  Future<void> _searchOnline() async {
+    final query = _textController.text.trim();
+    if (query.length < 3) return;
+    final isOffline =
+        !(ref.read(networkAvailableProvider).asData?.value ?? true);
+    if (isOffline) return;
+
+    final remoteEnabled =
+        ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
+    if (!remoteEnabled) {
+      await _requestRemoteConsent();
+      return;
     }
+    setState(() => _showRemotePrivacy = true);
+    await ref
+        .read(searchControllerProvider.notifier)
+        .searchRemote(
+          query: query,
+          userLatitude: widget.userLatitude,
+          userLongitude: widget.userLongitude,
+        );
   }
 
   Future<void> _requestRemoteConsent() async {
+    final requestedQuery = _textController.text.trim();
     final l10n = AppLocalizations.of(context);
     final accepted = await showDialog<bool>(
       context: context,
@@ -99,13 +112,18 @@ class _SearchDestinationSheetState
         ],
       ),
     );
-    if (!mounted || accepted != true) return;
+    if (!mounted ||
+        accepted != true ||
+        _textController.text.trim() != requestedQuery) {
+      return;
+    }
     await ref.read(remotePlaceSearchEnabledProvider.notifier).setEnabled(true);
     if (mounted) {
+      setState(() => _showRemotePrivacy = true);
       await ref
           .read(searchControllerProvider.notifier)
           .searchRemote(
-            query: _textController.text,
+            query: requestedQuery,
             userLatitude: widget.userLatitude,
             userLongitude: widget.userLongitude,
           );
@@ -133,20 +151,7 @@ class _SearchDestinationSheetState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Barra de arrastre superior
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-              ),
+              const RumboSheetHandle(),
 
               // Campo principal de búsqueda
               Padding(
@@ -177,7 +182,22 @@ class _SearchDestinationSheetState
                 ),
               ),
 
-              if (remoteSearchEnabled &&
+              if (_textController.text.trim().length >= 3)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: TextButton.icon(
+                    onPressed:
+                        (ref.watch(networkAvailableProvider).asData?.value ??
+                            true)
+                        ? _searchOnline
+                        : null,
+                    icon: const Icon(Symbols.public_rounded),
+                    label: Text(l10n.searchRemoteButton),
+                  ),
+                ),
+
+              if (_showRemotePrivacy &&
+                  remoteSearchEnabled &&
                   _textController.text.trim().length >= 3)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

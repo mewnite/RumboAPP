@@ -758,7 +758,7 @@ void main() {
     },
   );
 
-  testWidgets('searches stops and places automatically as the user types', (
+  testWidgets('searches places only after the user requests it', (
     tester,
   ) async {
     var placeSearchCount = 0;
@@ -790,7 +790,10 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField).last, 'Av. 18 de Julio 1234');
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(placeSearchCount, 0);
+    await tester.tap(find.text('Buscar lugares en línea'));
     await tester.pumpAndSettle();
     expect(placeSearchCount, 1);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);
@@ -801,7 +804,7 @@ void main() {
     );
   });
 
-  testWidgets('asks consent automatically before the first remote search', (
+  testWidgets('does not ask consent or search online while typing', (
     tester,
   ) async {
     var localSearchCount = 0;
@@ -834,17 +837,20 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField).last, 'Centro');
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 250));
     await tester.pumpAndSettle();
 
     expect(localSearchCount, 1);
     expect(remoteSearchCount, 0);
+    expect(consentRequestCount, 0);
+    await tester.tap(find.text('Buscar lugares en línea'));
+    await tester.pumpAndSettle();
     expect(consentRequestCount, 1);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);
     expect(remoteSearchCount, 0);
   });
 
-  testWidgets('runs the combined search after consent without another tap', (
+  testWidgets('runs the combined search after explicit request and consent', (
     tester,
   ) async {
     var remoteSearchCount = 0;
@@ -874,9 +880,12 @@ void main() {
       find.byType(TextField).last,
       'Shopping Nuevo Centro',
     );
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 250));
     await tester.pumpAndSettle();
 
+    expect(remoteSearchCount, 0);
+    await tester.tap(find.text('Buscar lugares en línea'));
+    await tester.pumpAndSettle();
     expect(remoteSearchCount, 1);
     expect(find.text('Shopping Nuevo Centro'), findsWidgets);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);

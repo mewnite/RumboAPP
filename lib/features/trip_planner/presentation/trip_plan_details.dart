@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/rumbo_components.dart';
+import '../../../core/widgets/line_chip.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../domain/trip_planner.dart';
 
@@ -11,6 +14,7 @@ class TripPlanDetails extends StatelessWidget {
     required this.destinationName,
     required this.onChangeTrip,
     required this.onCloseTrip,
+    this.onSwapTrip,
     this.activeTripIsActive = false,
     this.activeTripStopsRemaining,
     this.onStartActiveTrip,
@@ -23,6 +27,7 @@ class TripPlanDetails extends StatelessWidget {
   final String destinationName;
   final VoidCallback onChangeTrip;
   final VoidCallback onCloseTrip;
+  final VoidCallback? onSwapTrip;
   final bool activeTripIsActive;
   final int? activeTripStopsRemaining;
   final VoidCallback? onStartActiveTrip;
@@ -55,6 +60,47 @@ class TripPlanDetails extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const TripEndpointRail(height: 88),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      originName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      destinationName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              key: const ValueKey('trip-detail-swap-endpoints'),
+              tooltip: l10n.tripSwapEndpoints,
+              onPressed: onSwapTrip,
+              icon: const Icon(Symbols.swap_vert_rounded),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -111,20 +157,15 @@ class TripPlanDetails extends StatelessWidget {
         Text(l10n.tripDetailScheduleNotice, style: secondaryStyle),
         const SizedBox(height: 12),
         if (activeTripIsActive && activeTripStopsRemaining != null)
-          Card(
-            child: ListTile(
-              leading: const Icon(Symbols.notifications_active_rounded),
-              title: Text(l10n.activeTripNotificationTitle),
-              subtitle: Text(
-                l10n.activeTripStopsRemaining(
-                  activeTripStopsRemaining!,
-                  destinationName,
-                ),
-              ),
+          TripProgressCard(
+            title: l10n.activeTripNotificationTitle,
+            subtitle: l10n.activeTripStopsRemaining(
+              activeTripStopsRemaining!,
+              destinationName,
             ),
           ),
         if (onStartActiveTrip != null || onStopActiveTrip != null)
-          FilledButton.icon(
+          PrimaryActionButton(
             onPressed: activeTripIsActive
                 ? onStopActiveTrip
                 : onStartActiveTrip,
@@ -133,16 +174,16 @@ class TripPlanDetails extends StatelessWidget {
                   ? Symbols.stop_circle_rounded
                   : Symbols.notifications_active_rounded,
             ),
-            label: Text(
-              activeTripIsActive ? l10n.activeTripFinish : l10n.activeTripStart,
-            ),
+            label: activeTripIsActive
+                ? l10n.activeTripFinish
+                : l10n.activeTripStart,
           ),
         if (onStartActiveTrip != null || onStopActiveTrip != null)
           const SizedBox(height: 8),
-        OutlinedButton.icon(
+        SecondaryActionButton(
           onPressed: onChangeTrip,
           icon: const Icon(Symbols.edit_road_rounded),
-          label: Text(l10n.tripDetailChangeTrip),
+          label: l10n.tripDetailChangeTrip,
         ),
       ],
     );
@@ -181,6 +222,7 @@ class TripPlanDetails extends StatelessWidget {
                 _lineLabel(l10n, leg),
                 leg.fromStop?.name ?? l10n.tripDetailUnknownStop,
               ),
+              transitLabel: _lineLabel(l10n, leg),
               subtitle: leg.headsign.trim().isEmpty
                   ? null
                   : l10n.tripDetailToward(leg.headsign.trim()),
@@ -196,6 +238,7 @@ class TripPlanDetails extends StatelessWidget {
               ),
               time: leg.arrivalTime,
               estimated: true,
+              isAlight: true,
             ),
           );
       }
@@ -240,6 +283,8 @@ class _TimelineStep {
     this.estimated = false,
     this.isOrigin = false,
     this.isDestination = false,
+    this.transitLabel,
+    this.isAlight = false,
   });
 
   final IconData icon;
@@ -249,6 +294,8 @@ class _TimelineStep {
   final bool estimated;
   final bool isOrigin;
   final bool isDestination;
+  final String? transitLabel;
+  final bool isAlight;
 }
 
 class _TimelineStepTile extends StatelessWidget {
@@ -276,10 +323,31 @@ class _TimelineStepTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 28,
+            width: 48,
             child: Column(
               children: [
-                Icon(step.icon, size: 20, color: markerColor),
+                if (step.isAlight)
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: const BoxDecoration(
+                      color: AppColors.lime,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Symbols.arrow_downward_rounded,
+                      size: 18,
+                      color: AppColors.ink,
+                    ),
+                  )
+                else if (step.transitLabel != null)
+                  LineChip(
+                    label: step.transitLabel!,
+                    backgroundColor: theme.colorScheme.primary,
+                    compact: true,
+                  )
+                else
+                  Icon(step.icon, size: 20, color: markerColor),
                 if (!isLast)
                   Expanded(
                     child: Container(

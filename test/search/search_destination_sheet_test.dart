@@ -19,6 +19,7 @@ class TestSearchService implements PlaceSearchService {
     double? userLatitude,
     double? userLongitude,
     bool allowRemote = true,
+    Future<void>? remoteAbortTrigger,
   }) async {
     remoteCalls++;
     return [
@@ -137,11 +138,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
-      // 3. Debe mostrar resultados con chip de líneas
+      // 3. Al escribir solo muestra resultados locales.
       expect(find.text('Av. 18 de Julio y Ejido'), findsOneWidget);
       expect(find.text('14'), findsOneWidget);
       expect(find.text('21'), findsOneWidget);
       expect(find.text('180'), findsOneWidget);
+      expect(find.text('Av. Italia 2450'), findsNothing);
+      expect(searchService.remoteCalls, 0);
+      await tester.tap(find.text('Buscar lugares en línea'));
+      await tester.pumpAndSettle();
       expect(find.text('Av. Italia 2450'), findsOneWidget);
       expect(searchService.remoteCalls, 1);
       expect(find.text('Buscar lugares o direcciones'), findsNothing);
@@ -156,7 +161,7 @@ void main() {
     },
   );
 
-  testWidgets('pide consentimiento una vez y busca lugares automáticamente', (
+  testWidgets('pide consentimiento después de solicitar la búsqueda en línea', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -189,6 +194,8 @@ void main() {
 
     expect(find.text('Buscar lugares en línea'), findsOneWidget);
     expect(searchService.remoteCalls, 0);
+    await tester.tap(find.text('Buscar lugares en línea'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Habilitar y buscar'));
     await tester.pumpAndSettle();
 

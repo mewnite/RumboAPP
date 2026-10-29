@@ -4,6 +4,8 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/widgets/line_chip.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/rumbo_components.dart';
 import '../../../features/search/domain/place_search_service.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -36,7 +38,9 @@ class TripSearchSheet extends StatefulWidget {
     required this.hasCurrentLocation,
     this.remotePlaceSearchEnabled = false,
     this.onRemotePlaceSearchConsentRequested,
+    this.onCancelPlan,
     this.searchService,
+    this.initialOrigin,
     this.initialDestination,
     this.onPlanSelected,
     this.onRouteSelected,
@@ -52,7 +56,9 @@ class TripSearchSheet extends StatefulWidget {
   final bool hasCurrentLocation;
   final bool remotePlaceSearchEnabled;
   final Future<bool> Function()? onRemotePlaceSearchConsentRequested;
+  final VoidCallback? onCancelPlan;
   final PlaceSearchService? searchService;
+  final TripEndpoint? initialOrigin;
   final TripEndpoint? initialDestination;
   final TripPlanSelected? onPlanSelected;
   final ValueChanged<Route>? onRouteSelected;
@@ -70,6 +76,9 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   final _originFocus = FocusNode();
   final _destinationFocus = FocusNode();
   Timer? _debounce;
+  Completer<void>? _remoteAbort;
+  int _searchGeneration = 0;
+  int _planGeneration = 0;
   TripEndpoint? _origin;
   TripEndpoint? _destination;
   List<TripEndpoint> _suggestions = const [];
@@ -80,7 +89,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   bool _planning = false;
   bool _originUsesLocation = true;
   bool _searchOrigin = false;
-  bool _askedRemoteConsent = false;
+  bool _showRemotePrivacy = false;
   late bool _remoteSearchEnabled;
   TripTimingMode _timingMode = TripTimingMode.departNow;
   late DateTime _timedDateTime;
@@ -110,6 +119,11 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     _remoteSearchEnabled = widget.remotePlaceSearchEnabled;
     _timedDateTime = _nextTimeSlot(_now);
     _tomorrow = _isTomorrowDate(_timedDateTime);
+    if (widget.initialOrigin != null) {
+      _origin = widget.initialOrigin;
+      _originController.text = widget.initialOrigin!.name;
+      _originUsesLocation = false;
+    }
     if (widget.initialDestination != null) {
       _destination = widget.initialDestination;
       _destinationController.text = widget.initialDestination!.name;
@@ -119,6 +133,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _cancelRemoteSearch();
+    widget.onCancelPlan?.call();
     _originController.dispose();
     _destinationController.dispose();
     _originFocus.dispose();
@@ -128,57 +144,44 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
 
   void _search(String query) {
     _debounce?.cancel();
+    _cancelRemoteSearch();
+    _planGeneration++;
+    widget.onCancelPlan?.call();
+    final requestId = ++_searchGeneration;
     final normalizedQuery = query.trim();
     setState(() {
       _suggestions = const [];
       _searchError = null;
-      _searching = normalizedQuery.isNotEmpty;
+      _searching = normalizedQuery.length >= 2;
+      _planning = false;
+      _showRemotePrivacy = false;
+      _plans = null;
     });
-    if (normalizedQuery.isEmpty) return;
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
+    if (normalizedQuery.length < 2) return;
+    _debounce = Timer(const Duration(milliseconds: 200), () async {
       try {
-        final shouldOfferOnlineSearch =
-            normalizedQuery.length >= 3 &&
-            RegExp(r'[a-zA-ZáéíóúñÁÉÍÓÚÑ]').hasMatch(normalizedQuery) &&
-            !_remoteSearchEnabled &&
-            !_askedRemoteConsent &&
-            widget.onRemotePlaceSearchConsentRequested != null;
-        if (shouldOfferOnlineSearch) {
-          _askedRemoteConsent = true;
-          final accepted = await widget.onRemotePlaceSearchConsentRequested!
-              .call();
-          if (!mounted || _activeController.text.trim() != normalizedQuery) {
-            return;
-          }
-          if (accepted) setState(() => _remoteSearchEnabled = true);
-        }
-
         List<TripEndpoint> endpoints;
         if (widget.searchService != null) {
-          final results = await widget.searchService!.search(
+          final results = await widget.searchService!.searchLocal(
             query: normalizedQuery,
-            allowRemote: _remoteSearchEnabled,
           );
           endpoints = results.map((result) => result.toTripEndpoint()).toList();
         } else {
           final stops = await widget.searchStops(normalizedQuery);
           endpoints = stops.map(TripEndpoint.fromStop).toList();
-          if (_remoteSearchEnabled && normalizedQuery.length >= 3) {
-            final places = await widget.searchPlaces(normalizedQuery);
-            final seen = endpoints.map(_endpointKey).toSet();
-            endpoints.addAll(
-              places.where((place) => seen.add(_endpointKey(place))),
-            );
-          }
         }
-        if (mounted && _activeController.text.trim() == normalizedQuery) {
+        if (mounted &&
+            requestId == _searchGeneration &&
+            _activeController.text.trim() == normalizedQuery) {
           setState(() {
             _suggestions = endpoints;
             _searching = false;
           });
         }
       } on Exception catch (error) {
-        if (mounted && _activeController.text.trim() == normalizedQuery) {
+        if (mounted &&
+            requestId == _searchGeneration &&
+            _activeController.text.trim() == normalizedQuery) {
           setState(() {
             _searchError = error;
             _searching = false;
@@ -188,10 +191,84 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     });
   }
 
+  Future<void> _searchOnline() async {
+    final query = _activeController.text.trim();
+    if (query.length < 3) return;
+    _cancelRemoteSearch();
+    final requestId = ++_searchGeneration;
+    _debounce?.cancel();
+
+    if (!_remoteSearchEnabled) {
+      final requestConsent = widget.onRemotePlaceSearchConsentRequested;
+      if (requestConsent == null || !await requestConsent()) return;
+      if (!mounted ||
+          requestId != _searchGeneration ||
+          _activeController.text.trim() != query) {
+        return;
+      }
+      setState(() => _remoteSearchEnabled = true);
+    }
+
+    setState(() {
+      _suggestions = const [];
+      _searchError = null;
+      _searching = true;
+      _showRemotePrivacy = true;
+    });
+    final abort = Completer<void>();
+    _remoteAbort = abort;
+    try {
+      final List<TripEndpoint> endpoints;
+      if (widget.searchService != null) {
+        final results = await widget.searchService!.search(
+          query: query,
+          allowRemote: true,
+          remoteAbortTrigger: abort.future,
+        );
+        endpoints = results.map((result) => result.toTripEndpoint()).toList();
+      } else {
+        final stops = await widget.searchStops(query);
+        final places = await widget.searchPlaces(query);
+        endpoints = stops.map(TripEndpoint.fromStop).toList();
+        final seen = endpoints.map(_endpointKey).toSet();
+        endpoints.addAll(
+          places.where((place) => seen.add(_endpointKey(place))),
+        );
+      }
+      if (mounted &&
+          requestId == _searchGeneration &&
+          _activeController.text.trim() == query) {
+        setState(() {
+          _suggestions = endpoints;
+          _searching = false;
+        });
+      }
+    } on Exception catch (error) {
+      if (mounted &&
+          requestId == _searchGeneration &&
+          _activeController.text.trim() == query) {
+        setState(() {
+          _searchError = error;
+          _searching = false;
+        });
+      }
+    } finally {
+      if (identical(_remoteAbort, abort)) _remoteAbort = null;
+    }
+  }
+
+  void _cancelRemoteSearch() {
+    final abort = _remoteAbort;
+    if (abort != null && !abort.isCompleted) abort.complete();
+    _remoteAbort = null;
+  }
+
   String _endpointKey(TripEndpoint endpoint) =>
       '${endpoint.latitude}:${endpoint.longitude}';
 
   void _selectEndpoint(TripEndpoint endpoint) {
+    _planGeneration++;
+    widget.onCancelPlan?.call();
     setState(() {
       if (_searchOrigin) {
         _origin = endpoint;
@@ -229,6 +306,9 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   }
 
   void _clearResults() {
+    _planGeneration++;
+    widget.onCancelPlan?.call();
+    _planning = false;
     _plans = null;
     _planError = null;
     _lastTiming = null;
@@ -334,6 +414,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       setState(_clearResults);
       return;
     }
+    widget.onCancelPlan?.call();
+    final requestId = ++_planGeneration;
     setState(() {
       _lastTiming = timing;
       _planning = true;
@@ -347,11 +429,17 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
         timing,
         _config,
       );
-      if (mounted) setState(() => _plans = plans);
+      if (mounted && requestId == _planGeneration) {
+        setState(() => _plans = plans);
+      }
     } on Exception catch (error) {
-      if (mounted) setState(() => _planError = error);
+      if (mounted && requestId == _planGeneration) {
+        setState(() => _planError = error);
+      }
     } finally {
-      if (mounted) setState(() => _planning = false);
+      if (mounted && requestId == _planGeneration) {
+        setState(() => _planning = false);
+      }
     }
   }
 
@@ -396,6 +484,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   }
 
   void _useLocation() {
+    _planGeneration++;
+    widget.onCancelPlan?.call();
     setState(() {
       _originUsesLocation = true;
       _origin = null;
@@ -405,6 +495,28 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       _plans = null;
     });
     FocusScope.of(context).unfocus();
+  }
+
+  void _swapEndpoints() {
+    final origin = _origin;
+    final destination = _destination;
+    if (origin == null || destination == null || _planning) return;
+    _searchGeneration++;
+    _debounce?.cancel();
+    if (_remoteAbort?.isCompleted == false) _remoteAbort!.complete();
+    _remoteAbort = null;
+    _planGeneration++;
+    widget.onCancelPlan?.call();
+    setState(() {
+      _origin = destination;
+      _destination = origin;
+      _originController.text = destination.name;
+      _destinationController.text = origin.name;
+      _originUsesLocation = false;
+      _searchOrigin = false;
+      _suggestions = const [];
+      _plans = null;
+    });
   }
 
   @override
@@ -429,75 +541,94 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
+            const RumboSheetHandle(),
             Text(
               l10n.tripSearchTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _originController,
-              focusNode: _originFocus,
-              onTap: () {
-                setState(() {
-                  _searchOrigin = true;
-                  _suggestions = const [];
-                });
-              },
-              onChanged: (value) {
-                _searchOrigin = true;
-                _originUsesLocation = false;
-                _origin = null;
-                _search(value);
-              },
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Symbols.trip_origin_rounded),
-                hintText: widget.hasCurrentLocation
-                    ? l10n.tripOriginLocationHint
-                    : l10n.tripOriginStopHint,
-                labelText: l10n.tripOriginLabel,
-                suffixIcon: widget.hasCurrentLocation
-                    ? IconButton(
-                        tooltip: l10n.tripUseCurrentLocation,
-                        onPressed: _useLocation,
-                        icon: const Icon(Symbols.my_location_rounded),
-                      )
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const TripEndpointRail(height: 132),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _originController,
+                        focusNode: _originFocus,
+                        onTap: () {
+                          setState(() {
+                            _searchOrigin = true;
+                            _suggestions = const [];
+                          });
+                        },
+                        onChanged: (value) {
+                          _searchOrigin = true;
+                          _originUsesLocation = false;
+                          _origin = null;
+                          _search(value);
+                        },
+                        decoration: InputDecoration(
+                          hintText: widget.hasCurrentLocation
+                              ? l10n.tripOriginLocationHint
+                              : l10n.tripOriginStopHint,
+                          labelText: l10n.tripOriginLabel,
+                          suffixIcon: widget.hasCurrentLocation
+                              ? IconButton(
+                                  tooltip: l10n.tripUseCurrentLocation,
+                                  onPressed: _useLocation,
+                                  icon: const Icon(Symbols.my_location_rounded),
+                                )
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _destinationController,
+                        focusNode: _destinationFocus,
+                        onTap: () {
+                          setState(() {
+                            _searchOrigin = false;
+                            _suggestions = const [];
+                          });
+                        },
+                        onChanged: (value) {
+                          _searchOrigin = false;
+                          _destination = null;
+                          _search(value);
+                        },
+                        decoration: InputDecoration(
+                          hintText: l10n.tripDestinationHint,
+                          labelText: l10n.tripDestinationLabel,
+                          suffixIcon: IconButton(
+                            key: const ValueKey('trip-swap-endpoints'),
+                            tooltip: l10n.tripSwapEndpoints,
+                            onPressed:
+                                _origin != null &&
+                                    _destination != null &&
+                                    !_planning
+                                ? _swapEndpoints
+                                : null,
+                            icon: const Icon(Symbols.swap_vert_rounded),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _destinationController,
-              focusNode: _destinationFocus,
-              onTap: () {
-                setState(() {
-                  _searchOrigin = false;
-                  _suggestions = const [];
-                });
-              },
-              onChanged: (value) {
-                _searchOrigin = false;
-                _destination = null;
-                _search(value);
-              },
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Symbols.location_on_rounded),
-                hintText: l10n.tripDestinationHint,
-                labelText: l10n.tripDestinationLabel,
-                border: const OutlineInputBorder(),
+            if (_activeController.text.trim().length >= 3)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _searchOnline,
+                  icon: const Icon(Symbols.public_rounded),
+                  label: Text(l10n.searchRemoteButton),
+                ),
               ),
-            ),
             if (_searching)
               const Padding(
                 padding: EdgeInsets.all(20),
@@ -565,7 +696,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   },
                 ),
               ),
-            if (_remoteSearchEnabled &&
+            if (_showRemotePrivacy &&
+                _remoteSearchEnabled &&
                 _activeController.text.trim().length >= 3) ...[
               const SizedBox(height: 8),
               Text(
@@ -686,7 +818,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
               ],
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
+            PrimaryActionButton(
               onPressed: canPlan && !_planning ? _findPlans : null,
               icon: _planning
                   ? const SizedBox.square(
@@ -694,9 +826,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Symbols.directions_bus_rounded),
-              label: Text(
-                _planning ? l10n.tripSearchingTrips : l10n.tripShowTrips,
-              ),
+              label: _planning ? l10n.tripSearchingTrips : l10n.tripShowTrips,
             ),
             if (_originUsesLocation && !widget.hasCurrentLocation)
               Padding(
@@ -815,31 +945,20 @@ class _PlanErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     return Card(
       key: const ValueKey('trip-plan-error'),
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-        child: Row(
-          children: [
-            Icon(
-              Symbols.error_rounded,
-              color: theme.colorScheme.onErrorContainer,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(color: theme.colorScheme.onErrorContainer),
-              ),
-            ),
-            TextButton(
-              key: const ValueKey('trip-plan-retry'),
-              onPressed: onRetry,
-              child: Text(l10n.actionRetry),
-            ),
-          ],
+      child: EmptyState(
+        icon: Icon(
+          Symbols.error_rounded,
+          color: Theme.of(context).colorScheme.error,
+        ),
+        title: l10n.tripPlanErrorTitle,
+        message: message,
+        iconSize: 24,
+        footer: TextButton(
+          key: const ValueKey('trip-plan-retry'),
+          onPressed: onRetry,
+          child: Text(l10n.actionRetry),
         ),
       ),
     );
@@ -867,34 +986,34 @@ class _PlanEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return EmptyState(
       key: const ValueKey('trip-empty-state'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title),
-        const SizedBox(height: 6),
-        Text(suggestion, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            if (canExpandWalking)
-              OutlinedButton.icon(
-                key: const ValueKey('trip-empty-expand-walking'),
-                onPressed: onExpandWalking,
-                icon: const Icon(Symbols.directions_walk_rounded),
-                label: Text(expandWalkingLabel),
-              ),
+      icon: Icon(
+        Symbols.alt_route_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: title,
+      message: suggestion,
+      iconSize: 24,
+      footer: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (canExpandWalking)
             OutlinedButton.icon(
-              key: const ValueKey('trip-empty-change-time'),
-              onPressed: onChangeTime,
-              icon: const Icon(Symbols.schedule_rounded),
-              label: Text(changeTimeLabel),
+              key: const ValueKey('trip-empty-expand-walking'),
+              onPressed: onExpandWalking,
+              icon: const Icon(Symbols.directions_walk_rounded),
+              label: Text(expandWalkingLabel),
             ),
-          ],
-        ),
-      ],
+          OutlinedButton.icon(
+            key: const ValueKey('trip-empty-change-time'),
+            onPressed: onChangeTime,
+            icon: const Icon(Symbols.schedule_rounded),
+            label: Text(changeTimeLabel),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -927,106 +1046,23 @@ class _TripPlanCard extends StatelessWidget {
       lines.isEmpty ? l10n.tripPlanNoLines : lines.join(', '),
     );
 
-    return Semantics(
-      container: true,
-      button: onSelected != null,
-      excludeSemantics: true,
-      label: semanticLabel,
-      onTap: onSelected,
-      child: Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onSelected,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l10n.tripPlanTimes(departure, arrival),
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.tripPlanDuration(plan.duration.inMinutes),
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (lines.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final line in lines)
-                        LineChip(
-                          label: line,
-                          backgroundColor: theme.colorScheme.primary,
-                          compact: true,
-                        ),
-                    ],
-                  )
-                else
-                  Row(
-                    children: [
-                      const Icon(Symbols.directions_walk_rounded, size: 18),
-                      const SizedBox(width: 6),
-                      Text(l10n.tripWalkOnly(plan.totalWalkingMeters.round())),
-                    ],
-                  ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
-                  children: [
-                    _PlanFact(
-                      icon: Symbols.directions_walk_rounded,
-                      label: l10n.tripPlanWalkingMinutes(walkingMinutes),
-                    ),
-                    _PlanFact(
-                      icon: Symbols.sync_alt_rounded,
-                      label: l10n.tripPlanTransfers(plan.transferCount),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.tripScheduledTimes,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+    return ItinerarySummaryCard(
+      lines: [
+        for (final line in lines)
+          LineChip(
+            label: line,
+            backgroundColor: theme.colorScheme.primary,
+            compact: true,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanFact extends StatelessWidget {
-  const _PlanFact({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(label, style: theme.textTheme.bodySmall),
       ],
+      headingLabel: l10n.tripPlanTimes(departure, arrival),
+      durationLabel: l10n.tripPlanDuration(plan.duration.inMinutes),
+      walkingLabel: l10n.tripPlanWalkingMinutes(walkingMinutes),
+      transfersLabel: l10n.tripPlanTransfers(plan.transferCount),
+      emptyLinesLabel: l10n.tripWalkOnly(plan.totalWalkingMeters.round()),
+      footerLabel: l10n.tripScheduledTimes,
+      semanticsLabel: semanticLabel,
+      onTap: onSelected,
     );
   }
 }
