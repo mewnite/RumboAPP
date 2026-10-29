@@ -17,11 +17,12 @@ import 'package:rumbo/l10n/generated/app_localizations.dart';
 Widget _wrapWithApp({
   required Widget child,
   required ProviderContainer container,
+  ThemeData? theme,
 }) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
-      theme: AppTheme.light(),
+      theme: theme ?? AppTheme.light(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: child),
@@ -205,6 +206,51 @@ void main() {
       expect(selectedVariantCallback?.id, 'var-104-2');
     },
   );
+
+  for (final theme in [AppTheme.light(), AppTheme.dark()]) {
+    testWidgets(
+      'variant options stay readable in ${theme.brightness.name} mode',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [
+            transitRepositoryProvider.overrideWithValue(makeRepository()),
+            networkAvailableProvider.overrideWith(
+              (ref) => Stream<bool>.value(true),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          _wrapWithApp(
+            container: container,
+            theme: theme,
+            child: const LineDetailsSheet(route: route),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final dropdown = tester.widget<DropdownButton<String>>(
+          find.descendant(
+            of: find.byKey(const ValueKey('variant-selector')),
+            matching: find.byType(DropdownButton<String>),
+          ),
+        );
+        expect(dropdown.dropdownColor, theme.colorScheme.surface);
+        expect(dropdown.style?.color, theme.colorScheme.onSurface);
+
+        await tester.tap(find.byKey(const ValueKey('variant-selector')));
+        await tester.pumpAndSettle();
+
+        final option = find.text('Hacia Aduana').last;
+        final optionContext = tester.element(option);
+        expect(
+          DefaultTextStyle.of(optionContext).style.color,
+          theme.colorScheme.onSurface,
+        );
+      },
+    );
+  }
 
   testWidgets('toggles favorite line and updates repository', (tester) async {
     final repository = makeRepository();

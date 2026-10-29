@@ -97,6 +97,7 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final isOffline =
         ref.watch(networkAvailableProvider).asData?.value == false;
     final variantsAsync = ref.watch(lineVariantsProvider(widget.route.id));
@@ -293,6 +294,11 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
                       key: const ValueKey('variant-selector'),
                       initialValue: activeVariant.id,
                       isExpanded: true,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurfaceVariant,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),

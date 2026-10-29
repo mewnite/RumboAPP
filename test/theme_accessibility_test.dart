@@ -18,6 +18,38 @@ void main() {
     expect(theme.inputDecorationTheme.fillColor, AppColors.darkSurface);
   });
 
+  test('option menus and theme segments use contrasting colors', () {
+    for (final theme in [AppTheme.light(), AppTheme.dark()]) {
+      final scheme = theme.colorScheme;
+      final segmentStyle = theme.segmentedButtonTheme.style!;
+
+      expect(theme.popupMenuTheme.color, scheme.surface);
+      expect(theme.popupMenuTheme.textStyle?.color, scheme.onSurface);
+      expect(
+        contrastRatio(scheme.onSurface, scheme.surface),
+        greaterThanOrEqualTo(4.5),
+      );
+      expect(
+        theme.dropdownMenuTheme.menuStyle?.backgroundColor?.resolve({}),
+        scheme.surface,
+      );
+      expect(theme.dropdownMenuTheme.textStyle?.color, scheme.onSurface);
+      expect(
+        segmentStyle.backgroundColor?.resolve({WidgetState.selected}),
+        scheme.secondaryContainer,
+      );
+      expect(
+        segmentStyle.foregroundColor?.resolve({WidgetState.selected}),
+        scheme.onSecondaryContainer,
+      );
+      expect(
+        contrastRatio(scheme.onSecondaryContainer, scheme.secondaryContainer),
+        greaterThanOrEqualTo(4.5),
+      );
+      expect(segmentStyle.foregroundColor?.resolve({}), scheme.onSurface);
+    }
+  });
+
   testWidgets('LineChip selects AA text on light and dark line colors', (
     tester,
   ) async {

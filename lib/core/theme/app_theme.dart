@@ -235,6 +235,49 @@ abstract final class AppTheme {
         ),
         showCheckmark: false,
       ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return colorScheme.surfaceContainerHigh;
+            }
+            return states.contains(WidgetState.selected)
+                ? colorScheme.secondaryContainer
+                : colorScheme.surface;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? colorScheme.onSecondaryContainer
+                : colorScheme.onSurface;
+          }),
+          iconColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? colorScheme.onSecondaryContainer
+                : colorScheme.onSurfaceVariant;
+          }),
+          side: WidgetStatePropertyAll(BorderSide(color: colorScheme.outline)),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colorScheme.surface,
+        surfaceTintColor: AppColors.transparent,
+        textStyle: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radius12),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(colorScheme.surface),
+          surfaceTintColor: WidgetStatePropertyAll(AppColors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radius12),
+            ),
+          ),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: colorScheme.surface,
         surfaceTintColor: AppColors.transparent,
