@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/debug/performance_measurement.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/line_chip.dart';
+import '../../../core/widgets/rumbo_components.dart';
 import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/map/data/connectivity_provider.dart';
@@ -85,6 +87,7 @@ class StopDetailsSheet extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              RumboSheetHandle(label: stop.name),
               Text(stop.name, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 4),
               Text(
@@ -117,18 +120,26 @@ class StopDetailsSheet extends ConsumerWidget {
                         runSpacing: 8,
                         children: [
                           for (final route in data.routes)
-                            InkWell(
-                              borderRadius: BorderRadius.circular(8),
-                              onTap: onRouteSelected == null
-                                  ? null
-                                  : () => onRouteSelected!(route),
-                              child: LineChip(
-                                label: route.shortName.isEmpty
-                                    ? route.id
-                                    : route.shortName,
-                                backgroundColor: _routeColor(
-                                  route,
-                                  Theme.of(context).colorScheme.primary,
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: AppTokens.minimumTapTarget,
+                                minHeight: AppTokens.minimumTapTarget,
+                              ),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: onRouteSelected == null
+                                    ? null
+                                    : () => onRouteSelected!(route),
+                                child: Center(
+                                  child: LineChip(
+                                    label: route.shortName.isEmpty
+                                        ? route.id
+                                        : route.shortName,
+                                    backgroundColor: _routeColor(
+                                      route,
+                                      Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -149,7 +160,12 @@ class StopDetailsSheet extends ConsumerWidget {
                     : Column(
                         children: [
                           for (final arrival in data.arrivals.take(8))
-                            _ArrivalRow(arrival: arrival),
+                            ArrivalRow(
+                              lineLabel: arrival.routeLabel,
+                              lineColor: Theme.of(context).colorScheme.primary,
+                              destination: arrival.destination,
+                              arrivalLabel: _arrivalLabel(l10n, arrival),
+                            ),
                         ],
                       ),
               ),
@@ -189,6 +205,14 @@ class StopDetailsSheet extends ConsumerWidget {
   }
 }
 
+String _arrivalLabel(AppLocalizations l10n, StopArrival arrival) {
+  final seconds = arrival.departureTime.difference(DateTime.now()).inSeconds;
+  final minutes = (seconds / 60).ceil().clamp(0, 999);
+  return arrival.isLive
+      ? l10n.stopArrivalLiveEstimated(minutes)
+      : l10n.stopArrivalEstimated(minutes);
+}
+
 Future<void> _toggleFavorite(
   WidgetRef ref,
   Stop stop,
@@ -208,33 +232,6 @@ Future<void> _toggleFavorite(
       longitude: stop.longitude,
     ),
   );
-}
-
-class _ArrivalRow extends StatelessWidget {
-  const _ArrivalRow({required this.arrival});
-
-  final StopArrival arrival;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final seconds = arrival.departureTime.difference(DateTime.now()).inSeconds;
-    final minutes = (seconds / 60).ceil().clamp(0, 999);
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: LineChip(
-        label: arrival.routeLabel,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
-      title: Text(arrival.destination),
-      subtitle: Text(
-        arrival.isLive
-            ? l10n.stopArrivalLiveEstimated(minutes)
-            : l10n.stopArrivalEstimated(minutes),
-      ),
-    );
-  }
 }
 
 class _DetailsLoading extends StatelessWidget {

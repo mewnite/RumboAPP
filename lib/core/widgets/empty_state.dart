@@ -7,6 +7,7 @@ class EmptyState extends StatelessWidget {
     required this.message,
     this.header,
     this.footer,
+    this.iconSize = 36,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class EmptyState extends StatelessWidget {
   final String message;
   final Widget? header;
   final Widget? footer;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +30,10 @@ class EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (header != null) ...[header!, const SizedBox(height: 24)],
-            icon,
+            IconTheme.merge(
+              data: IconThemeData(size: iconSize),
+              child: icon,
+            ),
             const SizedBox(height: 24),
             Text(
               title,
