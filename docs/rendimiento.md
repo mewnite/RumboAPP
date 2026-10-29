@@ -85,6 +85,21 @@ No se marcó ninguna pantalla como completamente sin tema: las pantallas usan
 `Theme.of(context)` o `AppColors`, aunque todavía existen tokens heredados y
 estilos puntuales que Fase 2 debe centralizar.
 
+### Estado visual tras las fases 2–5
+
+- Se reemplazaron `deepBlue`, `mint`, `surfaceGray` y `white` por los tokens
+  `rumbo`, `lime`, `ivory` y `surface`; `app_colors.dart` concentra las
+  constantes de color, espacio, radio y sombra.
+- Las pantallas usan el `ColorScheme` y los temas compartidos de componentes.
+  Los únicos colores de línea que se calculan fuera del tema proceden de los
+  datos GTFS; los colores de paradas, buses, rutas y estados usan tokens.
+- El análisis estático confirma que no hay `Colors.*` ni hexadecimales fuera
+  del archivo de tokens.
+- No se encontró `docs/identidad/identidad.png` en el repositorio.
+- No se pudo revisar la aplicación en un dispositivo con ambos temas y escala
+  de texto al 130 %; se agregaron pruebas de widgets para esa escala, pero la
+  suite de Flutter no se pudo ejecutar.
+
 ## Fase 1: búsqueda y datos más rápidos
 
 Implementado sin agregar dependencias:
@@ -92,14 +107,41 @@ Implementado sin agregar dependencias:
 - Índice local normalizado, construido una vez por feed mediante `compute`,
   reutilizado por SQLite y web, con coincidencia por código, prefijo, palabra
   y contenido, máximo 20 resultados y orden estable.
-- El índice incluye nombres y códigos de paradas, nombres de líneas y destinos
-  de variantes.
-- Debounce remoto de 200 ms, timeout de 8 s, cancelación lógica de respuestas
-  viejas y caché LRU de 20 consultas.
-- La planificación consulta como máximo 15 paradas cercanas por extremo.
+- El índice incluye nombres y códigos de paradas, nombres de líneas, destinos
+  de variantes y lugares guardados. La normalización quita acentos y signos.
+- La búsqueda local espera 200 ms y requiere 2 caracteres. Los resultados
+  viejos se descartan con un identificador de petición.
+- La geocodificación remota requiere tocar “Buscar lugares en línea”; el envío
+  tiene timeout de 8 s, se cancela al cambiar la consulta y conserva hasta 20
+  consultas recientes en memoria.
+- La planificación limita cada extremo a 15 paradas, reutiliza consultas
+  cercanas repetidas y puede detener el isolate anterior cuando cambian los
+  datos de entrada. El estado de búsqueda muestra progreso.
+- La base se reabre en modo solo lectura después de crear o migrar el esquema.
+  El mapeo de los resultados de horarios se ejecuta en un isolate.
+- Se agregó una prueba con `EXPLAIN QUERY PLAN` para paradas cercanas, arribos
+  y detalle de parada, y otra para comprobar el modo de solo lectura. No se
+  ejecutaron porque el comando de pruebas de Flutter no terminó.
 
 Los presupuestos de Fase 1 siguen **no medidos** en un dispositivo Android
 profile con el feed oficial: no se pudo iniciar una sesión profile utilizable
-con el proxy activo. `EXPLAIN QUERY PLAN` de las consultas SQLite y la
-validación de apertura read-only quedan pendientes para la siguiente iteración
-de datos.
+con el proxy activo.
+
+## Fase 6: comparación antes y después
+
+No se obtuvieron mediciones nuevas: el emulador no inició una sesión profile y
+el intento de `flutter test` quedó sin salida por más de un minuto y se detuvo.
+No se estiman tiempos ni tamaños.
+
+| Medición | Antes | Después | Estado o causa |
+|---|---:|---:|---|
+| Consulta `105` | no medido | no medido | no se pudo iniciar la app profile |
+| Consulta `pocit` | no medido | no medido | faltó una sesión profile y el proxy local |
+| Consulta `plaza` | no medido | no medido | faltó una sesión profile y el proxy local |
+| Consulta `tres cruces` | no medido | no medido | faltó una sesión profile y el proxy local |
+| Detalle de parada | no medido | no medido | no se pudo iniciar la app profile |
+| `nearbyStops` | no medido | no medido | no se pudo iniciar la app profile |
+| Planificación típica | no medido | no medido | no se pudo iniciar la app profile |
+| Arranque en frío | no medido | no medido | no se pudo iniciar la app profile |
+| Tamaño de base | no medido | no medido | no se accedió a la base del dispositivo |
+| Memoria aproximada | no medido | no medido | no se pudo capturar una sesión profile |
