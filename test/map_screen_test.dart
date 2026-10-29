@@ -50,7 +50,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('¿A dónde vamos?'), findsOneWidget);
-    expect(find.text('Paradas y ómnibus'), findsOneWidget);
+    expect(find.text('Próximos ómnibus'), findsOneWidget);
     expect(
       find.textContaining('No se pudieron cargar los datos oficiales:'),
       findsOneWidget,
@@ -146,6 +146,28 @@ void main() {
     expect(find.text('Mi casa'), findsWidgets);
   });
 
+  testWidgets('map controls stay visible in dark mode at 130% text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _mapApp(
+        repository,
+        themeOverride: AppTheme.dark(),
+        textScaler: const TextScaler.linear(1.3),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('¿A dónde vamos?'), findsOneWidget);
+    expect(find.text('Próximos ómnibus'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('does not show favorite shortcuts without defined places', (
     tester,
   ) async {
@@ -219,6 +241,8 @@ void main() {
 Widget _mapApp(
   FakeLocationRepository repository, {
   Duration? mapLoadTimeout,
+  ThemeData? themeOverride,
+  TextScaler? textScaler,
   RealtimeBusSource? realtimeBusSource,
   Duration realtimePollInterval = const Duration(seconds: 10),
   FavoritesRepository? favoritesRepository,
@@ -238,7 +262,18 @@ Widget _mapApp(
       locale: const Locale('es', 'UY'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      theme: AppTheme.light(),
+      theme: themeOverride ?? AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: themeOverride?.brightness == Brightness.dark
+          ? ThemeMode.dark
+          : ThemeMode.light,
+      builder: (context, child) {
+        if (textScaler == null) return child!;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+          child: child!,
+        );
+      },
       home: MapScreen(
         mapBuilder: (context) => const ColoredBox(color: Colors.transparent),
         mapLoadTimeout: mapLoadTimeout,

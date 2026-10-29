@@ -10,6 +10,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/config/map_config.dart';
 import '../../../core/config/transit_config.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/rumbo_components.dart';
 import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
 import '../../../features/search/presentation/search_controller.dart';
@@ -28,10 +30,10 @@ import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/connectivity_provider.dart';
 import '../data/map_cache_repository.dart';
-import 'live_bus_chip.dart';
 import 'live_buses_controller.dart';
 import 'map_action_provider.dart';
 import 'map_location_controller.dart';
+import 'live_bus_chip.dart';
 
 typedef MapBuilder = Widget Function(BuildContext context);
 
@@ -125,9 +127,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
   MontevideoRealtimeBusSource? _ownedRealtimeSource;
   final Set<String> _expandedStopIds = {};
   String? _selectedVariantId;
+  String? _selectedStopId;
   Route? _selectedRoute;
-  Color _selectedRouteColor = AppColors.deepBlue;
+  Color _selectedRouteColor = AppColors.rumbo;
   bool? _lastDarkTheme;
+  int? _mapLayerSignature;
+  List<Layer>? _cachedMapLayers;
   TripPlan? _selectedTripPlan;
   String? _selectedTripOriginName;
   String? _selectedTripDestinationName;
@@ -338,12 +343,83 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   void _onMapEvent(MapEvent event) {
-    if (event is MapEventMoveCamera) {
+    if (event is MapEventCameraIdle) {
       _updateMetersPerPixel();
       _updateVisibleBounds();
     } else if (event is MapEventClick) {
-      unawaited(_showNearestStop(event));
+      unawaited(_showNearestFeature(event));
     }
+  }
+
+  Future<void> _showNearestFeature(MapEventClick event) async {
+    if (await _showNearestBus(event)) return;
+    await _showNearestStop(event);
+  }
+
+  Future<bool> _showNearestBus(MapEventClick event) async {
+    final controller = _mapController;
+    if (controller == null) return false;
+    final liveState = ref.read(liveBusesControllerProvider);
+    final buses = liveState.filteredPositions();
+    if (buses.isEmpty) return false;
+
+    var metersPerPixel = _metersPerPixel;
+    try {
+      metersPerPixel = controller.getMetersPerPixelAtLatitude(event.point.lat);
+    } on Exception {
+      // Keep the last valid scale if the map is still settling.
+    }
+    final nearest =
+        buses
+            .map(
+              (bus) => (
+                bus: bus,
+                distance: _distanceMeters(
+                  event.point.lat,
+                  event.point.lon,
+                  bus.latitude,
+                  bus.longitude,
+                ),
+              ),
+            )
+            .where((candidate) => candidate.distance <= metersPerPixel * 12)
+            .toList()
+          ..sort((a, b) => a.distance.compareTo(b.distance));
+    if (nearest.isEmpty) return false;
+
+    final bus = nearest.first.bus;
+    final now = DateTime.now();
+    final ageSeconds = now.difference(bus.receivedAt).inSeconds;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: false,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RumboSheetHandle(label: bus.lineLabel),
+              LiveBusChip(
+                bus: bus,
+                matchedVariantIds: liveState.selectedVariantIds,
+                now: now,
+              ),
+              const SizedBox(height: AppTokens.space12),
+              Text(
+                bus.destinationName,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text('${bus.speedKmh.toStringAsFixed(0)} km/h'),
+              if (ageSeconds > 60)
+                Text(AppLocalizations.of(context).mapBusAge(ageSeconds)),
+            ],
+          ),
+        ),
+      ),
+    );
+    return true;
   }
 
   Future<void> _showNearestStop(MapEventClick event) async {
@@ -382,6 +458,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (controller == null) return;
     try {
       final bounds = controller.getVisibleRegion();
+      final current = ref.read(liveBusesControllerProvider).visibleBounds;
+      if (current != null &&
+          current.minLatitude == bounds.latitudeSouth &&
+          current.maxLatitude == bounds.latitudeNorth &&
+          current.minLongitude == bounds.longitudeWest &&
+          current.maxLongitude == bounds.longitudeEast) {
+        return;
+      }
       ref
           .read(liveBusesControllerProvider.notifier)
           .setVisibleBounds(
@@ -395,61 +479,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
     } on Exception {
       // Keep the last valid visible region until the map is ready again.
     }
-  }
-
-  Marker _busMarker(
-    BuildContext context,
-    BusPosition bus,
-    Set<int> matchedVariantIds,
-  ) {
-    final now = DateTime.now();
-    final ageSeconds = now.difference(bus.receivedAt).inSeconds;
-    final isStale = ageSeconds > 60;
-    final l10n = AppLocalizations.of(context);
-    final chip = LiveBusChip(
-      bus: bus,
-      matchedVariantIds: matchedVariantIds,
-      now: now,
-    );
-
-    return Marker(
-      point: Geographic(lon: bus.longitude, lat: bus.latitude),
-      size: const Size(48, 48),
-      child: Semantics(
-        button: true,
-        label: '${bus.lineLabel}, ${bus.destinationName}',
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              showDragHandle: true,
-              builder: (context) => SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      chip,
-                      const SizedBox(height: 12),
-                      Text(
-                        bus.destinationName,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      Text('${bus.speedKmh.toStringAsFixed(0)} km/h'),
-                      if (isStale) Text(l10n.mapBusAge(ageSeconds)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            child: Center(child: FittedBox(child: chip)),
-          ),
-        ),
-      ),
-    );
   }
 
   void _updateMetersPerPixel() {
@@ -508,7 +537,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  Future<void> _showTripSearch({TripEndpoint? destination}) async {
+  Future<void> _showTripSearch({
+    TripEndpoint? origin,
+    TripEndpoint? destination,
+  }) async {
     final l10n = AppLocalizations.of(context);
     final location = ref.read(mapLocationControllerProvider).location;
     final feed = ref.read(feedUpdateControllerProvider).asData?.value;
@@ -521,6 +553,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final placeSource = transitConfig.placeSearchEndpoint.isEmpty
         ? null
         : OpenStreetMapPlaceSource(endpoint: transitConfig.placeSearchEndpoint);
+    final tripPlanner = TransitTripPlanner(ref.read(transitRepositoryProvider));
     var didSelectPlan = false;
     try {
       await showModalBottomSheet<void>(
@@ -555,6 +588,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
             }
             return accepted == true;
           },
+          onCancelPlan: tripPlanner.cancelPendingSearch,
+          initialOrigin: origin,
           initialDestination: destination,
           searchService: searchService,
           onPlanSelected: (plan, origin, destination) {
@@ -609,7 +644,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             if (originLatitude == null || originLongitude == null) {
               throw Exception(l10n.tripOriginRequired);
             }
-            return TransitTripPlanner(ref.read(transitRepositoryProvider)).plan(
+            return tripPlanner.plan(
               TripRequest(
                 originLatitude: originLatitude,
                 originLongitude: originLongitude,
@@ -634,6 +669,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         if (plan != null) await _focusOnTripPlan(plan);
       }
     } finally {
+      tripPlanner.cancelPendingSearch();
       placeSource?.close();
     }
   }
@@ -763,11 +799,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   Future<void> _showStopDetails(Stop stop) async {
+    setState(() => _selectedStopId = stop.id);
     var shouldPlan = false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      showDragHandle: false,
       builder: (context) => StopDetailsSheet(
         stop: stop,
         onHowToGetThere: () {
@@ -780,6 +817,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         },
       ),
     );
+    if (mounted) setState(() => _selectedStopId = null);
     if (mounted && shouldPlan) {
       await _showTripSearch(destination: TripEndpoint.fromStop(stop));
     }
@@ -812,7 +850,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         Geographic(lon: location.longitude, lat: location.latitude),
       ),
     );
-    final primary = isDark ? AppColors.darkPrimary : AppColors.deepBlue;
+    final primary = isDark ? AppColors.darkPrimary : AppColors.rumbo;
     final radius = (location.accuracyMeters / _metersPerPixel)
         .round()
         .clamp(16, 96)
@@ -830,47 +868,150 @@ class _MapScreenState extends ConsumerState<MapScreen>
         radius: 7,
         color: primary,
         strokeWidth: 3,
-        strokeColor: AppColors.white,
+        strokeColor: AppColors.surface,
       ),
     ];
   }
 
-  List<Layer> _stopLayers(List<Stop> stops, {required bool isDark}) {
+  List<Layer> _stopLayers(List<Stop> stops) {
     if (stops.isEmpty) return const [];
+    final points = [
+      for (final stop in stops)
+        Feature<Point>(
+          geometry: Point(Geographic(lon: stop.longitude, lat: stop.latitude)),
+        ),
+    ];
+    final selectedStop = stops.where((stop) => stop.id == _selectedStopId);
     return [
-      CircleLayer(
-        points: [
-          for (final stop in stops)
+      MarkerLayer(
+        points: points,
+        textField: '■',
+        textFont: const ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        textSize: 24,
+        textColor: AppColors.rumbo,
+        textHaloColor: AppColors.surface,
+        textHaloWidth: 1.5,
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
+      ),
+      MarkerLayer(
+        points: points,
+        textField: '●',
+        textFont: const ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        textSize: 9,
+        textColor: AppColors.surface,
+        textHaloColor: AppColors.rumbo,
+        textHaloWidth: .5,
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
+      ),
+      if (selectedStop.isNotEmpty)
+        CircleLayer(
+          points: [
             Feature<Point>(
               geometry: Point(
-                Geographic(lon: stop.longitude, lat: stop.latitude),
+                Geographic(
+                  lon: selectedStop.first.longitude,
+                  lat: selectedStop.first.latitude,
+                ),
               ),
             ),
-        ],
-        radius: 8,
-        color: AppColors.lime,
-        strokeWidth: 2,
-        strokeColor: isDark ? AppColors.ivory : AppColors.ink,
-      ),
+          ],
+          radius: 15,
+          color: AppColors.transparent,
+          strokeWidth: 3,
+          strokeColor: AppColors.lime,
+        ),
     ];
   }
 
   List<Layer> _selectedRouteLayers(Shape? shape) {
     if (shape == null || shape.points.length < 2) return const [];
-    return [
-      PolylineLayer(
-        polylines: [
-          Feature<LineString>(
-            geometry: LineString.from([
-              for (final point in shape.points)
-                Geographic(lon: point.longitude, lat: point.latitude),
-            ]),
-          ),
-        ],
-        color: _selectedRouteColor,
-        width: 5,
+    final route = [
+      Feature<LineString>(
+        geometry: LineString.from([
+          for (final point in shape.points)
+            Geographic(lon: point.longitude, lat: point.latitude),
+        ]),
       ),
     ];
+    return [
+      _RoundedPolylineLayer(list: route, color: AppColors.surface, width: 7),
+      _RoundedPolylineLayer(list: route, color: _selectedRouteColor, width: 5),
+    ];
+  }
+
+  List<Layer> _busLayers(List<BusPosition> buses) {
+    if (buses.isEmpty) return const [];
+    final points = [
+      for (final bus in buses)
+        Feature<Point>(
+          geometry: Point(Geographic(lon: bus.longitude, lat: bus.latitude)),
+        ),
+    ];
+    return [
+      CircleLayer(
+        points: points,
+        radius: 10,
+        color: AppColors.lime,
+        strokeWidth: 2,
+        strokeColor: AppColors.surface,
+      ),
+      MarkerLayer(
+        points: points,
+        textField: '●',
+        textFont: const ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        textSize: 11,
+        textColor: AppColors.ink,
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
+      ),
+    ];
+  }
+
+  List<Layer> _mapLayers({
+    required List<Stop> stops,
+    required List<Stop>? fallbackStops,
+    required Shape? shape,
+    required MapLocationState locationState,
+    required List<BusPosition> buses,
+    required bool isDark,
+  }) {
+    final location = locationState.location;
+    final shapeKey = shape == null
+        ? Object.hash(_selectedVariantId, identityHashCode(fallbackStops))
+        : identityHashCode(shape);
+    final locationKey = Object.hash(
+      locationState.status,
+      location?.latitude,
+      location?.longitude,
+      location?.accuracyMeters,
+      _metersPerPixel,
+    );
+    final busKey = Object.hashAll(
+      buses.map((bus) => Object.hash(bus.latitude, bus.longitude)),
+    );
+    final signature = Object.hash(
+      identityHashCode(stops),
+      identityHashCode(_selectedTripPlan),
+      shapeKey,
+      locationKey,
+      busKey,
+      _selectedStopId,
+      isDark,
+    );
+    final cached = _cachedMapLayers;
+    if (cached != null && signature == _mapLayerSignature) return cached;
+
+    final layers = <Layer>[
+      ..._tripPlanLayers(_selectedTripPlan),
+      ..._selectedRouteLayers(shape),
+      ..._stopLayers(stops),
+      ..._busLayers(_selectedTripPlan == null ? buses : const []),
+      ..._locationLayers(locationState, isDark),
+    ];
+    _mapLayerSignature = signature;
+    return _cachedMapLayers = List<Layer>.unmodifiable(layers);
   }
 
   List<Layer> _tripPlanLayers(TripPlan? plan) {
@@ -906,7 +1047,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
 
     final layers = <Layer>[];
-    final routeColor = Theme.of(context).colorScheme.primary;
+    final routeColor = AppColors.rumbo;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (walkingPoints.isNotEmpty) {
       layers.add(
@@ -919,9 +1060,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
       );
     }
     if (transitPoints.isNotEmpty) {
-      layers.add(
-        PolylineLayer(polylines: transitPoints, color: routeColor, width: 6),
-      );
+      layers
+        ..add(
+          _RoundedPolylineLayer(
+            list: transitPoints,
+            color: AppColors.surface,
+            width: 7,
+          ),
+        )
+        ..add(
+          _RoundedPolylineLayer(
+            list: transitPoints,
+            color: routeColor,
+            width: 5,
+          ),
+        );
     }
 
     final origin = _tripPlanEndpoint(plan, first: true);
@@ -932,7 +1085,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           radius: 7,
           color: isDark ? AppColors.ivory : AppColors.ink,
           strokeWidth: 3,
-          strokeColor: isDark ? AppColors.ink : AppColors.white,
+          strokeColor: isDark ? AppColors.ink : AppColors.surface,
         ),
       );
     }
@@ -1014,7 +1167,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     Route route,
     Stop stop,
   ) async {
-    final routeColor = _mapRouteColor(route);
+    final routeColor = AppColors.rumbo;
     setState(() {
       _selectedVariantId = variant.id;
       _selectedRoute = route;
@@ -1041,7 +1194,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   Future<void> _showLineDetails(Route route, {String? initialVariantId}) async {
-    final routeColor = _mapRouteColor(route);
+    final routeColor = AppColors.rumbo;
     setState(() {
       _selectedTripPlan = null;
       _selectedVariantId = initialVariantId;
@@ -1120,17 +1273,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
         },
       ),
     );
-  }
-
-  Color _mapRouteColor(Route route) {
-    final hex = route.color.replaceFirst('#', '');
-    if (!RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hex)) {
-      return Theme.of(context).colorScheme.primary;
-    }
-    final color = Color(int.parse('FF$hex', radix: 16));
-    return Theme.of(context).brightness == Brightness.dark
-        ? Color.lerp(color, AppColors.ivory, .28)!
-        : color;
   }
 
   Future<void> _setNearbyStopsExpanded(Stop stop, bool expanded) async {
@@ -1255,28 +1397,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
           onMapCreated: _onMapCreated,
           onStyleLoaded: _onStyleLoaded,
           onEvent: _onMapEvent,
-          layers: [
-            ..._tripPlanLayers(_selectedTripPlan),
-            ..._selectedRouteLayers(effectiveShape),
-            ..._stopLayers(stops, isDark: isDark),
-            ..._locationLayers(locationState, isDark),
-          ],
-          children: [
-            WidgetLayer(
-              allowInteraction: true,
-              markers: [
-                if (_selectedTripPlan == null)
-                  for (final bus in busesInVisibleArea)
-                    _busMarker(
-                      context,
-                      bus,
-                      selectedRoute == null
-                          ? const <int>{}
-                          : selectedVariantIds,
-                    ),
-              ],
-            ),
-          ],
+          layers: _mapLayers(
+            stops: stops,
+            fallbackStops: fallbackStops,
+            shape: effectiveShape,
+            locationState: locationState,
+            buses: busesInVisibleArea,
+            isDark: isDark,
+          ),
         );
 
     return LayoutBuilder(
@@ -1316,7 +1444,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 bottom: false,
                 child: Column(
                   children: [
-                    _SearchControl(onTap: _showTripSearch),
+                    FloatingSearchBar(
+                      keyValue: 'map-search-control',
+                      label: l10n.mapSearchPlaceholder,
+                      onTap: _showTripSearch,
+                    ),
                     if (placeFavorites.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Align(
@@ -1381,16 +1513,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 child: SizedBox(
                   width: 56,
                   height: 56,
-                  child: FloatingActionButton(
-                    heroTag: 'map-recenter',
-                    tooltip: l10n.locationRecenter,
-                    onPressed: _requestLocation,
-                    child: locationState.status == MapLocationStatus.loading
-                        ? const SizedBox.square(
-                            dimension: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Symbols.my_location_rounded),
+                  child: Center(
+                    child: Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      elevation: 2,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: l10n.locationRecenter,
+                        onPressed: _requestLocation,
+                        icon: locationState.status == MapLocationStatus.loading
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Symbols.my_location_rounded),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1447,24 +1587,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   color: Theme.of(context).colorScheme.surface,
                   elevation: 8,
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
+                    top: Radius.circular(AppTokens.radius24),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: ListView(
                     controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                     children: [
-                      Center(
-                        child: Container(
-                          width: 36,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.outlineVariant,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
+                      RumboSheetHandle(label: l10n.mapStopsAndBuses),
+                      const SizedBox(height: AppTokens.space8),
                       if (_selectedTripPlan != null) ...[
                         TripPlanDetails(
                           plan: _selectedTripPlan!,
@@ -1474,6 +1605,38 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           destinationName:
                               _selectedTripDestinationName ??
                               l10n.tripDetailUnknownStop,
+                          onSwapTrip: () {
+                            final originPoint = _tripPlanEndpoint(
+                              _selectedTripPlan!,
+                              first: true,
+                            );
+                            final destinationPoint = _tripPlanEndpoint(
+                              _selectedTripPlan!,
+                              first: false,
+                            );
+                            if (originPoint == null ||
+                                destinationPoint == null) {
+                              return;
+                            }
+                            unawaited(
+                              _showTripSearch(
+                                origin: TripEndpoint(
+                                  name:
+                                      _selectedTripDestinationName ??
+                                      l10n.tripDetailUnknownStop,
+                                  latitude: destinationPoint.lat,
+                                  longitude: destinationPoint.lon,
+                                ),
+                                destination: TripEndpoint(
+                                  name:
+                                      _selectedTripOriginName ??
+                                      l10n.tripOriginLocationHint,
+                                  latitude: originPoint.lat,
+                                  longitude: originPoint.lon,
+                                ),
+                              ),
+                            );
+                          },
                           activeTripIsActive: activeTrip.isActive,
                           activeTripStopsRemaining: activeTrip.stopsRemaining,
                           onStartActiveTrip:
@@ -1925,48 +2088,6 @@ class _FavoriteShortcutChip extends StatelessWidget {
   }
 }
 
-class _SearchControl extends StatelessWidget {
-  const _SearchControl({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 3,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        key: const ValueKey('map-search-control'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          height: 56,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(
-              children: [
-                Icon(
-                  Symbols.search_rounded,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  l10n.mapSearchPlaceholder,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.icon, required this.label});
 
@@ -2086,31 +2207,55 @@ class _MapErrorCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Symbols.map_rounded,
-              size: 36,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.mapErrorTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(l10n.mapErrorBody, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Symbols.refresh_rounded),
-              label: Text(l10n.actionRetry),
-            ),
-          ],
+        padding: const EdgeInsets.all(8),
+        child: EmptyState(
+          icon: Icon(
+            Symbols.map_rounded,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          title: l10n.mapErrorTitle,
+          message: l10n.mapErrorBody,
+          footer: FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Symbols.refresh_rounded),
+            label: Text(l10n.actionRetry),
+          ),
         ),
       ),
     );
   }
+}
+
+class _RoundedPolylineLayer extends Layer<Feature<LineString>> {
+  const _RoundedPolylineLayer({
+    required super.list,
+    required this.color,
+    required this.width,
+  });
+
+  final Color color;
+  final int width;
+
+  @override
+  Map<String, Object> getPaint() => {
+    'line-color': color.toHexString(),
+    'line-opacity': color.a,
+    'line-width': width,
+  };
+
+  @override
+  Map<String, Object> getLayout() => {
+    'line-cap': 'round',
+    'line-join': 'round',
+  };
+
+  @override
+  StyleLayer createStyleLayer(int index) => LineStyleLayer(
+    id: getLayerId(index),
+    sourceId: getSourceId(index),
+    paint: getPaint(),
+    layout: getLayout(),
+    minZoom: minZoom,
+    maxZoom: maxZoom,
+  );
 }

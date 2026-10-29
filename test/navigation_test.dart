@@ -12,7 +12,7 @@ void main() {
 
     await tester.pumpWidget(buildRumboTestApp());
     await tester.pumpAndSettle();
-    expect(find.text('Paradas y ómnibus'), findsOneWidget);
+    expect(find.text('Próximos ómnibus'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('navigation-favorites')));
     await tester.pumpAndSettle();
@@ -24,6 +24,6 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('navigation-map')));
     await tester.pumpAndSettle();
-    expect(find.text('Paradas y ómnibus'), findsOneWidget);
+    expect(find.text('Próximos ómnibus'), findsOneWidget);
   });
 }

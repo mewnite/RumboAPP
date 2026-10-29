@@ -11,7 +11,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('¿A dónde vamos?'), findsOneWidget);
-    expect(find.text('Paradas y ómnibus'), findsOneWidget);
+    expect(find.text('Próximos ómnibus'), findsOneWidget);
     expect(
       find.textContaining('No se pudieron cargar los datos oficiales:'),
       findsOneWidget,
