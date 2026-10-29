@@ -7,6 +7,20 @@ import 'package:rumbo/features/search/data/remote_geocoding_source.dart';
 import 'package:rumbo/features/search/domain/query_normalizer.dart';
 import 'package:rumbo/features/search/domain/search_models.dart';
 
+class _AbortableTestClient extends http.BaseClient {
+  _AbortableTestClient(this.handler);
+
+  final Future<http.StreamedResponse> Function(http.BaseRequest request)
+  handler;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      handler(request);
+
+  @override
+  void close() {}
+}
+
 void main() {
   const parser = MontevideoQueryParser();
 
@@ -105,7 +119,7 @@ void main() {
     test('aborta la petición cuando cambia la consulta', () async {
       final abortTrigger = Completer<void>();
       final requestStarted = Completer<void>();
-      final client = MockClient((request) async {
+      final client = _AbortableTestClient((request) async {
         requestStarted.complete();
         expect(request, isA<http.AbortableRequest>());
         final abortable = request as http.AbortableRequest;

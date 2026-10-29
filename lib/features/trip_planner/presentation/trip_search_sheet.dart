@@ -1080,7 +1080,11 @@ int _walkingMinutes(TripPlan plan) {
       seconds += leg.arrivalTime.difference(leg.departureTime).inSeconds;
     }
   }
-  return (seconds / 60).ceil();
+  if (seconds > 0) return (seconds / 60).ceil();
+  if (plan.totalWalkingMeters <= 0) return 0;
+
+  final defaultSpeed = const PlannerConfig().walkingSpeedMetersPerSecond;
+  return (plan.totalWalkingMeters / defaultSpeed / 60).ceil();
 }
 
 String _clock(DateTime time) =>

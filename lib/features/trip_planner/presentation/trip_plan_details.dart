@@ -194,7 +194,6 @@ class TripPlanDetails extends StatelessWidget {
       _TimelineStep(
         icon: Symbols.trip_origin_rounded,
         title: l10n.tripDetailStart,
-        subtitle: originName,
         time: plan.requestedDeparture,
         isOrigin: true,
       ),
@@ -248,7 +247,6 @@ class TripPlanDetails extends StatelessWidget {
       _TimelineStep(
         icon: Symbols.location_on_rounded,
         title: l10n.tripDetailEnd,
-        subtitle: destinationName,
         time: plan.arrivalTime,
         estimated: true,
         isDestination: true,

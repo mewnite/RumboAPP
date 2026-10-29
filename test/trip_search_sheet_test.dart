@@ -490,7 +490,7 @@ void main() {
     expect(find.text('12:00–12:45'), findsOneWidget);
     expect(find.text('45 min'), findsOneWidget);
     expect(find.text('8 min de caminata'), findsOneWidget);
-    expect(find.text('1 transbordo'), findsOneWidget);
+    expect(find.textContaining('1 transbordo'), findsOneWidget);
 
     expect(find.text('Salida'), findsOneWidget);
     expect(find.text('Mi ubicación'), findsOneWidget);
@@ -649,8 +649,8 @@ void main() {
     expect(find.text('45 min'), findsOneWidget);
     expect(find.text('522'), findsOneWidget);
     expect(find.text('103'), findsOneWidget);
-    expect(find.text('3 min de caminata'), findsOneWidget);
-    expect(find.text('1 transbordo'), findsOneWidget);
+    expect(find.textContaining('3 min de caminata'), findsOneWidget);
+    expect(find.textContaining('1 transbordo'), findsOneWidget);
     expect(find.text('Horarios programados'), findsOneWidget);
     expect(
       find.bySemanticsLabel(

@@ -133,6 +133,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
   bool? _lastDarkTheme;
   int? _mapLayerSignature;
   List<Layer>? _cachedMapLayers;
+  List<Stop>? _cachedFallbackShapeStops;
+  String? _cachedFallbackShapeVariantId;
+  Shape? _cachedFallbackShape;
+  List<BusPosition>? _cachedBusSourcePositions;
+  LiveBusesBounds? _cachedBusBounds;
+  Set<String> _cachedBusLines = const {};
+  Set<int> _cachedBusVariantIds = const {};
+  int? _cachedBusMarkerLimit;
+  List<BusPosition>? _cachedVisibleBuses;
   TripPlan? _selectedTripPlan;
   String? _selectedTripOriginName;
   String? _selectedTripDestinationName;
@@ -969,6 +978,54 @@ class _MapScreenState extends ConsumerState<MapScreen>
     ];
   }
 
+  Shape _fallbackShapeFor(String variantId, List<Stop> stops) {
+    final cached = _cachedFallbackShape;
+    if (identical(stops, _cachedFallbackShapeStops) &&
+        variantId == _cachedFallbackShapeVariantId &&
+        cached != null) {
+      return cached;
+    }
+
+    final shape = Shape(
+      id: variantId,
+      points: [
+        for (var index = 0; index < stops.length; index++)
+          ShapePoint(stops[index].latitude, stops[index].longitude, index),
+      ],
+    );
+    _cachedFallbackShapeStops = stops;
+    _cachedFallbackShapeVariantId = variantId;
+    _cachedFallbackShape = shape;
+    return shape;
+  }
+
+  List<BusPosition> _visibleBusesFor(
+    LiveBusesState state, {
+    required Set<String> selectedLines,
+    required Set<int> selectedVariantIds,
+  }) {
+    final cached = _cachedVisibleBuses;
+    if (cached != null &&
+        identical(state.positions, _cachedBusSourcePositions) &&
+        identical(state.visibleBounds, _cachedBusBounds) &&
+        state.maxMarkers == _cachedBusMarkerLimit &&
+        setEquals(selectedLines, _cachedBusLines) &&
+        setEquals(selectedVariantIds, _cachedBusVariantIds)) {
+      return cached;
+    }
+
+    final visible = state.filteredPositions(
+      selectedLines: selectedLines,
+      selectedVariantIds: selectedVariantIds,
+    );
+    _cachedBusSourcePositions = state.positions;
+    _cachedBusBounds = state.visibleBounds;
+    _cachedBusMarkerLimit = state.maxMarkers;
+    _cachedBusLines = Set<String>.of(selectedLines);
+    _cachedBusVariantIds = Set<int>.of(selectedVariantIds);
+    return _cachedVisibleBuses = visible;
+  }
+
   List<Layer> _mapLayers({
     required List<Stop> stops,
     required List<Stop>? fallbackStops,
@@ -988,9 +1045,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       location?.accuracyMeters,
       _metersPerPixel,
     );
-    final busKey = Object.hashAll(
-      buses.map((bus) => Object.hash(bus.latitude, bus.longitude)),
-    );
+    final busKey = identityHashCode(buses);
     final signature = Object.hash(
       identityHashCode(stops),
       identityHashCode(_selectedTripPlan),
@@ -1354,7 +1409,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
             const <int>[],
       );
     }
-    final busesInVisibleArea = liveBuses.filteredPositions(
+    final busesInVisibleArea = _visibleBusesFor(
+      liveBuses,
       selectedLines: selectedRoute == null ? const {} : selectedLines,
       selectedVariantIds: selectedRoute == null ? const {} : selectedVariantIds,
     );
@@ -1368,17 +1424,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         (selectedShape != null && selectedShape.points.length >= 2)
         ? selectedShape
         : (fallbackStops != null && fallbackStops.length >= 2
-              ? Shape(
-                  id: _selectedVariantId!,
-                  points: [
-                    for (var i = 0; i < fallbackStops.length; i++)
-                      ShapePoint(
-                        fallbackStops[i].latitude,
-                        fallbackStops[i].longitude,
-                        i,
-                      ),
-                  ],
-                )
+              ? _fallbackShapeFor(_selectedVariantId!, fallbackStops)
               : null);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mapBuilder =

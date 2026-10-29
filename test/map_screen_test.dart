@@ -64,7 +64,7 @@ void main() {
     await tester.binding.handlePopRoute();
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.byKey(const ValueKey('map-search-control')));
+    await tester.tap(find.text('¿A dónde vamos?'));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Planificá tu viaje'), findsOneWidget);
     expect(find.text('Desde'), findsOneWidget);

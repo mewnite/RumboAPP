@@ -18,6 +18,7 @@ class FloatingSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
+    key: keyValue == null ? null : ValueKey(keyValue),
     container: true,
     button: true,
     excludeSemantics: true,
@@ -29,7 +30,6 @@ class FloatingSearchBar extends StatelessWidget {
       shadowColor: AppColors.ink.withValues(alpha: .08),
       borderRadius: BorderRadius.circular(AppTokens.radius16),
       child: InkWell(
-        key: keyValue == null ? null : ValueKey(keyValue),
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppTokens.radius16),
         child: ConstrainedBox(

@@ -286,7 +286,7 @@ abstract final class AppTheme {
         shape: cardShape,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: colorScheme.surfaceContainerHigh,
         surfaceTintColor: AppColors.transparent,
         elevation: 4,
         shape: RoundedRectangleBorder(
