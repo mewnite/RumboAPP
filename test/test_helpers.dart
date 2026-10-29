@@ -20,7 +20,7 @@ Widget buildRumboTestApp({
   return ProviderScope(
     overrides: [
       mapBuilderOverrideProvider.overrideWithValue(
-        (context) => const ColoredBox(color: AppColors.surfaceGray),
+        (context) => const ColoredBox(color: AppColors.ivory),
       ),
       networkAvailableProvider.overrideWith((ref) => Stream<bool>.value(true)),
       locationRepositoryProvider.overrideWith(

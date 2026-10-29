@@ -48,14 +48,9 @@ class ThemeSampleScreen extends StatelessWidget {
                         foreground: AppColors.ink,
                       ),
                       _PaletteSwatch(
-                        label: l10n.debugPaletteDeepBlue,
-                        background: AppColors.deepBlue,
-                        foreground: AppColors.white,
-                      ),
-                      _PaletteSwatch(
-                        label: l10n.debugPaletteMint,
-                        background: AppColors.mint,
-                        foreground: AppColors.deepBlue,
+                        label: l10n.debugPaletteRumbo,
+                        background: AppColors.rumbo,
+                        foreground: AppColors.surface,
                       ),
                       _PaletteSwatch(
                         label: l10n.debugPaletteLime,
@@ -64,7 +59,7 @@ class ThemeSampleScreen extends StatelessWidget {
                       ),
                       _PaletteSwatch(
                         label: l10n.debugPaletteSurface,
-                        background: AppColors.white,
+                        background: AppColors.surface,
                         foreground: AppColors.ink,
                       ),
                       _PaletteSwatch(
@@ -119,10 +114,13 @@ class ThemeSampleScreen extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      LineChip(label: 'A', backgroundColor: AppColors.deepBlue),
-                      LineChip(label: 'D', backgroundColor: AppColors.mint),
+                      LineChip(label: 'A', backgroundColor: AppColors.rumbo),
+                      LineChip(label: 'D', backgroundColor: AppColors.lime),
                       LineChip(label: '142', backgroundColor: AppColors.ink),
-                      LineChip(label: '174', backgroundColor: AppColors.white),
+                      LineChip(
+                        label: '174',
+                        backgroundColor: AppColors.surface,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),

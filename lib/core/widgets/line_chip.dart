@@ -16,7 +16,7 @@ class LineChip extends StatelessWidget {
   final bool compact;
 
   Color get foregroundColor {
-    final options = [AppColors.white, AppColors.deepBlue, AppColors.ink];
+    final options = [AppColors.surface, AppColors.rumbo, AppColors.ink];
     return options.reduce(
       (best, candidate) =>
           contrastRatio(candidate, backgroundColor) >

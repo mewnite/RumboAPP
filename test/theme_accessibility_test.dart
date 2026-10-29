@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/core/theme/app_colors.dart';
@@ -19,7 +21,7 @@ void main() {
   testWidgets('LineChip selects AA text on light and dark line colors', (
     tester,
   ) async {
-    const lightBackground = AppColors.mint;
+    const lightBackground = AppColors.lime;
     const darkBackground = AppColors.ink;
     const lightChip = LineChip(
       key: ValueKey('light-line-chip'),
@@ -81,7 +83,7 @@ void main() {
       (
         'light surface variant',
         AppTheme.lightColorScheme.onSurfaceVariant,
-        AppColors.surfaceGray,
+        AppColors.ivory,
       ),
       (
         'light error',
@@ -181,6 +183,68 @@ void main() {
         greaterThanOrEqualTo(4.5),
         reason: '$name must meet the 4.5:1 AA threshold.',
       );
+    }
+
+    final extendedPairs = <(String, Color, Color)>[
+      (
+        'light secondary text on white',
+        AppColors.secondaryText,
+        AppColors.surface,
+      ),
+      (
+        'light secondary text on ivory',
+        AppColors.secondaryText,
+        AppColors.ivory,
+      ),
+      ('light error on white', AppColors.lightError, AppColors.surface),
+      (
+        'dark secondary text on dark surface',
+        AppColors.darkSecondaryText,
+        AppColors.darkSurface,
+      ),
+      (
+        'dark secondary text on elevated surface',
+        AppColors.darkSecondaryText,
+        AppColors.darkElevatedSurface,
+      ),
+      (
+        'dark error on dark surface',
+        AppColors.darkError,
+        AppColors.darkSurface,
+      ),
+      (
+        'light outline icons',
+        AppTheme.lightColorScheme.outline,
+        AppTheme.lightColorScheme.surface,
+      ),
+      (
+        'dark outline icons',
+        AppTheme.darkColorScheme.outline,
+        AppTheme.darkColorScheme.surface,
+      ),
+    ];
+    for (final (name, foreground, background) in extendedPairs) {
+      expect(
+        contrastRatio(foreground, background),
+        greaterThanOrEqualTo(4.5),
+        reason: '$name must meet the 4.5:1 AA threshold.',
+      );
+    }
+  });
+
+  test('source files keep literal colors inside the token file', () {
+    final files = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+    final hexColor = RegExp(r'#[0-9A-Fa-f]{3,8}\b');
+    final materialColor = RegExp(r'\bColors\.[A-Za-z_]\w*');
+
+    for (final file in files) {
+      if (file.uri.pathSegments.last == 'app_colors.dart') continue;
+      final contents = file.readAsStringSync();
+      expect(hexColor.hasMatch(contents), isFalse, reason: file.path);
+      expect(materialColor.hasMatch(contents), isFalse, reason: file.path);
     }
   });
 }
