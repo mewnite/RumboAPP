@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -98,6 +100,32 @@ void main() {
         source.searchRemote(parser.parse('Montevideo')),
         throwsFormatException,
       );
+    });
+
+    test('aborta la petición cuando cambia la consulta', () async {
+      final abortTrigger = Completer<void>();
+      final requestStarted = Completer<void>();
+      final client = MockClient((request) async {
+        requestStarted.complete();
+        expect(request, isA<http.AbortableRequest>());
+        final abortable = request as http.AbortableRequest;
+        await abortable.abortTrigger;
+        throw http.RequestAbortedException(request.url);
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final pending = source.searchRemote(
+        parser.parse('pocit'),
+        abortTrigger: abortTrigger.future,
+      );
+      await requestStarted.future;
+      abortTrigger.complete();
+
+      await expectLater(pending, throwsA(isA<http.RequestAbortedException>()));
     });
   });
 }

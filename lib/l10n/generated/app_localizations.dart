@@ -436,7 +436,7 @@ abstract class AppLocalizations {
   /// No description provided for @mapStopsAndBuses.
   ///
   /// In es_UY, this message translates to:
-  /// **'Paradas y ómnibus'**
+  /// **'Próximos ómnibus'**
   String get mapStopsAndBuses;
 
   /// No description provided for @mapStopsNearby.
@@ -1051,17 +1051,11 @@ abstract class AppLocalizations {
   /// **'Ivory'**
   String get debugPaletteIvory;
 
-  /// No description provided for @debugPaletteDeepBlue.
+  /// No description provided for @debugPaletteRumbo.
   ///
   /// In es_UY, this message translates to:
-  /// **'Deep blue'**
-  String get debugPaletteDeepBlue;
-
-  /// No description provided for @debugPaletteMint.
-  ///
-  /// In es_UY, this message translates to:
-  /// **'Mint AA'**
-  String get debugPaletteMint;
+  /// **'Rumbo'**
+  String get debugPaletteRumbo;
 
   /// No description provided for @debugPaletteLime.
   ///
@@ -1399,6 +1393,12 @@ abstract class AppLocalizations {
   /// **'Habilitar y buscar'**
   String get tripGeocodingConsentAction;
 
+  /// No description provided for @searchRemoteButton.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Buscar lugares en línea'**
+  String get searchRemoteButton;
+
   /// No description provided for @cancel.
   ///
   /// In es_UY, this message translates to:
@@ -1434,6 +1434,18 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'No se pudo planificar: {error}'**
   String tripPlanError(String error);
+
+  /// No description provided for @tripPlanErrorTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudo calcular el viaje'**
+  String get tripPlanErrorTitle;
+
+  /// No description provided for @tripSwapEndpoints.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Intercambiar origen y destino'**
+  String get tripSwapEndpoints;
 
   /// No description provided for @tripSortLabel.
   ///

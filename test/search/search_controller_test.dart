@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/search/domain/place_search_service.dart';
@@ -16,6 +18,7 @@ class MockPlaceSearchService implements PlaceSearchService {
   final Duration remoteDelay;
   int searchCalls = 0;
   int localCalls = 0;
+  int remoteAbortSignals = 0;
   String lastQuery = '';
 
   @override
@@ -24,9 +27,13 @@ class MockPlaceSearchService implements PlaceSearchService {
     double? userLatitude,
     double? userLongitude,
     bool allowRemote = true,
+    Future<void>? remoteAbortTrigger,
   }) async {
     searchCalls++;
     lastQuery = query;
+    if (remoteAbortTrigger != null) {
+      unawaited(remoteAbortTrigger.then((_) => remoteAbortSignals++));
+    }
     if (remoteDelay > Duration.zero) await Future<void>.delayed(remoteDelay);
     return [
       SearchResult(
@@ -98,7 +105,7 @@ void main() {
           SearchStatus.initial,
         );
         notifier.onQueryChanged('Italia');
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await Future<void>.delayed(const Duration(milliseconds: 250));
         expect(container.read(searchControllerProvider).results, isNotEmpty);
         expect(
           container.read(searchControllerProvider).results.first.id,
@@ -119,7 +126,7 @@ void main() {
 
       final notifier = container.read(searchControllerProvider.notifier);
       notifier.onQueryChanged('Italia');
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       expect(mockService.searchCalls, 0);
 
       await notifier.searchRemote(query: 'Italia');
@@ -130,8 +137,33 @@ void main() {
       );
     });
 
+    test('cancela la búsqueda remota cuando cambia la consulta', () async {
+      final mockService = MockPlaceSearchService(
+        remoteDelay: const Duration(milliseconds: 80),
+      );
+      final container = ProviderContainer(
+        overrides: [searchServiceProvider.overrideWithValue(mockService)],
+      );
+      addTearDown(container.dispose);
+      await container.read(remotePlaceSearchEnabledProvider.future);
+
+      final notifier = container.read(searchControllerProvider.notifier);
+      final pending = notifier.searchRemote(query: 'Italia');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      notifier.onQueryChanged('Centro');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await pending;
+
+      expect(mockService.remoteAbortSignals, 1);
+      expect(container.read(searchControllerProvider).query, 'Centro');
+      expect(
+        container.read(searchControllerProvider).results.first.id,
+        'local-Centro',
+      );
+    });
+
     test(
-      'combina lugares al escribir cuando la opción ya está habilitada',
+      'no consulta lugares en línea al escribir aunque esté habilitado',
       () async {
         final mockService = MockPlaceSearchService();
         final container = ProviderContainer(
@@ -142,17 +174,33 @@ void main() {
 
         container
             .read(searchControllerProvider.notifier)
-            .onQueryChanged('Shopping Nuevo Centro', allowRemote: true);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+            .onQueryChanged('Shopping Nuevo Centro');
+        await Future<void>.delayed(const Duration(milliseconds: 250));
         expect(mockService.localCalls, 1);
         expect(mockService.searchCalls, 0);
-        await Future<void>.delayed(const Duration(milliseconds: 500));
+      },
+    );
 
-        expect(mockService.searchCalls, 1);
-        expect(
-          container.read(searchControllerProvider).results.first.id,
-          'res-Shopping Nuevo Centro',
+    test(
+      'espera 200 ms y requiere dos caracteres para buscar localmente',
+      () async {
+        final mockService = MockPlaceSearchService();
+        final container = ProviderContainer(
+          overrides: [searchServiceProvider.overrideWithValue(mockService)],
         );
+        addTearDown(container.dispose);
+        await container.read(remotePlaceSearchEnabledProvider.future);
+
+        final notifier = container.read(searchControllerProvider.notifier);
+        notifier.onQueryChanged('A');
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        expect(mockService.localCalls, 0);
+
+        notifier.onQueryChanged('It');
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(mockService.localCalls, 0);
+        await Future<void>.delayed(const Duration(milliseconds: 180));
+        expect(mockService.localCalls, 1);
       },
     );
 
@@ -184,7 +232,7 @@ void main() {
 
       final notifier = container.read(searchControllerProvider.notifier);
       notifier.onQueryChanged('Centro', isOffline: true);
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
 
       expect(container.read(searchControllerProvider).isLocalOnly, isTrue);
       expect(mockService.searchCalls, 0);

@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/transit_config.dart';
 import '../../../core/debug/performance_measurement.dart';
+import '../../favorites/domain/favorite.dart';
+import '../../favorites/presentation/favorites_controller.dart';
 import '../../../features/stops_and_lines/presentation/feed_update_controller.dart';
 import '../../../features/stops_and_lines/presentation/transit_repository_provider.dart';
 import '../data/in_memory_transit_search_source.dart';
@@ -22,9 +24,40 @@ final searchServiceProvider = Provider<PlaceSearchService>((ref) {
   final endpoint = transitConfig.placeSearchEndpoint;
   final feed = ref.watch(feedUpdateControllerProvider).asData?.value.feed;
   final repository = ref.watch(transitRepositoryProvider);
+  Iterable<SearchResult> savedPlaces() {
+    final favorites =
+        ref.read(favoritesControllerProvider).asData?.value ?? const [];
+    return favorites
+        .where(
+          (favorite) =>
+              favorite.type == FavoriteType.place &&
+              favorite.latitude != null &&
+              favorite.longitude != null,
+        )
+        .map(
+          (favorite) => SearchResult(
+            id: 'favorite:${favorite.id}',
+            kind: SearchEntityKind.favorite,
+            title: favorite.name,
+            subtitle: 'Lugar guardado',
+            latitude: favorite.latitude!,
+            longitude: favorite.longitude!,
+            precision: GeoPrecision.approximateArea,
+            source: SearchDataSource.userStorage,
+          ),
+        );
+  }
+
   final localSource = kIsWeb
-      ? InMemoryTransitSearchSource(feed, repository)
-      : LocalTransitSearchSource(() => ref.read(transitDatabaseProvider));
+      ? InMemoryTransitSearchSource(
+          feed,
+          repository,
+          savedPlacesProvider: savedPlaces,
+        )
+      : LocalTransitSearchSource(
+          () => ref.read(transitDatabaseProvider),
+          savedPlacesProvider: savedPlaces,
+        );
   final remoteSource = RemoteGeocodingSource(
     endpoint: endpoint.isNotEmpty ? endpoint : defaultTargetPlatformUrl,
   );
@@ -73,11 +106,18 @@ final searchControllerProvider =
 
 class DestinationSearchController extends Notifier<SearchState> {
   int _searchGeneration = 0;
-  Timer? _remoteDebounce;
+  Timer? _localDebounce;
+  PerformanceMeasurement? _inputMeasurement;
+  Completer<void>? _remoteAbort;
 
   @override
   SearchState build() {
-    ref.onDispose(() => _remoteDebounce?.cancel());
+    ref.onDispose(() {
+      _searchGeneration++;
+      _localDebounce?.cancel();
+      _cancelRemoteSearch();
+      _inputMeasurement?.finish(details: 'cancelled');
+    });
     Future.microtask(loadRecentSearches);
     return const SearchState();
   }
@@ -110,10 +150,12 @@ class DestinationSearchController extends Notifier<SearchState> {
     double? userLatitude,
     double? userLongitude,
     bool isOffline = false,
-    bool allowRemote = false,
   }) {
     final trimmed = query.trim();
-    _remoteDebounce?.cancel();
+    _localDebounce?.cancel();
+    _cancelRemoteSearch();
+    _inputMeasurement?.finish(details: 'superseded');
+    _inputMeasurement = null;
 
     if (trimmed.isEmpty) {
       _searchGeneration++;
@@ -127,27 +169,30 @@ class DestinationSearchController extends Notifier<SearchState> {
     }
 
     final currentId = ++_searchGeneration;
-
-    // 1. Emisión inmediata local (< 10 ms)
-    _searchLocalImmediate(
-      trimmed,
-      currentId,
-      userLatitude,
-      userLongitude,
+    state = state.copyWith(
+      query: trimmed,
+      status: trimmed.length >= 2 ? SearchStatus.loading : SearchStatus.initial,
+      results: const [],
       isLocalOnly: isOffline,
     );
+    if (trimmed.length < 2) return;
 
-    state = state.copyWith(isLocalOnly: isOffline);
-    if (allowRemote && !isOffline && trimmed.length >= 3) {
-      _remoteDebounce = Timer(const Duration(milliseconds: 200), () {
-        if (_searchGeneration != currentId) return;
-        final remoteId = ++_searchGeneration;
-        state = state.copyWith(status: SearchStatus.loading);
-        unawaited(
-          _searchRemoteAndRank(trimmed, remoteId, userLatitude, userLongitude),
-        );
-      });
-    }
+    // Measure from the final text edit, including the debounce, through results.
+    final measurement = PerformanceMeasurement.start('search.input');
+    _inputMeasurement = measurement;
+    _localDebounce = Timer(const Duration(milliseconds: 200), () {
+      if (_searchGeneration != currentId) return;
+      unawaited(
+        _searchLocalImmediate(
+          trimmed,
+          currentId,
+          userLatitude,
+          userLongitude,
+          isLocalOnly: isOffline,
+          measurement: measurement,
+        ),
+      );
+    });
   }
 
   Future<void> searchRemote({
@@ -161,9 +206,31 @@ class DestinationSearchController extends Notifier<SearchState> {
     final trimmed = query.trim();
     if (trimmed.length < 3) return;
     final currentId = ++_searchGeneration;
-    _remoteDebounce?.cancel();
-    state = state.copyWith(query: trimmed, status: SearchStatus.loading);
-    await _searchRemoteAndRank(trimmed, currentId, userLatitude, userLongitude);
+    _localDebounce?.cancel();
+    _cancelRemoteSearch();
+    _inputMeasurement?.finish(details: 'superseded_by_remote');
+    _inputMeasurement = null;
+    state = state.copyWith(
+      query: trimmed,
+      status: SearchStatus.loading,
+      results: const [],
+    );
+    final abort = Completer<void>();
+    _remoteAbort = abort;
+    await _searchRemoteAndRank(
+      trimmed,
+      currentId,
+      userLatitude,
+      userLongitude,
+      abortTrigger: abort.future,
+    );
+    if (identical(_remoteAbort, abort)) _remoteAbort = null;
+  }
+
+  void _cancelRemoteSearch() {
+    final abort = _remoteAbort;
+    if (abort != null && !abort.isCompleted) abort.complete();
+    _remoteAbort = null;
   }
 
   Future<void> _searchLocalImmediate(
@@ -172,8 +239,8 @@ class DestinationSearchController extends Notifier<SearchState> {
     double? userLatitude,
     double? userLongitude, {
     bool isLocalOnly = false,
+    required PerformanceMeasurement measurement,
   }) async {
-    final measurement = PerformanceMeasurement.start('search.local.$query');
     try {
       final localResults = await _service.searchLocal(
         query: query,
@@ -193,8 +260,10 @@ class DestinationSearchController extends Notifier<SearchState> {
         );
       }
       measurement.finish(details: 'results=${localResults.length}');
+      if (identical(_inputMeasurement, measurement)) _inputMeasurement = null;
     } on Exception catch (error) {
       measurement.finish(details: 'error=${error.runtimeType}');
+      if (identical(_inputMeasurement, measurement)) _inputMeasurement = null;
       if (_searchGeneration == generationId) {
         state = state.copyWith(
           query: query,
@@ -210,15 +279,17 @@ class DestinationSearchController extends Notifier<SearchState> {
     String query,
     int generationId,
     double? userLatitude,
-    double? userLongitude,
-  ) async {
-    final measurement = PerformanceMeasurement.start('search.remote.$query');
+    double? userLongitude, {
+    required Future<void> abortTrigger,
+  }) async {
+    final measurement = PerformanceMeasurement.start('search.remote');
     try {
       final results = await _service.search(
         query: query,
         userLatitude: userLatitude,
         userLongitude: userLongitude,
         allowRemote: true,
+        remoteAbortTrigger: abortTrigger,
       );
 
       if (_searchGeneration == generationId) {

@@ -10,10 +10,12 @@ class LocalTransitSearchSource implements LocalTransitSearchRepository {
   LocalTransitSearchSource(
     this._databaseProvider, {
     this.queryParser = const MontevideoQueryParser(),
+    this.savedPlacesProvider,
   });
 
   final Future<Database> Function() _databaseProvider;
   final MontevideoQueryParser queryParser;
+  final Iterable<SearchResult> Function()? savedPlacesProvider;
   Future<TransitSearchIndex>? _index;
 
   @override
@@ -21,9 +23,13 @@ class LocalTransitSearchSource implements LocalTransitSearchRepository {
     ParsedQuery query, {
     int limit = 15,
   }) async {
-    if (query.normalized.isEmpty || limit <= 0) return const [];
+    if (query.normalized.length < 2 || limit <= 0) return const [];
     _index ??= _databaseProvider().then(TransitSearchIndex.fromDatabase);
     final index = await _index!;
-    return index.search(query, limit: limit);
+    return index.search(
+      query,
+      limit: limit,
+      additionalResults: savedPlacesProvider?.call() ?? const [],
+    );
   }
 }

@@ -7,11 +7,15 @@ import 'transit_search_index.dart';
 
 /// Local stop/line search over the compact GTFS feed used by Flutter web.
 class InMemoryTransitSearchSource implements LocalTransitSearchRepository {
-  InMemoryTransitSearchSource(this.feed, this.repository)
-    : _index = TransitSearchIndex.fromFeed(feed);
+  InMemoryTransitSearchSource(
+    this.feed,
+    this.repository, {
+    this.savedPlacesProvider,
+  }) : _index = TransitSearchIndex.fromFeed(feed);
 
   final GtfsParseResult? feed;
   final TransitRepository repository;
+  final Iterable<SearchResult> Function()? savedPlacesProvider;
   final Future<TransitSearchIndex> _index;
 
   @override
@@ -19,7 +23,11 @@ class InMemoryTransitSearchSource implements LocalTransitSearchRepository {
     ParsedQuery query, {
     int limit = 15,
   }) async {
-    if (limit <= 0 || query.normalized.isEmpty) return const [];
-    return (await _index).search(query, limit: limit);
+    if (limit <= 0 || query.normalized.length < 2) return const [];
+    return (await _index).search(
+      query,
+      limit: limit,
+      additionalResults: savedPlacesProvider?.call() ?? const [],
+    );
   }
 }

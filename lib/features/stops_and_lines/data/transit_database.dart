@@ -3,8 +3,10 @@ import 'dart:convert';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/debug/performance_measurement.dart';
 import '../domain/transit_models.dart';
 import 'gtfs_parser.dart';
 
@@ -23,8 +25,24 @@ class TransitDatabase {
 
   Future<Database> open() async {
     final dir = await _directoryProvider();
-    return _factory.openDatabase(
-      p.join(dir.path, 'rumbo_transit.db'),
+    final path = p.join(dir.path, 'rumbo_transit.db');
+    if (await File(path).exists()) {
+      final existing = await _factory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+      );
+      final version = Sqflite.firstIntValue(
+        await existing.rawQuery('PRAGMA user_version'),
+      );
+      if (version == _databaseVersion) {
+        await _logDatabaseMetrics(path);
+        return existing;
+      }
+      await existing.close();
+    }
+
+    final writable = await _factory.openDatabase(
+      path,
       options: OpenDatabaseOptions(
         version: _databaseVersion,
         onCreate: (db, _) => _schema(db),
@@ -95,6 +113,22 @@ class TransitDatabase {
         },
       ),
     );
+    await writable.close();
+    final readOnly = await _factory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+    );
+    await _logDatabaseMetrics(path);
+    return readOnly;
+  }
+
+  Future<void> _logDatabaseMetrics(String path) async {
+    if (!PerformanceMeasurement.enabled) return;
+    final file = File(path);
+    if (await file.exists()) {
+      debugPrint('[performance] database.size ${await file.length()}bytes');
+    }
+    debugPrint('[performance] memory.rss ${ProcessInfo.currentRss}bytes');
   }
 
   Future<bool> hasUsableFeed(Database db) async {

@@ -17,6 +17,7 @@ abstract interface class GeocodingRepository {
     double? biasLatitude,
     double? biasLongitude,
     int limit = 10,
+    Future<void>? abortTrigger,
   });
 }
 
@@ -34,7 +35,8 @@ abstract interface class PlaceSearchService {
     required String query,
     double? userLatitude,
     double? userLongitude,
-    bool allowRemote = true,
+    bool allowRemote = false,
+    Future<void>? remoteAbortTrigger,
   });
 
   /// Ejecuta una búsqueda estrictamente local (paradas, líneas, recientes y favoritos).
@@ -70,12 +72,14 @@ class DefaultPlaceSearchService implements PlaceSearchService {
     required String query,
     double? userLatitude,
     double? userLongitude,
-    bool allowRemote = true,
+    bool allowRemote = false,
+    Future<void>? remoteAbortTrigger,
   }) async {
     final parsed = queryParser.parse(query);
     if (parsed.normalized.isEmpty) {
       return getRecentSearches();
     }
+    if (parsed.normalized.length < 2) return const [];
 
     // 1. Consulta local siempre inmediata
     final localCandidates = await localTransitRepo.searchStopsAndLines(
@@ -103,6 +107,7 @@ class DefaultPlaceSearchService implements PlaceSearchService {
           biasLatitude: userLatitude,
           biasLongitude: userLongitude,
           limit: 10,
+          abortTrigger: remoteAbortTrigger,
         );
         allCandidates.addAll(remoteCandidates);
       } catch (_) {
@@ -127,6 +132,9 @@ class DefaultPlaceSearchService implements PlaceSearchService {
     final parsed = queryParser.parse(query);
     if (parsed.normalized.isEmpty) {
       return getRecentSearches();
+    }
+    if (parsed.normalized.length < 2) {
+      return const [];
     }
     final localCandidates = await localTransitRepo.searchStopsAndLines(
       parsed,

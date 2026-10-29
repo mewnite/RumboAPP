@@ -43,8 +43,11 @@ class MontevideoQueryParser {
     'avda.': 'avenida',
     'av': 'avenida',
     'bvar.': 'bulevar',
+    'bvar': 'bulevar',
     'bvr.': 'bulevar',
+    'bvr': 'bulevar',
     'bv.': 'bulevar',
+    'bv': 'bulevar',
     'bulevar': 'bulevar',
     'gral.': 'general',
     'gral': 'general',
@@ -68,6 +71,7 @@ class MontevideoQueryParser {
 
   static final RegExp _diacritics = RegExp(r'[áàäâéèëêíìïîóòöôúùüûñ]');
   static final RegExp _multiSpace = RegExp(r'\s+');
+  static final RegExp _punctuation = RegExp(r'[^a-z0-9\s]');
   static final RegExp _stopCodePattern = RegExp(r'^\d{4,5}$');
   static final RegExp _routeCodePattern = RegExp(
     r'^(?:[a-z]\d{0,3}|\d{1,3}[a-z]?)$',
@@ -120,7 +124,8 @@ class MontevideoQueryParser {
       }
     });
 
-    final tokens = withoutAccents
+    final withoutPunctuation = withoutAccents.replaceAll(_punctuation, ' ');
+    final tokens = withoutPunctuation
         .split(_multiSpace)
         .map((token) => _abbreviations[token] ?? token);
 

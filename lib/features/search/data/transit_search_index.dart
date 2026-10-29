@@ -101,14 +101,32 @@ class TransitSearchIndex {
     );
   }
 
-  List<SearchResult> search(ParsedQuery query, {int limit = 20}) {
-    if (query.normalized.isEmpty || limit <= 0) return const [];
+  List<SearchResult> search(
+    ParsedQuery query, {
+    int limit = 20,
+    Iterable<SearchResult> additionalResults = const [],
+  }) {
+    if (query.normalized.length < 2 || limit <= 0) return const [];
     final tokens = query.normalized.split(' ');
-    final ranked = <({int rank, int index, _IndexedEntry entry})>[];
+    final ranked = <({int rank, int index, SearchResult result})>[];
     for (var index = 0; index < _entries.length; index++) {
       final entry = _entries[index];
       final rank = entry.matchRank(query.normalized, tokens);
-      if (rank != null) ranked.add((rank: rank, index: index, entry: entry));
+      if (rank != null) {
+        ranked.add((rank: rank, index: index, result: entry.toSearchResult()));
+      }
+    }
+    var additionalIndex = 0;
+    for (final result in additionalResults) {
+      final rank = _resultMatchRank(result, query.normalized, tokens);
+      if (rank != null) {
+        ranked.add((
+          rank: rank,
+          index: _entries.length + additionalIndex,
+          result: result,
+        ));
+      }
+      additionalIndex++;
     }
     ranked.sort(
       (a, b) => a.rank != b.rank
@@ -117,8 +135,32 @@ class TransitSearchIndex {
     );
     return ranked
         .take(limit)
-        .map((item) => item.entry.toSearchResult())
+        .map((item) => item.result)
         .toList(growable: false);
+  }
+
+  static int? _resultMatchRank(
+    SearchResult result,
+    String query,
+    List<String> tokens,
+  ) {
+    const parser = MontevideoQueryParser();
+    final title = parser.normalizeText(result.title);
+    final code = parser.normalizeText(result.stopCode ?? '');
+    final search = parser.normalizeText(
+      '${result.title} ${result.subtitle} ${result.stopCode ?? ''}',
+    );
+    if (code == query && code.isNotEmpty) return 0;
+    if (title.startsWith(query)) return 1;
+    if (tokens.any(
+      (token) =>
+          token.isNotEmpty &&
+          search.split(' ').any((word) => word.startsWith(token)),
+    )) {
+      return 2;
+    }
+    if (search.contains(query)) return 3;
+    return null;
   }
 }
 

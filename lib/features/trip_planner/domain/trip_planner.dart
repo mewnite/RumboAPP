@@ -175,16 +175,29 @@ class TripPlan {
 }
 
 class TransitTripPlanner {
-  const TransitTripPlanner(this._repository, {this.now});
+  TransitTripPlanner(this._repository, {this.now});
 
   final TransitRepository _repository;
   final DateTime Function()? now;
+  PlanSearchCancellation? _activeCancellation;
+
+  void cancelPendingSearch() {
+    _activeCancellation?.cancel();
+    _activeCancellation = null;
+  }
 
   Future<List<TripPlan>> plan(TripRequest request) async {
+    cancelPendingSearch();
+    final cancellation = PlanSearchCancellation();
+    _activeCancellation = cancellation;
     final measurement = PerformanceMeasurement.start('trip.plan');
     _validateRequest(request);
     final current = now?.call() ?? DateTime.now();
-    if (request.timing.isPast(current)) return const [];
+    if (request.timing.isPast(current)) {
+      measurement.finish(details: 'plans=0');
+      _activeCancellation = null;
+      return const [];
+    }
     final config = request.config;
     final scheduleWindowStart = switch (request.timing.mode) {
       TripTimingMode.departNow => current,
@@ -198,18 +211,27 @@ class TransitTripPlanner {
       TripTimingMode.departNow || TripTimingMode.departAt =>
         scheduleWindowStart.add(config.maximumWait + const Duration(hours: 3)),
     };
+    final nearbyCache = <(double, double, double), Future<List<Stop>>>{};
+    Future<List<Stop>> nearby(double latitude, double longitude) {
+      final key = (latitude, longitude, config.maximumWalkingMeters);
+      return nearbyCache.putIfAbsent(
+        key,
+        () => _repository.nearbyStops(
+          latitude,
+          longitude,
+          config.maximumWalkingMeters,
+        ),
+      );
+    }
+
     final nearbyEndpoints = await Future.wait([
-      _repository.nearbyStops(
-        request.originLatitude,
-        request.originLongitude,
-        config.maximumWalkingMeters,
-      ),
-      _repository.nearbyStops(
-        request.destinationLatitude,
-        request.destinationLongitude,
-        config.maximumWalkingMeters,
-      ),
+      nearby(request.originLatitude, request.originLongitude),
+      nearby(request.destinationLatitude, request.destinationLongitude),
     ]);
+    if (cancellation.isCancelled) {
+      measurement.finish(details: 'cancelled=true');
+      return const [];
+    }
     final origins = nearbyEndpoints[0]
         .take(_maximumEndpointStopCandidates)
         .toList(growable: false);
@@ -233,6 +255,10 @@ class TransitTripPlanner {
         windowEnd: scheduleWindowEnd,
       );
     }
+    if (cancellation.isCancelled) {
+      measurement.finish(details: 'cancelled=true');
+      return const [];
+    }
 
     final plans = await runPlanSearch(
       PlanSearchPayload(
@@ -242,8 +268,16 @@ class TransitTripPlanner {
         destinationStopIds: destinations.map((stop) => stop.id).toSet(),
         now: current,
       ),
+      cancellation: cancellation,
     );
-    measurement.finish(details: 'plans=${plans.length}');
+    measurement.finish(
+      details: cancellation.isCancelled
+          ? 'cancelled=true'
+          : 'plans=${plans.length}',
+    );
+    if (identical(_activeCancellation, cancellation)) {
+      _activeCancellation = null;
+    }
     return plans;
   }
 }

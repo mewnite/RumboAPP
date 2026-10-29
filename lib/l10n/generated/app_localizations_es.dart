@@ -195,7 +195,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get nearbyBuses => 'Próximos ómnibus';
 
   @override
-  String get mapStopsAndBuses => 'Paradas y ómnibus';
+  String get mapStopsAndBuses => 'Próximos ómnibus';
 
   @override
   String get mapStopsNearby => 'Paradas cercanas';
@@ -560,10 +560,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get debugPaletteIvory => 'Ivory';
 
   @override
-  String get debugPaletteDeepBlue => 'Deep blue';
-
-  @override
-  String get debugPaletteMint => 'Mint AA';
+  String get debugPaletteRumbo => 'Rumbo';
 
   @override
   String get debugPaletteLime => 'Lima de identidad';
@@ -752,6 +749,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripGeocodingConsentAction => 'Habilitar y buscar';
 
   @override
+  String get searchRemoteButton => 'Buscar lugares en línea';
+
+  @override
   String get cancel => 'Cancelar';
 
   @override
@@ -772,6 +772,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String tripPlanError(String error) {
     return 'No se pudo planificar: $error';
   }
+
+  @override
+  String get tripPlanErrorTitle => 'No se pudo calcular el viaje';
+
+  @override
+  String get tripSwapEndpoints => 'Intercambiar origen y destino';
 
   @override
   String get tripSortLabel => 'Ordenar por';
@@ -1293,7 +1299,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get nearbyBuses => 'Próximos ómnibus';
 
   @override
-  String get mapStopsAndBuses => 'Paradas y ómnibus';
+  String get mapStopsAndBuses => 'Próximos ómnibus';
 
   @override
   String get mapStopsNearby => 'Paradas cercanas';
@@ -1658,10 +1664,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get debugPaletteIvory => 'Ivory';
 
   @override
-  String get debugPaletteDeepBlue => 'Deep blue';
-
-  @override
-  String get debugPaletteMint => 'Mint AA';
+  String get debugPaletteRumbo => 'Rumbo';
 
   @override
   String get debugPaletteLime => 'Lima de identidad';
@@ -1850,6 +1853,9 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripGeocodingConsentAction => 'Habilitar y buscar';
 
   @override
+  String get searchRemoteButton => 'Buscar lugares en línea';
+
+  @override
   String get cancel => 'Cancelar';
 
   @override
@@ -1870,6 +1876,12 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String tripPlanError(String error) {
     return 'No se pudo planificar: $error';
   }
+
+  @override
+  String get tripPlanErrorTitle => 'No se pudo calcular el viaje';
+
+  @override
+  String get tripSwapEndpoints => 'Intercambiar origen y destino';
 
   @override
   String get tripSortLabel => 'Ordenar por';

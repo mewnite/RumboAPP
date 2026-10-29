@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:sqflite/sqflite.dart';
@@ -455,22 +456,13 @@ class SqfliteTransitRepository implements TransitRepository {
     if (tripIds.isEmpty) return const TransitScheduleData();
 
     final tripRows = await _queryByIds(db, 'trips', 'id', tripIds);
-    final trips = tripRows
-        .map(
-          (row) => Trip(
-            id: row['id'] as String,
-            routeId: row['route_id'] as String,
-            serviceId: row['service_id'] as String,
-            variantId: row['variant_id'] as String,
-            headsign: row['headsign'] as String? ?? '',
-            patternId: row['pattern_id'] as String?,
-            startSecs: row['start_secs'] as int?,
-          ),
-        )
-        .toList(growable: false);
-    final serviceIds = trips.map((trip) => trip.serviceId).toSet();
-    final routeIds = trips.map((trip) => trip.routeId).toSet();
-    final variantIds = trips.map((trip) => trip.variantId).toSet();
+    final serviceIds = tripRows
+        .map((row) => row['service_id'] as String)
+        .toSet();
+    final routeIds = tripRows.map((row) => row['route_id'] as String).toSet();
+    final variantIds = tripRows
+        .map((row) => row['variant_id'] as String)
+        .toSet();
 
     final stopTimeRows = <Map<String, Object?>>[];
     for (final chunk in _chunks(tripIds)) {
@@ -486,21 +478,6 @@ class SqfliteTransitRepository implements TransitRepository {
         ),
       );
     }
-    final stopTimes = stopTimeRows
-        .map(
-          (row) => StopTime(
-            tripId: row['trip_id'] as String,
-            stopId: row['stop_id'] as String,
-            arrivalSeconds:
-                (row['start_secs'] as int) +
-                (row['arrival_offset_secs'] as int),
-            departureSeconds:
-                (row['start_secs'] as int) +
-                (row['departure_offset_secs'] as int),
-            sequence: row['sequence'] as int,
-          ),
-        )
-        .toList(growable: false);
     final calendarRows = await _queryByIds(
       db,
       'calendars',
@@ -513,50 +490,23 @@ class SqfliteTransitRepository implements TransitRepository {
       'service_id',
       serviceIds,
     );
-    final exceptionsByService = <String, List<Map<String, Object?>>>{};
-    for (final row in exceptionRows) {
-      exceptionsByService
-          .putIfAbsent(row['service_id'] as String, () => [])
-          .add(row);
-    }
-    final calendars = calendarRows
-        .map((row) {
-          final serviceId = row['service_id'] as String;
-          final additions = <DateTime>{};
-          final removals = <DateTime>{};
-          for (final exception in exceptionsByService[serviceId] ?? const []) {
-            final date = DateTime.parse(exception['date'] as String);
-            (exception['type'] == 1 ? additions : removals).add(
-              DateTime(date.year, date.month, date.day),
-            );
-          }
-          return ServiceCalendar(
-            serviceId: serviceId,
-            startDate: DateTime.parse(row['start_date'] as String),
-            endDate: DateTime.parse(row['end_date'] as String),
-            weekdays: (row['weekdays'] as String)
-                .split(',')
-                .where((day) => day.isNotEmpty)
-                .map(int.parse)
-                .toSet(),
-            addedDates: additions,
-            removedDates: removals,
-          );
-        })
-        .toList(growable: false);
-    final includedStopIds = stopTimes.map((time) => time.stopId).toSet();
+    final includedStopIds = stopTimeRows
+        .map((row) => row['stop_id'] as String)
+        .toSet();
     final stops = await _queryByIds(db, 'stops', 'id', includedStopIds);
     final routes = await _queryByIds(db, 'routes', 'id', routeIds);
     final variants = await _queryByIds(db, 'variants', 'id', variantIds);
 
-    return TransitScheduleData(
-      stops: stops.map(_stop).toList(growable: false),
-      routes: routes.map(_route).toList(growable: false),
-      variants: variants.map(_variant).toList(growable: false),
-      trips: trips,
-      stopTimes: stopTimes,
-      calendars: calendars,
+    final mappingRows = (
+      tripRows: tripRows,
+      stopTimeRows: stopTimeRows,
+      calendarRows: calendarRows,
+      exceptionRows: exceptionRows,
+      stops: stops,
+      routes: routes,
+      variants: variants,
     );
+    return Isolate.run(() => _mapTransitScheduleRows(mappingRows));
   }
 
   @override
@@ -585,6 +535,87 @@ class SqfliteTransitRepository implements TransitRepository {
       stale: isFeedExpired(validUntil, DateTime.now()),
     );
   }
+}
+
+TransitScheduleData _mapTransitScheduleRows(
+  ({
+    List<Map<String, Object?>> tripRows,
+    List<Map<String, Object?>> stopTimeRows,
+    List<Map<String, Object?>> calendarRows,
+    List<Map<String, Object?>> exceptionRows,
+    List<Map<String, Object?>> stops,
+    List<Map<String, Object?>> routes,
+    List<Map<String, Object?>> variants,
+  })
+  rows,
+) {
+  final trips = rows.tripRows
+      .map(
+        (row) => Trip(
+          id: row['id'] as String,
+          routeId: row['route_id'] as String,
+          serviceId: row['service_id'] as String,
+          variantId: row['variant_id'] as String,
+          headsign: row['headsign'] as String? ?? '',
+          patternId: row['pattern_id'] as String?,
+          startSecs: row['start_secs'] as int?,
+        ),
+      )
+      .toList(growable: false);
+  final stopTimes = rows.stopTimeRows
+      .map(
+        (row) => StopTime(
+          tripId: row['trip_id'] as String,
+          stopId: row['stop_id'] as String,
+          arrivalSeconds:
+              (row['start_secs'] as int) + (row['arrival_offset_secs'] as int),
+          departureSeconds:
+              (row['start_secs'] as int) +
+              (row['departure_offset_secs'] as int),
+          sequence: row['sequence'] as int,
+        ),
+      )
+      .toList(growable: false);
+  final exceptionsByService = <String, List<Map<String, Object?>>>{};
+  for (final row in rows.exceptionRows) {
+    exceptionsByService
+        .putIfAbsent(row['service_id'] as String, () => [])
+        .add(row);
+  }
+  final calendars = rows.calendarRows
+      .map((row) {
+        final serviceId = row['service_id'] as String;
+        final additions = <DateTime>{};
+        final removals = <DateTime>{};
+        for (final exception in exceptionsByService[serviceId] ?? const []) {
+          final date = DateTime.parse(exception['date'] as String);
+          (exception['type'] == 1 ? additions : removals).add(
+            DateTime(date.year, date.month, date.day),
+          );
+        }
+        return ServiceCalendar(
+          serviceId: serviceId,
+          startDate: DateTime.parse(row['start_date'] as String),
+          endDate: DateTime.parse(row['end_date'] as String),
+          weekdays: (row['weekdays'] as String)
+              .split(',')
+              .where((day) => day.isNotEmpty)
+              .map(int.parse)
+              .toSet(),
+          addedDates: additions,
+          removedDates: removals,
+        );
+      })
+      .toList(growable: false);
+
+  return TransitScheduleData(
+    stops: rows.stops.map(_stop).toList(growable: false),
+    routes: rows.routes.map(_route).toList(growable: false),
+    variants: rows.variants.map(_variant).toList(growable: false),
+    trips: trips,
+    stopTimes: stopTimes,
+    calendars: calendars,
+  );
 }
 
 Future<List<Map<String, Object?>>> _queryByIds(

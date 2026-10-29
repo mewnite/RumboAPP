@@ -31,6 +31,7 @@ class FakeGeocodingRepo implements GeocodingRepository {
     double? biasLatitude,
     double? biasLongitude,
     int limit = 10,
+    Future<void>? abortTrigger,
   }) async {
     lastQuery = query;
     if (shouldThrow) {
@@ -150,7 +151,10 @@ void main() {
           historyRepo: FakeHistoryRepo(),
         );
 
-        final results = await service.search(query: 'Tres Cruces');
+        final results = await service.search(
+          query: 'Tres Cruces',
+          allowRemote: true,
+        );
         expect(results, hasLength(2));
       },
     );
@@ -175,7 +179,10 @@ void main() {
           historyRepo: FakeHistoryRepo(),
         );
 
-        final results = await service.search(query: 'Nuevo Centro');
+        final results = await service.search(
+          query: 'Nuevo Centro',
+          allowRemote: true,
+        );
         expect(results, hasLength(1));
         expect(results.first.id, 'stop-1');
       },

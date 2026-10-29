@@ -29,6 +29,11 @@ void main() {
       expect(parser.normalizeText('18   de   JULIO'), '18 de julio');
     });
 
+    test('elimina signos de puntuación y normaliza consultas', () {
+      expect(parser.normalizeText('¿DÓNDE—está? Plaza!'), 'donde esta plaza');
+      expect(parser.normalizeText('Bvar., Artigas /'), 'bulevar artigas');
+    });
+
     test('expande abreviaturas comunes de Montevideo', () {
       expect(parser.normalizeText('Av. 18 de Julio'), 'avenida 18 de julio');
       expect(parser.normalizeText('Bvar. Artigas'), 'bulevar artigas');

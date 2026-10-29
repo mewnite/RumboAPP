@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,6 +25,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
     double? biasLatitude,
     double? biasLongitude,
     int limit = 10,
+    Future<void>? abortTrigger,
   }) async {
     final queryText = query.normalized.trim();
     if (queryText.length < 3 || queryText.length > 160) {
@@ -64,15 +66,35 @@ class RemoteGeocodingSource implements GeocodingRepository {
 
     final uri = baseUri.replace(queryParameters: queryParams);
 
-    final response = await _client
-        .get(
-          uri,
-          headers: const {
+    final abortRequest = Completer<void>();
+    void abort() {
+      if (!abortRequest.isCompleted) abortRequest.complete();
+    }
+
+    if (abortTrigger != null) {
+      unawaited(abortTrigger.then((_) => abort()));
+    }
+    final request =
+        http.AbortableRequest('GET', uri, abortTrigger: abortRequest.future)
+          ..headers.addAll(const {
             'Accept': 'application/json',
             'User-Agent': 'RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)',
-          },
-        )
-        .timeout(const Duration(seconds: 8));
+          });
+    late http.Response response;
+    try {
+      response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              abort();
+              throw TimeoutException('La búsqueda en línea demoró demasiado.');
+            },
+          );
+    } finally {
+      abort();
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(

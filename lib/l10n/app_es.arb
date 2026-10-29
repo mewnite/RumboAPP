@@ -57,7 +57,7 @@
   "mapAttributionDetails": "Mapa de OpenFreeMap con datos de OpenStreetMap y OpenMapTiles. La búsqueda de lugares usa OpenStreetMap/Nominatim. Las solicitudes de teselas muestran al proveedor el área aproximada que se está viendo.",
   "mapLocationPrivacy": "La ubicación precisa se procesa en este dispositivo y Rumbo no la guarda ni la envía a un servidor. Al recentrar, el proveedor puede inferir la zona aproximada por las teselas solicitadas.",
   "nearbyBuses": "Próximos ómnibus",
-  "mapStopsAndBuses": "Paradas y ómnibus",
+  "mapStopsAndBuses": "Próximos ómnibus",
   "mapStopsNearby": "Paradas cercanas",
   "mapStopRouteCount": "{count} líneas",
   "@mapStopRouteCount": {
@@ -279,8 +279,7 @@
   "debugBodyText": "Tu ciudad. Tu camino.",
   "debugPaletteInk": "Ink",
   "debugPaletteIvory": "Ivory",
-  "debugPaletteDeepBlue": "Deep blue",
-  "debugPaletteMint": "Mint AA",
+  "debugPaletteRumbo": "Rumbo",
   "debugPaletteLime": "Lima de identidad",
   "debugPaletteSurface": "Superficie",
   "debugPaletteDarkSurface": "Superficie oscura",
@@ -374,12 +373,15 @@
   "tripGeocodingConsentTitle": "Buscar lugares en línea",
   "tripGeocodingConsentBody": "Para encontrar shoppings, terminales y otros lugares, se enviará el texto que escribiste al servicio de búsqueda. El proveedor verá la consulta y la IP de conexión; tu ubicación GPS no se envía.",
   "tripGeocodingConsentAction": "Habilitar y buscar",
+  "searchRemoteButton": "Buscar lugares en línea",
   "cancel": "Cancelar",
   "tripPlaceResult": "Lugar o dirección · OpenStreetMap",
   "tripStopResult": "Parada del STM",
   "tripGeocodingPrivacy": "La búsqueda combina paradas y lugares. El texto se envía al servicio en línea; tu ubicación actual no se envía.",
   "tripPlaceSearchUnavailable": "La búsqueda de lugares no está configurada en esta instalación.",
   "tripPlanError": "No se pudo planificar: {error}",
+  "tripPlanErrorTitle": "No se pudo calcular el viaje",
+  "tripSwapEndpoints": "Intercambiar origen y destino",
   "@tripPlanError": {
     "placeholders": {
       "error": {
