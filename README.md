@@ -39,6 +39,18 @@ Para compilar un APK de depuración:
 flutter build apk --debug
 ```
 
+Para un APK release optimizado, separado por ABI y con símbolos de depuración
+fuera del paquete:
+
+```sh
+flutter build apk --release --split-per-abi \
+  --obfuscate --split-debug-info=build/symbols
+```
+
+R8 y la eliminación de recursos están activados para el tipo `release` de
+Android. El archivo `android/app/proguard-rules.pro` queda disponible para
+reglas específicas si una biblioteca nativa las requiere.
+
 ## Análisis y pruebas
 
 ```sh

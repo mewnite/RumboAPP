@@ -173,3 +173,32 @@ El build informó que Material Symbols Outlined y Sharp fueron tree-shaken a
 aproximadamente 2,4 KB cada una, y Rounded a 135,3 KB antes de compresión;
 por tanto la fuente de iconos ya está siendo recortada y no se reemplaza en
 esta fase.
+
+### Fase 1: medición posterior a R8
+
+Fecha de ejecución: 2026-11-01. Se ejecutó
+`flutter build apk --release --split-per-abi --obfuscate
+--split-debug-info=build/symbols` con R8 y `shrinkResources` activos.
+El comando combinado con `--analyze-size` no es aceptado por esta versión de
+Flutter; el análisis arm64 se ejecutó por separado sin
+`--split-debug-info`.
+
+| Medición | Línea base | Después | Estado |
+|---|---:|---:|---|
+| APK `armeabi-v7a` release split | 27,9 MB | 26,3 MB | medido, -5,7 % |
+| APK `arm64-v8a` release split | 32,9 MB | 31,5 MB | medido, -4,3 % |
+| APK `x86_64` release split | 34,6 MB | 33,3 MB | medido, -3,8 % |
+| Análisis arm64 total comprimido | no separado | 51 MB universal de análisis | medido |
+| `flutter_assets` | 0,96 MB | 981 KB | medido |
+| `classes.dex` | 1,00 MB | 1 MB + `classes2.dex` 78 KB | medido |
+| `lib/arm64-v8a` | 48,45 MB en el análisis previo | 30 MB | medido en el análisis |
+| Símbolos Dart AOT | no separado | 8 MB descomprimido | medido |
+| Código Dart principal | no separado | `package:rumbo` 562 KB | medido |
+| Fuentes/íconos | Inter 783,6 KB; Rounded tree-shaken 135,3 KB | mismo orden de magnitud; Rounded 135,3 KB | medido |
+| Base GTFS importada | no medido | no medido | no hubo base de dispositivo accesible |
+
+El objetivo orientativo de -25 % no se alcanza: la mayor parte del APK sigue
+siendo la biblioteca nativa de MapLibre (`lib/arm64-v8a`, 30 MB en el análisis),
+que R8 no puede reducir. El build release optimizado terminó correctamente y
+los 184 tests pasaron; no se verificó el arranque, el mapa ni la búsqueda en un
+dispositivo Android release.

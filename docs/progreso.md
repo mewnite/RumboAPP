@@ -75,3 +75,9 @@
 - Una búsqueda iniciada antes del primer estado del proveedor espera el feed; los errores conservan el diagnóstico en lugar del mensaje genérico.
 - La importación usa patrones calculados, no genera/recorre otro JSONL de 2,2 millones de filas, muestra avance y desactiva journaling en el archivo temporal descartable.
 - La versión anterior completó la importación oficial (4.930 paradas) y mostró paradas en el emulador en ~3 minutos. Falta validar con una instalación limpia los cambios finales de rendimiento/avance; 161 tests y `flutter analyze` pasan.
+
+## Fase 1: peso de la app (completa)
+- R8 y `shrinkResources` quedaron activados; el build release split con ofuscación terminó correctamente.
+- APK medidos: 26,3 MB armeabi-v7a, 31,5 MB arm64-v8a y 33,3 MB x86_64.
+- El objetivo de -25 % no se alcanza por el peso nativo de MapLibre; quedó documentada la meta realista.
+- `flutter analyze` sin issues y `flutter test`: 184 tests en verde.
