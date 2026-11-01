@@ -135,6 +135,9 @@ No se estiman tiempos ni tamaños.
 
 | Medición | Antes | Después | Estado o causa |
 |---|---:|---:|---|
+| APK `armeabi-v7a` release split | 27,9 MB | 26,3 MB | medido; -5,7 % |
+| APK `arm64-v8a` release split | 32,9 MB | 31,5 MB | medido; -4,3 % |
+| APK `x86_64` release split | 34,6 MB | 33,3 MB | medido; -3,8 % |
 | Consulta `105` | no medido | no medido | no se pudo iniciar la app profile |
 | Consulta `pocit` | no medido | no medido | faltó una sesión profile y el proxy local |
 | Consulta `plaza` | no medido | no medido | faltó una sesión profile y el proxy local |

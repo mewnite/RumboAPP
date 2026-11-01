@@ -81,3 +81,8 @@
 - APK medidos: 26,3 MB armeabi-v7a, 31,5 MB arm64-v8a y 33,3 MB x86_64.
 - El objetivo de -25 % no se alcanza por el peso nativo de MapLibre; quedó documentada la meta realista.
 - `flutter analyze` sin issues y `flutter test`: 184 tests en verde.
+
+## Fase 7: cierre parcial
+- `dart format .` ejecutado sin cambios; `flutter analyze` y `flutter test` pasaron.
+- La comparación de tamaño quedó actualizada; arranque, memoria, fluidez, red y toques siguen no medidos.
+- No se marcó verificación en emulador porque no hay dispositivo Android conectado en este entorno.
