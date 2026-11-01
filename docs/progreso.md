@@ -86,3 +86,9 @@
 - `dart format .` ejecutado sin cambios; `flutter analyze` y `flutter test` pasaron.
 - La comparación de tamaño quedó actualizada; arranque, memoria, fluidez, red y toques siguen no medidos.
 - No se marcó verificación en emulador porque no hay dispositivo Android conectado en este entorno.
+
+## Correcciones de búsqueda, ubicación y tiempo real
+- “Desde” usa la ubicación actual automáticamente al tocar el campo; si falta, muestra la explicación y solicita el permiso en ese momento.
+- Con búsquedas online ya consentidas, el buscador combina resultados locales y remotos al escribir; el botón queda para la activación inicial.
+- El primer polling de buses sigue siendo inmediato y el timeout de red bajó de 15 s a 5 s; el intervalo normal quedó en 8 s.
+- El tema claro fija superficies y estados de chips para evitar texto claro sobre superficies claras.

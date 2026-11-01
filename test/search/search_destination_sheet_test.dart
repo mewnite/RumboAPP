@@ -138,17 +138,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
-      // 3. Al escribir solo muestra resultados locales.
+      // 3. Con el consentimiento ya otorgado combina resultados locales y en línea.
       expect(find.text('Av. 18 de Julio y Ejido'), findsOneWidget);
       expect(find.text('14'), findsOneWidget);
       expect(find.text('21'), findsOneWidget);
       expect(find.text('180'), findsOneWidget);
-      expect(find.text('Av. Italia 2450'), findsNothing);
-      expect(searchService.remoteCalls, 0);
-      await tester.tap(find.text('Buscar lugares en línea'));
-      await tester.pumpAndSettle();
       expect(find.text('Av. Italia 2450'), findsOneWidget);
       expect(searchService.remoteCalls, 1);
+      await tester.pumpAndSettle();
       expect(find.text('Buscar lugares o direcciones'), findsNothing);
 
       // 4. Seleccionar un destino

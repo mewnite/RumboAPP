@@ -47,7 +47,7 @@ class MontevideoRealtimeBusSource implements RealtimeBusSource {
     );
     final response = await _client
         .get(uri, headers: const {'Accept': 'application/geo+json'})
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 5));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
         'La API de tiempo real respondió HTTP ${response.statusCode}.',

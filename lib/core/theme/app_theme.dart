@@ -136,6 +136,7 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       useMaterial3: true,
       fontFamily: 'Inter',
+      canvasColor: scaffoldBackground,
       scaffoldBackgroundColor: scaffoldBackground,
       dividerColor: border,
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
@@ -225,6 +226,7 @@ abstract final class AppTheme {
         secondaryLabelStyle: textTheme.labelMedium?.copyWith(
           color: colorScheme.onSecondaryContainer,
         ),
+        checkmarkColor: colorScheme.onSecondaryContainer,
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.space8,
           vertical: AppTokens.space4,

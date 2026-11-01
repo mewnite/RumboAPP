@@ -38,6 +38,7 @@ class TripSearchSheet extends StatefulWidget {
     required this.hasCurrentLocation,
     this.remotePlaceSearchEnabled = false,
     this.onRemotePlaceSearchConsentRequested,
+    this.ensureCurrentLocation,
     this.onCancelPlan,
     this.searchService,
     this.initialOrigin,
@@ -56,6 +57,7 @@ class TripSearchSheet extends StatefulWidget {
   final bool hasCurrentLocation;
   final bool remotePlaceSearchEnabled;
   final Future<bool> Function()? onRemotePlaceSearchConsentRequested;
+  final Future<bool> Function()? ensureCurrentLocation;
   final VoidCallback? onCancelPlan;
   final PlaceSearchService? searchService;
   final TripEndpoint? initialOrigin;
@@ -88,6 +90,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   bool _searching = false;
   bool _planning = false;
   bool _originUsesLocation = true;
+  late bool _hasCurrentLocation;
   bool _searchOrigin = false;
   bool _showRemotePrivacy = false;
   late bool _remoteSearchEnabled;
@@ -117,6 +120,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     super.initState();
     _config = widget.initialConfig;
     _remoteSearchEnabled = widget.remotePlaceSearchEnabled;
+    _hasCurrentLocation = widget.hasCurrentLocation;
     _timedDateTime = _nextTimeSlot(_now);
     _tomorrow = _isTomorrowDate(_timedDateTime);
     if (widget.initialOrigin != null) {
@@ -177,6 +181,13 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
             _suggestions = endpoints;
             _searching = false;
           });
+        }
+        if (mounted &&
+            normalizedQuery.length >= 3 &&
+            _remoteSearchEnabled &&
+            widget.searchService != null &&
+            requestId == _searchGeneration) {
+          await _searchOnline();
         }
       } on Exception catch (error) {
         if (mounted &&
@@ -406,7 +417,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     final destination = _destination;
     if (destination == null ||
         (!_originUsesLocation && _origin == null) ||
-        (_originUsesLocation && !widget.hasCurrentLocation)) {
+        (_originUsesLocation && !_hasCurrentLocation)) {
       return;
     }
     final timing = _timing;
@@ -478,7 +489,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     if (!picked || !mounted) return;
     final canPlan =
         _destination != null &&
-        (_originUsesLocation ? widget.hasCurrentLocation : _origin != null);
+        (_originUsesLocation ? _hasCurrentLocation : _origin != null);
     if (!canPlan || _timing.isPast(_now)) return;
     await _findPlans();
   }
@@ -495,6 +506,17 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       _plans = null;
     });
     FocusScope.of(context).unfocus();
+  }
+
+  Future<void> _selectCurrentLocation() async {
+    if (_hasCurrentLocation) {
+      _useLocation();
+      return;
+    }
+    final ensureLocation = widget.ensureCurrentLocation;
+    if (ensureLocation == null || !await ensureLocation() || !mounted) return;
+    _hasCurrentLocation = true;
+    _useLocation();
   }
 
   void _swapEndpoints() {
@@ -524,7 +546,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     final l10n = AppLocalizations.of(context);
     final canPlan =
         _destination != null &&
-        (_originUsesLocation ? widget.hasCurrentLocation : _origin != null);
+        (_originUsesLocation ? _hasCurrentLocation : _origin != null);
     final shownPlans = _plans == null
         ? const <TripPlan>[]
         : sortTripPlans(_plans!, _sort);
@@ -563,6 +585,9 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                             _searchOrigin = true;
                             _suggestions = const [];
                           });
+                          if (_originController.text.trim().isEmpty) {
+                            unawaited(_selectCurrentLocation());
+                          }
                         },
                         onChanged: (value) {
                           _searchOrigin = true;
@@ -571,14 +596,14 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                           _search(value);
                         },
                         decoration: InputDecoration(
-                          hintText: widget.hasCurrentLocation
+                          hintText: _hasCurrentLocation
                               ? l10n.tripOriginLocationHint
                               : l10n.tripOriginStopHint,
                           labelText: l10n.tripOriginLabel,
-                          suffixIcon: widget.hasCurrentLocation
+                          suffixIcon: _hasCurrentLocation
                               ? IconButton(
                                   tooltip: l10n.tripUseCurrentLocation,
-                                  onPressed: _useLocation,
+                                  onPressed: _selectCurrentLocation,
                                   icon: const Icon(Symbols.my_location_rounded),
                                 )
                               : null,
@@ -629,6 +654,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   label: Text(l10n.searchRemoteButton),
                 ),
               ),
+
             if (_searching)
               const Padding(
                 padding: EdgeInsets.all(20),
@@ -828,7 +854,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   : const Icon(Symbols.directions_bus_rounded),
               label: _planning ? l10n.tripSearchingTrips : l10n.tripShowTrips,
             ),
-            if (_originUsesLocation && !widget.hasCurrentLocation)
+            if (_originUsesLocation && !_hasCurrentLocation)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(

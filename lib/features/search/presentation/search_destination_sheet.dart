@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -67,6 +69,13 @@ class _SearchDestinationSheetState
           userLongitude: widget.userLongitude,
           isOffline: isOffline,
         );
+    if (query.trim().length >= 3 && !isOffline) {
+      final remoteEnabled =
+          ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
+      if (remoteEnabled) {
+        unawaited(_searchOnline());
+      }
+    }
   }
 
   Future<void> _searchOnline() async {

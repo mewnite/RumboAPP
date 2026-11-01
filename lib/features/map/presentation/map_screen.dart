@@ -89,7 +89,7 @@ class MapScreen extends ConsumerStatefulWidget {
     this.mapBuilder,
     this.mapLoadTimeout,
     @visibleForTesting this.realtimeBusSource,
-    @visibleForTesting this.realtimePollInterval = const Duration(seconds: 10),
+    @visibleForTesting this.realtimePollInterval = const Duration(seconds: 8),
   });
 
   @visibleForTesting
@@ -571,6 +571,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
         showDragHandle: false,
         builder: (context) => TripSearchSheet(
           hasCurrentLocation: location != null,
+          ensureCurrentLocation: () async {
+            await _requestLocation();
+            return ref.read(mapLocationControllerProvider).location != null;
+          },
           remotePlaceSearchEnabled: remotePlaceSearchEnabled,
           onRemotePlaceSearchConsentRequested: () async {
             final accepted = await showDialog<bool>(
