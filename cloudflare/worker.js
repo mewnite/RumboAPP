@@ -43,6 +43,55 @@ function copyResponse(response, cacheSeconds = 0) {
   });
 }
 
+function busesAsGeoJson(payload) {
+  if (payload?.type === 'FeatureCollection' && Array.isArray(payload.features)) {
+    return payload;
+  }
+  if (!Array.isArray(payload)) {
+    throw new Error('STM no devolvió una lista de buses válida.');
+  }
+  return {
+    type: 'FeatureCollection',
+    features: payload.flatMap((bus) => {
+      const coordinates = bus?.location?.coordinates;
+      if (!Array.isArray(coordinates) || coordinates.length < 2) return [];
+      const [
+        longitude,
+        latitude,
+      ] = coordinates;
+      if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return [];
+      return [{
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude],
+        },
+        properties: {
+          id: bus.busId,
+          codigoEmpresa: 0,
+          codigoBus: bus.busId,
+          variante: bus.lineVariantId,
+          destino: bus.destination || '',
+          tipoLinea: 0,
+          subsistema: 0,
+          velocidad: bus.speed ?? 0,
+          linea: bus.line || '',
+          sublinea: bus.subline || '',
+          destinoDesc: bus.destination || '',
+          tipoLineaDesc: 'Ómnibus',
+          subsistemaDesc: bus.company || 'STM',
+          timestamp: bus.timestamp,
+          company: bus.company,
+          origin: bus.origin,
+          access: bus.access,
+          thermalConfort: bus.thermalConfort,
+          emissions: bus.emissions,
+        },
+      }];
+    }),
+  };
+}
+
 async function accessToken(env) {
   const now = Date.now();
   if (tokenCache.value && tokenCache.expiresAt > now + 20_000) {
@@ -215,7 +264,17 @@ async function handle(request, env, ctx) {
       if (!response.ok) {
         return errorResponse(502, `STM respondió HTTP ${response.status}.`);
       }
-      const result = copyResponse(response, cacheSeconds);
+      let result;
+      if (url.pathname === '/api/buses') {
+        const payload = await response.json();
+        result = new Response(JSON.stringify(busesAsGeoJson(payload)), {
+          status: 200,
+          headers: corsHeaders(),
+        });
+        result.headers.set('Cache-Control', `public, max-age=${cacheSeconds}`);
+      } else {
+        result = copyResponse(response, cacheSeconds);
+      }
       ctx.waitUntil(cache.put(cacheKey, result.clone()));
       return result;
     }
