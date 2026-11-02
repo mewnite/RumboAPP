@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: rumbo-stm-api
+    runtime: python
+    plan: free
+    buildCommand: python --version
+    startCommand: python tool/montevideo_api_proxy.py
+    healthCheckPath: /health
+    envVars:
+      - key: CLIENT_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false

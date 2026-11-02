@@ -420,18 +420,25 @@ class ApiProxy:
 
 
 def load_env(path: Path) -> dict[str, str]:
-    credentials: dict[str, str] = {}
-    if not path.exists():
-        return credentials
-    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        credentials[key.strip()] = value
+    credentials: dict[str, str] = {
+        key: value
+        for key in ("CLIENT_ID", "CLIENT_SECRET")
+        if (value := os.environ.get(key))
+    }
+    if path.exists():
+        for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            value = value.strip()
+            if (
+                len(value) >= 2
+                and value[0] == value[-1]
+                and value[0] in {"'", '"'}
+            ):
+                value = value[1:-1]
+            credentials.setdefault(key.strip(), value)
     return credentials
 
 
@@ -441,14 +448,17 @@ class Handler(BaseHTTPRequestHandler):
     def _local_cors_headers(self) -> dict[str, str]:
         origin = self.headers.get("Origin", "")
         parsed = urllib.parse.urlsplit(origin)
-        if parsed.scheme != "http" or parsed.hostname not in {
+        allowed_origin = os.environ.get("RUMBO_ALLOWED_ORIGIN", "")
+        is_loopback = parsed.scheme == "http" and parsed.hostname in {
             "localhost",
             "127.0.0.1",
             "::1",
-        }:
+        }
+        if not origin or (not is_loopback and origin != allowed_origin):
             return {}
         return {
             "Access-Control-Allow-Origin": origin,
+            "Vary": "Origin",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "Accept, Content-Type",
             "Access-Control-Max-Age": "600",
@@ -496,16 +506,19 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     credentials = load_env(Path(".env"))
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
+    host = os.environ.get("RUMBO_PROXY_HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", os.environ.get("RUMBO_PROXY_PORT", "8765")))
+    server = ThreadingHTTPServer((host, port), Handler)
     Handler.proxy = ApiProxy(credentials)
-    print("Proxy local de Rumbo en http://127.0.0.1:8765")
+    print(f"Proxy de Rumbo escuchando en {host}:{port}")
     print("Límite de tiempo real: 1 consulta global cada 10 segundos.")
     if not credentials.get("CLIENT_ID") or not credentials.get("CLIENT_SECRET"):
         print(
             "Búsqueda de lugares habilitada; GTFS y tiempo real STM requieren "
             "CLIENT_ID y CLIENT_SECRET en .env."
         )
-    print("Solo escucha en localhost; usá adb reverse para el teléfono USB.")
+    if host == "127.0.0.1":
+        print("Solo escucha en localhost; usá adb reverse para el teléfono USB.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

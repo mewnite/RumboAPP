@@ -261,3 +261,23 @@ parser conserva patrones de horario deduplicados, que SQLite importa en lotes
 de 500 dentro de una transacción, sin crear otra copia de millones de horarios.
 Las tablas GTFS restantes sí se parsean en memoria. El tiempo en un teléfono
 físico todavía no se midió.
+
+### Publicar el proxy en Render
+
+Para compartir buses en vivo, el proxy se puede desplegar como Web Service en
+Render usando el [render.yaml](./render.yaml). Configurá `CLIENT_ID` y
+`CLIENT_SECRET` como variables privadas; nunca los agregues al repositorio ni
+al APK. Render proporciona `PORT` automáticamente y el proxy lo usa para
+escuchar en todas las interfaces.
+
+Después del despliegue, verificá `https://<servicio>.onrender.com/health` y
+compilá el APK con:
+
+```powershell
+flutter build apk --release `
+  --dart-define=RUMBO_API_BASE_URL=https://<servicio>.onrender.com
+```
+
+El plan gratuito puede suspender el servicio tras 15 minutos sin tráfico y
+tardar alrededor de un minuto en reactivarlo. El proxy aplica una caché de 10
+segundos para las posiciones.
