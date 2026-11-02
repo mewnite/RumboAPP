@@ -205,3 +205,24 @@ siendo la biblioteca nativa de MapLibre (`lib/arm64-v8a`, 30 MB en el análisis)
 que R8 no puede reducir. El build release optimizado terminó correctamente y
 los 184 tests pasaron; no se verificó el arranque, el mapa ni la búsqueda en un
 dispositivo Android release.
+
+### Verificación Android en `emulator-5554`
+
+Fecha de ejecución: 2026-11-02. Se instaló y ejecutó la app debug actual en el
+emulador Android API 37 (`sdk gphone64 x86 64`). Después del cambio que difiere
+la carga del feed hasta el primer frame, se ejecutó hot restart mediante DTD y
+se consultaron los logs de Android.
+
+| Medición | Antes en emulador | Después en emulador | Estado |
+|---|---:|---:|---|
+| Primer fotograma útil | 9.165 s | 2.938 s | medido |
+| Feed cacheado disponible | 17.289 s | 1.005 s | medido |
+| Memoria RSS inicial | 583.8 MB | 717.5 MB | medido; empeora y requiere una fase específica |
+| Memoria RSS después de feed | 635.9 MB | 723.8 MB | medido; supera la meta de 300 MB |
+| Cuadros omitidos durante arranque | 612 y 154 | 30 | medido; aún no es fluido |
+| Buses en vivo | no medido | no disponible | el proxy `10.0.2.2:8765` no respondió/configuró datos en esta sesión |
+
+El primer frame y la disponibilidad del feed mejoraron, pero el mapa nativo y
+la base GTFS de 198 MB mantienen el consumo de memoria por encima del objetivo.
+La medición de buses en vivo queda pendiente hasta iniciar el proxy oficial de
+desarrollo; no se inventan posiciones ni tiempos.

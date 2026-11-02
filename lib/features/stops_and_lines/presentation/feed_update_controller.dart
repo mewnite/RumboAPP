@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -94,7 +95,11 @@ final feedUpdateControllerProvider =
 class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
   FeedUpdateState? _lastGood;
   @override
-  Future<FeedUpdateState> build() => _loadData();
+  Future<FeedUpdateState> build() async {
+    // Let the map and its controls paint before opening/querying the large DB.
+    await SchedulerBinding.instance.endOfFrame;
+    return _loadData();
+  }
 
   Future<FeedUpdateState> _loadData() async {
     final measurement = PerformanceMeasurement.start('startup.feed');

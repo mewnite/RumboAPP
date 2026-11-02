@@ -92,3 +92,9 @@
 - Con búsquedas online ya consentidas, el buscador combina resultados locales y remotos al escribir; el botón queda para la activación inicial.
 - El primer polling de buses sigue siendo inmediato y el timeout de red bajó de 15 s a 5 s; el intervalo normal quedó en 8 s.
 - El tema claro fija superficies y estados de chips para evitar texto claro sobre superficies claras.
+
+## Validación Android en emulator-5554
+- La app actual se instaló y ejecutó en Android API 37; hot restart completado mediante DTD y sin errores runtime.
+- Diferir la carga del feed hasta después del primer frame redujo el primer frame de 9,165 s a 2,938 s y el feed cacheado de 17,289 s a 1,005 s.
+- RSS medido: 717–724 MB; no cumple la meta y queda como trabajo prioritario de memoria.
+- Buses en vivo no medidos: el proxy `10.0.2.2:8765` no estaba disponible.
