@@ -2,6 +2,7 @@ const STM_API = 'https://api.montevideo.gub.uy/api/transportepublico';
 const STM_TOKEN = 'https://mvdapi-auth.montevideo.gub.uy/auth/realms/pci/protocol/openid-connect/token';
 const GEOCODING_API = 'https://nominatim.openstreetmap.org/search';
 const CACHE_SECONDS = 10;
+const STM_TIMEOUT_MS = 15_000;
 
 let tokenCache = {
   value: '',
@@ -80,13 +81,21 @@ async function accessToken(env) {
 
 async function stmFetch(path, env, accept = 'application/json') {
   const token = await accessToken(env);
-  return fetch(`${STM_API}${path}`, {
-    headers: {
-      Accept: accept,
-      Authorization: `Bearer ${token}`,
-      'User-Agent': 'RumboAPP/1.0',
-    },
-  });
+  try {
+    return await fetch(`${STM_API}${path}`, {
+      headers: {
+        Accept: accept,
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'RumboAPP/1.0',
+      },
+      signal: AbortSignal.timeout(STM_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('El servicio STM tardó más de 15 segundos en responder.');
+    }
+    throw new Error('No se pudo conectar con el servicio STM.');
+  }
 }
 
 function safeBusQuery(url) {
