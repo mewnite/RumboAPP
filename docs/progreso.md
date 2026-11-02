@@ -98,3 +98,8 @@
 - Diferir la carga del feed hasta después del primer frame redujo el primer frame de 9,165 s a 2,938 s y el feed cacheado de 17,289 s a 1,005 s.
 - RSS medido: 717–724 MB; no cumple la meta y queda como trabajo prioritario de memoria.
 - Buses en vivo no medidos: el proxy `10.0.2.2:8765` no estaba disponible.
+
+## Corrección de ubicación en el planificador
+- El diálogo de permiso ahora usa el contexto visible de la hoja “Desde”, en vez del contexto de mapa subyacente.
+- `flutter analyze` sin issues y `flutter test`: 184 tests en verde.
+- APK debug recompilado e instalado en Samsung A34 (`R5CW915LYXH`); buses en vivo siguen no medidos sin proxy activo.

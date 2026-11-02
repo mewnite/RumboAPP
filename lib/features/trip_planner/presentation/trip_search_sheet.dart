@@ -57,7 +57,7 @@ class TripSearchSheet extends StatefulWidget {
   final bool hasCurrentLocation;
   final bool remotePlaceSearchEnabled;
   final Future<bool> Function()? onRemotePlaceSearchConsentRequested;
-  final Future<bool> Function()? ensureCurrentLocation;
+  final Future<bool> Function(BuildContext context)? ensureCurrentLocation;
   final VoidCallback? onCancelPlan;
   final PlaceSearchService? searchService;
   final TripEndpoint? initialOrigin;
@@ -514,7 +514,9 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
       return;
     }
     final ensureLocation = widget.ensureCurrentLocation;
-    if (ensureLocation == null || !await ensureLocation() || !mounted) return;
+    if (ensureLocation == null || !await ensureLocation(context) || !mounted) {
+      return;
+    }
     _hasCurrentLocation = true;
     _useLocation();
   }

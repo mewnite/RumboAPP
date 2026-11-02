@@ -504,10 +504,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  Future<void> _requestLocation() async {
+  Future<void> _requestLocation({BuildContext? dialogContext}) async {
     final l10n = AppLocalizations.of(context);
     final shouldContinue = await showDialog<bool>(
-      context: context,
+      context: dialogContext ?? context,
       builder: (context) => AlertDialog(
         icon: const Icon(Symbols.my_location_rounded),
         title: Text(l10n.locationRationaleTitle),
@@ -571,8 +571,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
         showDragHandle: false,
         builder: (context) => TripSearchSheet(
           hasCurrentLocation: location != null,
-          ensureCurrentLocation: () async {
-            await _requestLocation();
+          ensureCurrentLocation: (dialogContext) async {
+            await _requestLocation(dialogContext: dialogContext);
             return ref.read(mapLocationControllerProvider).location != null;
           },
           remotePlaceSearchEnabled: remotePlaceSearchEnabled,
