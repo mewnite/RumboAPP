@@ -506,7 +506,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     credentials = load_env(Path(".env"))
-    host = os.environ.get("RUMBO_PROXY_HOST", "127.0.0.1")
+    default_host = "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"
+    host = os.environ.get("RUMBO_PROXY_HOST", default_host)
     port = int(os.environ.get("PORT", os.environ.get("RUMBO_PROXY_PORT", "8765")))
     server = ThreadingHTTPServer((host, port), Handler)
     Handler.proxy = ApiProxy(credentials)
