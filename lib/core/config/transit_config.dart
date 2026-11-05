@@ -9,13 +9,14 @@ const _montevideoApiBaseUrl = String.fromEnvironment(
   'RUMBO_API_BASE_URL',
   defaultValue: '',
 );
+const _publicApiBaseUrl = 'https://rumboapp.onrender.com';
 const _demoMode = bool.fromEnvironment('RUMBO_DEMO_MODE');
 final _localProxyUrl = defaultTargetPlatform == TargetPlatform.android
     ? 'http://10.0.2.2:8765'
     : 'http://127.0.0.1:8765';
 final _effectiveApiBaseUrl = kDebugMode
     ? (_montevideoApiBaseUrl == '' ? _localProxyUrl : _montevideoApiBaseUrl)
-    : _montevideoApiBaseUrl;
+    : (_montevideoApiBaseUrl == '' ? _publicApiBaseUrl : _montevideoApiBaseUrl);
 
 /// Configuration for the static transit feed and explicit demo mode.
 class TransitConfig {

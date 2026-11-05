@@ -830,6 +830,40 @@ void main() {
     );
   });
 
+  test('STM GeoJSON parser accepts the public bus property names', () {
+    final snapshot = parseStmOnlineGeoJson(
+      jsonEncode({
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [-56.18, -34.9],
+            },
+            'properties': {
+              'id': 'stm.bus:23',
+              'company': 'CUTCSA',
+              'busId': 23,
+              'line': '105',
+              'lineVariantId': 1801,
+              'destination': 'GÉANT',
+              'subline': 'PLAZA ESPAÑA - PARQUE ROOSEVELT',
+              'speed': 28,
+              'subsystem': 1,
+            },
+          },
+        ],
+      }),
+      DateTime(2026, 11, 5),
+    );
+
+    expect(snapshot.discardedCount, 0);
+    expect(snapshot.positions.single.busCode, 23);
+    expect(snapshot.positions.single.variantId, 1801);
+    expect(snapshot.positions.single.lineLabel, '105');
+  });
+
   test(
     'RealtimeMatcher joins known variants and preserves unknown variants',
     () async {

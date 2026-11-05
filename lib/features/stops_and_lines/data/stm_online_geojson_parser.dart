@@ -102,35 +102,39 @@ RealtimeSnapshot parseStmOnlineGeoJson(
       continue;
     }
     final id = properties['id'];
-    final company = intValue(properties['codigoEmpresa']);
-    final bus = intValue(properties['codigoBus']);
-    final variant = intValue(properties['variante']);
-    final destinationCode = stringValue(properties['destino']);
-    final lineType = intValue(properties['tipoLinea']);
-    final subsystem = intValue(properties['subsistema']);
-    final speedValue = properties['velocidad'];
+    final company = intValue(properties['codigoEmpresa']) ?? 0;
+    final bus = intValue(properties['codigoBus'] ?? properties['busId']);
+    final variant = intValue(
+      properties['variante'] ?? properties['lineVariantId'],
+    );
+    final destinationCode =
+        stringValue(properties['destino']) ??
+        stringValue(properties['destination']) ??
+        '';
+    final lineType = intValue(properties['tipoLinea']) ?? 0;
+    final subsystem =
+        intValue(properties['subsistema'] ?? properties['subsystem']) ?? 0;
+    final speedValue = properties['velocidad'] ?? properties['speed'];
     final speed = speedValue is num
         ? speedValue.toDouble()
         : double.tryParse(speedValue?.toString() ?? '');
-    final line = stringValue(properties['linea']);
-    final subline = stringValue(properties['sublinea']);
-    final destination = stringValue(properties['destinoDesc']);
-    final lineTypeName = stringValue(properties['tipoLineaDesc']);
-    final subsystemName = stringValue(properties['subsistemaDesc']);
+    final line = stringValue(properties['linea'] ?? properties['line']);
+    final subline =
+        stringValue(properties['sublinea'] ?? properties['subline']) ?? '';
+    final destination =
+        stringValue(properties['destinoDesc']) ??
+        stringValue(properties['destination']) ??
+        '';
+    final lineTypeName = stringValue(properties['tipoLineaDesc']) ?? 'Ómnibus';
+    final subsystemName =
+        stringValue(properties['subsistemaDesc'] ?? properties['company']) ??
+        'STM';
     if (id == null ||
-        company == null ||
         bus == null ||
         variant == null ||
-        destinationCode == null ||
-        lineType == null ||
-        subsystem == null ||
         speed == null ||
         !speed.isFinite ||
-        line == null ||
-        subline == null ||
-        destination == null ||
-        lineTypeName == null ||
-        subsystemName == null) {
+        line == null) {
       discard('campos_obligatorios_ausentes_o_invalidos');
       continue;
     }
