@@ -22,6 +22,7 @@ TOKEN_URL = (
 )
 API_BASE = "https://api.montevideo.gub.uy/api/transportepublico"
 LIVE_MIN_INTERVAL_SECONDS = 10
+LIVE_STALE_SECONDS = 60
 GTFS_CACHE_SECONDS = 24 * 60 * 60
 REFERENCE_DATA_CACHE_SECONDS = 24 * 60 * 60
 PLACE_SEARCH_CACHE_SECONDS = 24 * 60 * 60
@@ -263,6 +264,18 @@ class ApiProxy:
             if (
                 api_path == self._last_live_path
                 and self._last_live_response is not None
+                and now - self._last_live_request < LIVE_STALE_SECONDS
+                and now - self._last_live_request >= self._minimum_live_interval
+            ):
+                threading.Thread(
+                    target=self._refresh_live,
+                    args=(api_path,),
+                    daemon=True,
+                ).start()
+                return self._last_live_response
+            if (
+                api_path == self._last_live_path
+                and self._last_live_response is not None
                 and now - self._last_live_request < self._minimum_live_interval
             ):
                 return self._last_live_response
@@ -277,6 +290,20 @@ class ApiProxy:
             result = self._upstream(api_path)
             self._last_live_response = result
             return result
+
+    def _refresh_live(self, api_path: str) -> None:
+        with self._lock:
+            if api_path != self._last_live_path:
+                return
+            if time.monotonic() - self._last_live_request < self._minimum_live_interval:
+                return
+            self._last_live_request = time.monotonic()
+        try:
+            result = self._upstream(api_path)
+        except ApiError:
+            return
+        with self._lock:
+            self._last_live_response = result
 
     def _upstream(self, api_path: str) -> tuple[int, str, bytes]:
         return self._request_upstream(api_path, max_bytes=10 * 1024 * 1024)
@@ -510,6 +537,12 @@ def main() -> int:
     port = int(os.environ.get("PORT", os.environ.get("RUMBO_PROXY_PORT", "8765")))
     server = ThreadingHTTPServer((host, port), Handler)
     Handler.proxy = ApiProxy(credentials)
+    if credentials.get("CLIENT_ID") and credentials.get("CLIENT_SECRET"):
+        threading.Thread(
+            target=Handler.proxy._live_request,
+            args=("/buses?format=geojson",),
+            daemon=True,
+        ).start()
     print(f"Proxy de Rumbo escuchando en {host}:{port}")
     print("Límite de tiempo real: 1 consulta global cada 10 segundos.")
     if not credentials.get("CLIENT_ID") or not credentials.get("CLIENT_SECRET"):

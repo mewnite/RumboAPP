@@ -91,27 +91,67 @@ abstract final class AppTheme {
     required Color border,
   }) {
     const tabularFigures = [FontFeature.tabularFigures()];
-    const textTheme = TextTheme(
-      headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w600),
-      headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
-      headlineSmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-      titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-      titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-      bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+    final textTheme = TextTheme(
+      headlineLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.w600,
+        color: colorScheme.onSurface,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.w600,
+        color: colorScheme.onSurface,
+      ),
+      headlineSmall: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        color: colorScheme.onSurface,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        color: colorScheme.onSurface,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: colorScheme.onSurface,
+      ),
+      titleSmall: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: colorScheme.onSurface,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurface,
+      ),
       bodyMedium: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         fontFeatures: tabularFigures,
       ),
-      bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+      bodySmall: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurface,
+      ),
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
         fontFeatures: tabularFigures,
       ),
-      labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+      labelMedium: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: colorScheme.onSurface,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        color: colorScheme.onSurface,
+      ),
     );
     final outline = BorderSide(color: border, width: 1);
     final cardShape = RoundedRectangleBorder(
