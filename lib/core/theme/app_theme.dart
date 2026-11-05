@@ -33,7 +33,7 @@ abstract final class AppTheme {
     inverseSurface: AppColors.ink,
     onInverseSurface: AppColors.ivory,
     inversePrimary: AppColors.darkPrimary,
-    surfaceTint: AppColors.rumbo,
+    surfaceTint: AppColors.transparent,
     shadow: AppColors.ink,
     scrim: AppColors.ink,
   );
@@ -68,7 +68,7 @@ abstract final class AppTheme {
     inverseSurface: AppColors.ivory,
     onInverseSurface: AppColors.ink,
     inversePrimary: AppColors.rumbo,
-    surfaceTint: AppColors.darkPrimary,
+    surfaceTint: AppColors.transparent,
     shadow: AppColors.ink,
     scrim: AppColors.ink,
   );

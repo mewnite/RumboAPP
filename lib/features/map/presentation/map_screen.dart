@@ -529,21 +529,32 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (!mounted) return;
     final state = ref.read(mapLocationControllerProvider);
     final location = state.location;
-    if (location != null) {
-      final position = Geographic(
-        lon: location.longitude,
-        lat: location.latitude,
-      );
-      await _mapController?.animateCamera(
-        center: position,
-        zoom: 15,
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
-        ),
-      );
-      _updateMetersPerPixel();
-      _updateVisibleBounds();
+    if (location == null) {
+      final message = switch (state.status) {
+        MapLocationStatus.permissionDenied => l10n.locationPermissionDenied,
+        MapLocationStatus.permissionDeniedForever =>
+          l10n.locationPermissionDeniedForever,
+        MapLocationStatus.serviceDisabled => l10n.locationServiceDisabled,
+        _ => l10n.locationError,
+      };
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+      return;
     }
+    final position = Geographic(
+      lon: location.longitude,
+      lat: location.latitude,
+    );
+    await _mapController?.animateCamera(
+      center: position,
+      zoom: 15,
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+      ),
+    );
+    _updateMetersPerPixel();
+    _updateVisibleBounds();
   }
 
   Future<void> _showTripSearch({

@@ -345,7 +345,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get mapFeedProxyHint =>
-      'En debug, iniciá python tool/montevideo_api_proxy.py en la computadora. En un teléfono por USB, usá adb reverse tcp:8765 tcp:8765 y RUMBO_API_BASE_URL=http://127.0.0.1:8765.';
+      'La app usa el servicio de Rumbo para cargar datos oficiales. Si no responde, reintentá más tarde.';
 
   @override
   String get locationRecenter => 'Usar mi ubicación';
@@ -1449,7 +1449,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get mapFeedProxyHint =>
-      'En debug, iniciá python tool/montevideo_api_proxy.py en la computadora. En un teléfono por USB, usá adb reverse tcp:8765 tcp:8765 y RUMBO_API_BASE_URL=http://127.0.0.1:8765.';
+      'La app usa el servicio de Rumbo para cargar datos oficiales. Si no responde, reintentá más tarde.';
 
   @override
   String get locationRecenter => 'Usar mi ubicación';

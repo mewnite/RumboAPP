@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 const double transitMinimumLatitude = -35.2;
 const double transitMaximumLatitude = -30.0;
 const double transitMinimumLongitude = -58.5;
@@ -11,12 +9,9 @@ const _montevideoApiBaseUrl = String.fromEnvironment(
 );
 const _publicApiBaseUrl = 'https://rumboapp.onrender.com';
 const _demoMode = bool.fromEnvironment('RUMBO_DEMO_MODE');
-final _localProxyUrl = defaultTargetPlatform == TargetPlatform.android
-    ? 'http://10.0.2.2:8765'
-    : 'http://127.0.0.1:8765';
-final _effectiveApiBaseUrl = kDebugMode
-    ? (_montevideoApiBaseUrl == '' ? _localProxyUrl : _montevideoApiBaseUrl)
-    : (_montevideoApiBaseUrl == '' ? _publicApiBaseUrl : _montevideoApiBaseUrl);
+final _effectiveApiBaseUrl = _montevideoApiBaseUrl == ''
+    ? _publicApiBaseUrl
+    : _montevideoApiBaseUrl;
 
 /// Configuration for the static transit feed and explicit demo mode.
 class TransitConfig {

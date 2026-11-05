@@ -186,7 +186,7 @@
     }
   },
   "mapFeedUnknownError": "Revisá la conexión e intentá actualizar de nuevo.",
-  "mapFeedProxyHint": "En debug, iniciá python tool/montevideo_api_proxy.py en la computadora. En un teléfono por USB, usá adb reverse tcp:8765 tcp:8765 y RUMBO_API_BASE_URL=http://127.0.0.1:8765.",
+  "mapFeedProxyHint": "La app usa el servicio de Rumbo para cargar datos oficiales. Si no responde, reintentá más tarde.",
   "locationRecenter": "Usar mi ubicación",
   "locationRationaleTitle": "Usar tu ubicación",
   "locationRationaleBody": "Rumbo la usa para centrar el mapa. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.",
