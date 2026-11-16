@@ -23,7 +23,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class _ThrowingRealtimeBusSource implements RealtimeBusSource {
   @override
-  Future<RealtimeSnapshot> fetch() async {
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) async {
     throw const FormatException('offline');
   }
 }

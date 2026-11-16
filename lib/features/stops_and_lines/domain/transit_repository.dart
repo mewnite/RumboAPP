@@ -34,7 +34,7 @@ abstract interface class TransitRepository {
 }
 
 abstract interface class RealtimeBusSource {
-  Future<RealtimeSnapshot> fetch();
+  Future<RealtimeSnapshot> fetch({Set<String>? lines});
 }
 
 abstract interface class ArrivalsSource {

@@ -136,6 +136,7 @@ class TripLeg {
     this.toLongitude,
     this.route,
     this.variant,
+    this.shape,
     this.headsign = '',
   });
 
@@ -151,6 +152,7 @@ class TripLeg {
   final double? toLongitude;
   final Route? route;
   final RouteVariant? variant;
+  final Shape? shape;
   final String headsign;
 }
 

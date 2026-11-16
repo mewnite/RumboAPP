@@ -6,6 +6,7 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/map_config.dart';
 import '../../../core/config/transit_config.dart';
@@ -36,6 +37,8 @@ import 'map_location_controller.dart';
 import 'live_bus_chip.dart';
 
 typedef MapBuilder = Widget Function(BuildContext context);
+
+const _locationRationaleAcceptedKey = 'location_rationale_accepted';
 
 final mapBuilderOverrideProvider = Provider<MapBuilder?>((ref) => null);
 
@@ -145,6 +148,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   TripPlan? _selectedTripPlan;
   String? _selectedTripOriginName;
   String? _selectedTripDestinationName;
+  final Map<String, Shape> _tripPlanShapes = {};
 
   @override
   void initState() {
@@ -420,9 +424,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 bus.destinationName,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
-              Text('${bus.speedKmh.toStringAsFixed(0)} km/h'),
+              Text(
+                '${bus.speedKmh.toStringAsFixed(0)} km/h',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               if (ageSeconds > 60)
-                Text(AppLocalizations.of(context).mapBusAge(ageSeconds)),
+                Text(
+                  AppLocalizations.of(context).mapBusAge(ageSeconds),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
             ],
           ),
         ),
@@ -506,25 +518,35 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _requestLocation({BuildContext? dialogContext}) async {
     final l10n = AppLocalizations.of(context);
-    final shouldContinue = await showDialog<bool>(
-      context: dialogContext ?? context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Symbols.my_location_rounded),
-        title: Text(l10n.locationRationaleTitle),
-        content: Text(l10n.locationRationaleBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.locationRationaleContinue),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || shouldContinue != true) return;
+    final preferences = await SharedPreferences.getInstance();
+    var shouldContinue =
+        preferences.getBool(_locationRationaleAcceptedKey) ?? false;
+    if (!shouldContinue) {
+      shouldContinue =
+          (await showDialog<bool>(
+            context: dialogContext ?? context,
+            builder: (context) => AlertDialog(
+              icon: const Icon(Symbols.my_location_rounded),
+              title: Text(l10n.locationRationaleTitle),
+              content: Text(l10n.locationRationaleBody),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(l10n.actionCancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(l10n.locationRationaleContinue),
+                ),
+              ],
+            ),
+          )) ??
+          false;
+    }
+    if (!mounted || !shouldContinue) return;
+    if (preferences.getBool(_locationRationaleAcceptedKey) != true) {
+      await preferences.setBool(_locationRationaleAcceptedKey, true);
+    }
     await ref.read(mapLocationControllerProvider.notifier).locate();
     if (!mounted) return;
     final state = ref.read(mapLocationControllerProvider);
@@ -618,12 +640,25 @@ class _MapScreenState extends ConsumerState<MapScreen>
           searchService: searchService,
           onPlanSelected: (plan, origin, destination) {
             didSelectPlan = true;
+            final planLines = <String>{
+              for (final leg in plan.legs)
+                if (leg.kind == TripLegKind.transit && leg.route != null)
+                  leg.route!.shortName.isNotEmpty
+                      ? leg.route!.shortName
+                      : leg.route!.id,
+            };
+            ref
+                .read(liveBusesControllerProvider.notifier)
+                .setSelectedLines(planLines);
             setState(() {
               _selectedTripPlan = plan;
+              _selectedRoute = null;
+              _selectedVariantId = null;
               _selectedTripOriginName =
                   origin?.name ?? l10n.tripOriginLocationHint;
               _selectedTripDestinationName = destination.name;
             });
+            unawaited(_loadTripPlanShapes(plan));
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             }
@@ -663,12 +698,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     : l10n.tripOfficialDataUnavailable,
               );
             }
-            final originLatitude = origin?.latitude ?? location?.latitude;
-            final originLongitude = origin?.longitude ?? location?.longitude;
+            final currentLocation = ref
+                .read(mapLocationControllerProvider)
+                .location;
+            final originLatitude =
+                origin?.latitude ?? currentLocation?.latitude;
+            final originLongitude =
+                origin?.longitude ?? currentLocation?.longitude;
             if (originLatitude == null || originLongitude == null) {
               throw Exception(l10n.tripOriginRequired);
             }
-            return tripPlanner.plan(
+            final plans = await tripPlanner.plan(
               TripRequest(
                 originLatitude: originLatitude,
                 originLongitude: originLongitude,
@@ -678,6 +718,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 config: config,
               ),
             );
+            final relevantLines = <String>{
+              for (final plan in plans)
+                for (final leg in plan.legs)
+                  if (leg.kind == TripLegKind.transit && leg.route != null)
+                    leg.route!.shortName.isNotEmpty
+                        ? leg.route!.shortName
+                        : leg.route!.id,
+            };
+            if (relevantLines.isNotEmpty) {
+              ref
+                  .read(liveBusesControllerProvider.notifier)
+                  .setSelectedLines(relevantLines);
+            }
+            return plans;
           },
         ),
       );
@@ -1077,7 +1131,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
       ..._tripPlanLayers(_selectedTripPlan),
       ..._selectedRouteLayers(shape),
       ..._stopLayers(stops),
-      ..._busLayers(_selectedTripPlan == null ? buses : const []),
+      ..._busLayers(
+        _selectedTripPlan == null
+            ? buses
+            : buses.where((bus) {
+                final planLines = {
+                  for (final leg in _selectedTripPlan!.legs)
+                    if (leg.kind == TripLegKind.transit && leg.route != null)
+                      leg.route!.shortName.isNotEmpty
+                          ? leg.route!.shortName
+                          : leg.route!.id,
+                };
+                return planLines.contains(bus.lineLabel);
+              }).toList(),
+      ),
       ..._locationLayers(locationState, isDark),
     ];
     _mapLayerSignature = signature;
@@ -1100,12 +1167,23 @@ class _MapScreenState extends ConsumerState<MapScreen>
           toLon == null) {
         continue;
       }
-      final segment = Feature<LineString>(
-        geometry: LineString.from([
-          Geographic(lon: fromLon, lat: fromLat),
-          Geographic(lon: toLon, lat: toLat),
-        ]),
-      );
+      final shape = leg.kind == TripLegKind.transit && leg.variant != null
+          ? _tripPlanShapes[leg.variant!.id]
+          : null;
+      final points = shape == null
+          ? [
+              Geographic(lon: fromLon, lat: fromLat),
+              Geographic(lon: toLon, lat: toLat),
+            ]
+          : _shapeSegment(
+              shape,
+              fromLatitude: fromLat,
+              fromLongitude: fromLon,
+              toLatitude: toLat,
+              toLongitude: toLon,
+            );
+      if (points.length < 2) continue;
+      final segment = Feature<LineString>(geometry: LineString.from(points));
       switch (leg.kind) {
         case TripLegKind.walking:
           walkingPoints.add(segment);
@@ -1174,6 +1252,82 @@ class _MapScreenState extends ConsumerState<MapScreen>
     return layers;
   }
 
+  List<Geographic> _shapeSegment(
+    Shape shape, {
+    required double fromLatitude,
+    required double fromLongitude,
+    required double toLatitude,
+    required double toLongitude,
+  }) {
+    if (shape.points.length < 2) return const [];
+    var fromIndex = 0;
+    var toIndex = 0;
+    var fromDistance = double.infinity;
+    var toDistance = double.infinity;
+    for (var index = 0; index < shape.points.length; index++) {
+      final point = shape.points[index];
+      final fromCandidate = _distanceMeters(
+        fromLatitude,
+        fromLongitude,
+        point.latitude,
+        point.longitude,
+      );
+      final toCandidate = _distanceMeters(
+        toLatitude,
+        toLongitude,
+        point.latitude,
+        point.longitude,
+      );
+      if (fromCandidate < fromDistance) {
+        fromDistance = fromCandidate;
+        fromIndex = index;
+      }
+      if (toCandidate < toDistance) {
+        toDistance = toCandidate;
+        toIndex = index;
+      }
+    }
+    final start = math.min(fromIndex, toIndex);
+    final end = math.max(fromIndex, toIndex);
+    final segment = shape.points
+        .sublist(start, end + 1)
+        .map((point) => Geographic(lon: point.longitude, lat: point.latitude))
+        .toList(growable: false);
+    return segment.length >= 2
+        ? segment
+        : [
+            Geographic(lon: fromLongitude, lat: fromLatitude),
+            Geographic(lon: toLongitude, lat: toLatitude),
+          ];
+  }
+
+  Future<void> _loadTripPlanShapes(TripPlan plan) async {
+    final variants = {
+      for (final leg in plan.legs)
+        if (leg.kind == TripLegKind.transit && leg.variant != null)
+          leg.variant!,
+    };
+    if (variants.isEmpty) return;
+    final shapes = await Future.wait(
+      variants.map(
+        (variant) async => MapEntry(
+          variant.id,
+          await ref.read(routeShapeProvider(variant.id).future),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    var changed = false;
+    for (final entry in shapes) {
+      final shape = entry.value;
+      if (shape != null && !identical(_tripPlanShapes[entry.key], shape)) {
+        _tripPlanShapes[entry.key] = shape;
+        changed = true;
+      }
+    }
+    if (changed) setState(() {});
+  }
+
   Geographic? _tripPlanEndpoint(TripPlan plan, {required bool first}) {
     if (plan.legs.isEmpty) return null;
     final legs = first ? plan.legs : plan.legs.reversed;
@@ -1238,6 +1392,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
     Stop stop,
   ) async {
     final routeColor = AppColors.rumbo;
+    ref
+        .read(liveBusesControllerProvider.notifier)
+        .setSelectedLines(_lineLabelsFor(route));
     setState(() {
       _selectedVariantId = variant.id;
       _selectedRoute = route;
@@ -1263,8 +1420,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
     await _showLineDetails(route);
   }
 
+  Set<String> _lineLabelsFor(Route route) {
+    if (route.shortName.isNotEmpty) return {route.shortName};
+    if (route.id.isNotEmpty) return {route.id};
+    return {};
+  }
+
   Future<void> _showLineDetails(Route route, {String? initialVariantId}) async {
     final routeColor = AppColors.rumbo;
+    ref
+        .read(liveBusesControllerProvider.notifier)
+        .setSelectedLines(_lineLabelsFor(route));
     setState(() {
       _selectedTripPlan = null;
       _selectedVariantId = initialVariantId;
@@ -1728,6 +1894,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
                                     .stop(),
                               );
                             }
+                            ref
+                                .read(liveBusesControllerProvider.notifier)
+                                .setSelectedLines(const {});
                             setState(() {
                               _selectedTripPlan = null;
                               _selectedTripOriginName = null;
@@ -1743,6 +1912,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
                                     .stop(),
                               );
                             }
+                            ref
+                                .read(liveBusesControllerProvider.notifier)
+                                .setSelectedLines(const {});
                             setState(() {
                               _selectedTripPlan = null;
                               _selectedTripOriginName = null;
@@ -1903,6 +2075,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           Text(l10n.mapRoutesLoading)
                         else if (stopRoutes.hasError)
                           Text(l10n.mapRoutesError(stopRoutes.error.toString()))
+                        else if (liveBuses.selectedLines.isEmpty)
+                          Text(l10n.mapLiveNeedsTrip)
                         else if (liveBuses.error != null)
                           Text(l10n.mapLiveError(liveBuses.error!))
                         else if (liveBuses.lastUpdatedAt == null)
@@ -1923,9 +2097,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
                             l10n.mapLiveBusCount(busesInVisibleArea.length),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                        if (stops.isEmpty && liveBuses.error != null)
+                        if (stops.isEmpty && liveBuses.selectedLines.isEmpty)
+                          Text(l10n.mapLiveNeedsTrip),
+                        if (stops.isEmpty &&
+                            liveBuses.selectedLines.isNotEmpty &&
+                            liveBuses.error != null)
                           Text(l10n.mapLiveError(liveBuses.error!)),
                         if (stops.isEmpty &&
+                            liveBuses.selectedLines.isNotEmpty &&
                             liveBuses.lastUpdatedAt == null &&
                             liveBuses.error == null)
                           Text(l10n.mapLiveLoading),
@@ -1942,7 +2121,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
                                 (bus) => ListTile(
                                   contentPadding: EdgeInsets.zero,
                                   leading: CircleAvatar(
-                                    child: Text(bus.lineLabel),
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    foregroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface,
+                                    child: Text(
+                                      bus.lineLabel,
+                                      style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
                                   title: Text(bus.destinationName),
                                   subtitle: Text(
@@ -2138,7 +2331,13 @@ class _FavoriteShortcutChip extends StatelessWidget {
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 6),
-                  Text(label),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2165,7 +2364,17 @@ class _StatusPill extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [icon, const SizedBox(width: 8), Text(label)],
+          children: [
+            icon,
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2192,7 +2401,14 @@ class _InfoBanner extends StatelessWidget {
             children: [
               Icon(icon, size: 20),
               const SizedBox(width: 10),
-              Expanded(child: Text(label)),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -2248,7 +2464,14 @@ class _LocationBanner extends StatelessWidget {
             children: [
               Icon(icon, size: 20),
               const SizedBox(width: 10),
-              Expanded(child: Text(message)),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ),
               TextButton(onPressed: onAction, child: Text(action)),
             ],
           ),

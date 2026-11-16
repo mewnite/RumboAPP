@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/core/theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rumbo/features/favorites/data/fake_favorites_repository.dart';
 import 'package:rumbo/features/favorites/domain/favorite.dart';
 import 'package:rumbo/features/favorites/domain/favorites_repository.dart';
@@ -22,7 +23,10 @@ import 'fakes/fake_location_repository.dart';
 void main() {
   late FakeLocationRepository repository;
 
-  setUp(() => repository = FakeLocationRepository());
+  setUp(() {
+    repository = FakeLocationRepository();
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('does not request location until user confirms the action', (
     tester,
@@ -288,7 +292,7 @@ class _CountingBusSource implements RealtimeBusSource {
   int calls = 0;
 
   @override
-  Future<RealtimeSnapshot> fetch() async {
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) async {
     calls++;
     return const RealtimeSnapshot(
       positions: [],

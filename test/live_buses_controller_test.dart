@@ -14,7 +14,7 @@ class _TestBusSource implements RealtimeBusSource {
   int calls = 0;
 
   @override
-  Future<RealtimeSnapshot> fetch() async {
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) async {
     calls++;
     if (fail) {
       throw const FormatException('offline');
@@ -27,7 +27,7 @@ class _PendingBusSource implements RealtimeBusSource {
   final Completer<RealtimeSnapshot> completer = Completer<RealtimeSnapshot>();
 
   @override
-  Future<RealtimeSnapshot> fetch() => completer.future;
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) => completer.future;
 }
 
 void main() {

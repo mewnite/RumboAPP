@@ -559,6 +559,12 @@ abstract class AppLocalizations {
   /// **'Consultando ómnibus en vivo…'**
   String get mapLiveLoading;
 
+  /// No description provided for @mapLiveNeedsTrip.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Indicá origen y destino para ver en vivo los ómnibus que te sirven.'**
+  String get mapLiveNeedsTrip;
+
   /// No description provided for @mapLiveEmpty.
   ///
   /// In es_UY, this message translates to:

@@ -57,7 +57,13 @@ class RemoteGeocodingSource implements GeocodingRepository {
       );
     }
 
-    final queryParams = <String, String>{'q': queryText};
+    final remoteQuery =
+        query.intent == QueryIntentKind.intersection &&
+            query.street1 != null &&
+            query.street2 != null
+        ? '${query.street1} & ${query.street2}, Montevideo, Uruguay'
+        : queryText;
+    final queryParams = <String, String>{'q': remoteQuery};
 
     if (biasLatitude != null && biasLongitude != null) {
       queryParams['bias_lat'] = biasLatitude.toStringAsFixed(5);
@@ -221,6 +227,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
         return SearchEntityKind.address;
       case 'intersection':
       case 'crossing':
+      case 'junction':
         return SearchEntityKind.intersection;
       case 'suburb':
       case 'neighbourhood':

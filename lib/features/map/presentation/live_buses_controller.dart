@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../stops_and_lines/domain/transit_models.dart';
@@ -143,7 +144,11 @@ class LiveBusesController extends Notifier<LiveBusesState> {
   }
 
   void setSelectedLines(Set<String> lines) {
+    if (setEquals(state.selectedLines, lines)) return;
     state = state.copyWith(selectedLines: lines);
+    if (_source != null) {
+      unawaited(refreshNow());
+    }
   }
 
   void setSelectedVariantIds(Set<int> variantIds) {
@@ -193,7 +198,9 @@ class LiveBusesController extends Notifier<LiveBusesState> {
     final generation = _pollGeneration;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final snapshot = await _source!.fetch();
+      final snapshot = await _source!.fetch(
+        lines: state.selectedLines.isEmpty ? null : state.selectedLines,
+      );
       if (!ref.mounted || generation != _pollGeneration) return;
       final shouldContinuePolling = state.isPolling;
       state = state.copyWith(

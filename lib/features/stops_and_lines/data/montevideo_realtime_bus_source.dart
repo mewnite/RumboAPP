@@ -22,7 +22,7 @@ class MontevideoRealtimeBusSource implements RealtimeBusSource {
   void close() => _client.close();
 
   @override
-  Future<RealtimeSnapshot> fetch() async {
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) async {
     final baseUri = Uri.tryParse(apiBaseUrl);
     final isLocalDevelopmentHost =
         baseUri != null &&
@@ -41,13 +41,17 @@ class MontevideoRealtimeBusSource implements RealtimeBusSource {
     final basePath = baseUri.path.endsWith('/')
         ? baseUri.path.substring(0, baseUri.path.length - 1)
         : baseUri.path;
+    final queryParams = <String, String>{'format': 'geojson'};
+    if (lines != null && lines.isNotEmpty) {
+      queryParams['lines'] = lines.join(',');
+    }
     final uri = baseUri.replace(
       path: '$basePath/buses',
-      queryParameters: const {'format': 'geojson'},
+      queryParameters: queryParams,
     );
     final response = await _client
         .get(uri, headers: const {'Accept': 'application/geo+json'})
-        .timeout(const Duration(seconds: 5));
+        .timeout(const Duration(seconds: 25));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
         'La API de tiempo real respondió HTTP ${response.statusCode}.',

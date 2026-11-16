@@ -273,6 +273,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get mapLiveLoading => 'Consultando ómnibus en vivo…';
 
   @override
+  String get mapLiveNeedsTrip =>
+      'Indicá origen y destino para ver en vivo los ómnibus que te sirven.';
+
+  @override
   String get mapLiveEmpty =>
       'El STM no reporta ómnibus en vivo cerca de este punto.';
 
@@ -1375,6 +1379,10 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get mapLiveLoading => 'Consultando ómnibus en vivo…';
+
+  @override
+  String get mapLiveNeedsTrip =>
+      'Indicá origen y destino para ver en vivo los ómnibus que te sirven.';
 
   @override
   String get mapLiveEmpty =>

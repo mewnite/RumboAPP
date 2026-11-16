@@ -3,25 +3,40 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 abstract final class AppTheme {
-  static final ColorScheme lightColorScheme = ColorScheme.light().copyWith(
+  static const ColorScheme lightColorScheme = ColorScheme(
+    brightness: Brightness.light,
     primary: AppColors.rumbo,
     onPrimary: AppColors.surface,
     primaryContainer: AppColors.ivory,
     onPrimaryContainer: AppColors.ink,
+    primaryFixed: AppColors.ivory,
+    primaryFixedDim: AppColors.ivory,
+    onPrimaryFixed: AppColors.ink,
+    onPrimaryFixedVariant: AppColors.ink,
     secondary: AppColors.lime,
     onSecondary: AppColors.ink,
     secondaryContainer: AppColors.ivory,
     onSecondaryContainer: AppColors.ink,
+    secondaryFixed: AppColors.ivory,
+    secondaryFixedDim: AppColors.ivory,
+    onSecondaryFixed: AppColors.ink,
+    onSecondaryFixedVariant: AppColors.ink,
     tertiary: AppColors.rumbo,
     onTertiary: AppColors.surface,
     tertiaryContainer: AppColors.ivory,
     onTertiaryContainer: AppColors.ink,
+    tertiaryFixed: AppColors.ivory,
+    tertiaryFixedDim: AppColors.ivory,
+    onTertiaryFixed: AppColors.ink,
+    onTertiaryFixedVariant: AppColors.ink,
     error: AppColors.lightError,
     onError: AppColors.surface,
     errorContainer: AppColors.lightError,
     onErrorContainer: AppColors.surface,
     surface: AppColors.surface,
     onSurface: AppColors.ink,
+    surfaceDim: AppColors.ivory,
+    surfaceBright: AppColors.surface,
     surfaceContainerLowest: AppColors.surface,
     surfaceContainerLow: AppColors.ivory,
     surfaceContainer: AppColors.ivory,
@@ -38,25 +53,40 @@ abstract final class AppTheme {
     scrim: AppColors.ink,
   );
 
-  static final ColorScheme darkColorScheme = ColorScheme.dark().copyWith(
+  static const ColorScheme darkColorScheme = ColorScheme(
+    brightness: Brightness.dark,
     primary: AppColors.darkPrimary,
     onPrimary: AppColors.ink,
     primaryContainer: AppColors.darkElevatedSurface,
     onPrimaryContainer: AppColors.ivory,
+    primaryFixed: AppColors.darkElevatedSurface,
+    primaryFixedDim: AppColors.darkSurface,
+    onPrimaryFixed: AppColors.ivory,
+    onPrimaryFixedVariant: AppColors.ivory,
     secondary: AppColors.lime,
     onSecondary: AppColors.ink,
     secondaryContainer: AppColors.darkElevatedSurface,
     onSecondaryContainer: AppColors.ivory,
+    secondaryFixed: AppColors.darkElevatedSurface,
+    secondaryFixedDim: AppColors.darkSurface,
+    onSecondaryFixed: AppColors.ivory,
+    onSecondaryFixedVariant: AppColors.ivory,
     tertiary: AppColors.darkPrimary,
     onTertiary: AppColors.ink,
     tertiaryContainer: AppColors.darkElevatedSurface,
     onTertiaryContainer: AppColors.ivory,
+    tertiaryFixed: AppColors.darkElevatedSurface,
+    tertiaryFixedDim: AppColors.darkSurface,
+    onTertiaryFixed: AppColors.ivory,
+    onTertiaryFixedVariant: AppColors.ivory,
     error: AppColors.darkError,
     onError: AppColors.ink,
     errorContainer: AppColors.darkError,
     onErrorContainer: AppColors.ink,
     surface: AppColors.darkSurface,
     onSurface: AppColors.ivory,
+    surfaceDim: AppColors.ink,
+    surfaceBright: AppColors.darkElevatedSurface,
     surfaceContainerLowest: AppColors.ink,
     surfaceContainerLow: AppColors.darkSurface,
     surfaceContainer: AppColors.darkSurface,
@@ -77,21 +107,39 @@ abstract final class AppTheme {
     lightColorScheme,
     scaffoldBackground: AppColors.ivory,
     border: AppColors.lightBorder,
+    dialogBackground: AppColors.surface,
   );
 
   static ThemeData dark() => _theme(
     darkColorScheme,
     scaffoldBackground: AppColors.ink,
     border: AppColors.darkBorder,
+    dialogBackground: AppColors.darkElevatedSurface,
   );
 
   static ThemeData _theme(
     ColorScheme colorScheme, {
     required Color scaffoldBackground,
     required Color border,
+    required Color dialogBackground,
   }) {
     const tabularFigures = [FontFeature.tabularFigures()];
     final textTheme = TextTheme(
+      displayLarge: TextStyle(
+        fontSize: 57,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurface,
+      ),
+      displayMedium: TextStyle(
+        fontSize: 45,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurface,
+      ),
+      displaySmall: TextStyle(
+        fontSize: 36,
+        fontWeight: FontWeight.w400,
+        color: colorScheme.onSurface,
+      ),
       headlineLarge: TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.w600,
@@ -131,6 +179,7 @@ abstract final class AppTheme {
         fontSize: 14,
         fontWeight: FontWeight.w400,
         fontFeatures: tabularFigures,
+        color: colorScheme.onSurface,
       ),
       bodySmall: TextStyle(
         fontSize: 12,
@@ -141,6 +190,7 @@ abstract final class AppTheme {
         fontSize: 14,
         fontWeight: FontWeight.w500,
         fontFeatures: tabularFigures,
+        color: colorScheme.onSurface,
       ),
       labelMedium: TextStyle(
         fontSize: 12,
@@ -178,9 +228,19 @@ abstract final class AppTheme {
       fontFamily: 'Inter',
       canvasColor: scaffoldBackground,
       scaffoldBackgroundColor: scaffoldBackground,
+      cardColor: colorScheme.surface,
+      hintColor: colorScheme.onSurfaceVariant,
+      unselectedWidgetColor: colorScheme.onSurfaceVariant,
+      iconTheme: IconThemeData(color: colorScheme.onSurface),
+      primaryIconTheme: IconThemeData(color: colorScheme.onSurface),
       dividerColor: border,
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
       textTheme: textTheme.apply(
+        fontFamily: 'Inter',
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
+      ),
+      primaryTextTheme: textTheme.apply(
         fontFamily: 'Inter',
         bodyColor: colorScheme.onSurface,
         displayColor: colorScheme.onSurface,
@@ -328,11 +388,17 @@ abstract final class AppTheme {
         shape: cardShape,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surfaceContainerHigh,
+        backgroundColor: dialogBackground,
         surfaceTintColor: AppColors.transparent,
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radius24),
+        ),
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          color: colorScheme.onSurface,
+        ),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onSurface,
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
@@ -374,6 +440,12 @@ abstract final class AppTheme {
         minVerticalPadding: AppTokens.space8,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppTokens.space16,
+        ),
+        titleTextStyle: textTheme.bodyLarge?.copyWith(
+          color: colorScheme.onSurface,
+        ),
+        subtitleTextStyle: textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onSurfaceVariant,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radius12),
@@ -436,6 +508,33 @@ abstract final class AppTheme {
         textStyle: textTheme.bodySmall?.copyWith(
           color: colorScheme.onInverseSurface,
         ),
+      ),
+      expansionTileTheme: ExpansionTileThemeData(
+        textColor: colorScheme.onSurface,
+        iconColor: colorScheme.onSurface,
+        collapsedTextColor: colorScheme.onSurface,
+        collapsedIconColor: colorScheme.onSurfaceVariant,
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: colorScheme.surface,
+        headerBackgroundColor: colorScheme.surfaceContainerHigh,
+        headerForegroundColor: colorScheme.onSurface,
+        dayForegroundColor: WidgetStatePropertyAll(colorScheme.onSurface),
+        yearForegroundColor: WidgetStatePropertyAll(colorScheme.onSurface),
+        weekdayStyle: textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
+        rangePickerHeaderForegroundColor: colorScheme.onSurface,
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: colorScheme.surface,
+        hourMinuteTextColor: colorScheme.onSurface,
+        dialTextColor: colorScheme.onSurface,
+        dayPeriodTextColor: colorScheme.onSurface,
+        helpTextStyle: textTheme.labelSmall?.copyWith(
+          color: colorScheme.onSurface,
+        ),
+        entryModeIconColor: colorScheme.onSurface,
       ),
     );
   }

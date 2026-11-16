@@ -6,5 +6,16 @@ class FakeRealtimeBusSource implements RealtimeBusSource {
   final RealtimeSnapshot snapshot;
 
   @override
-  Future<RealtimeSnapshot> fetch() async => snapshot;
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) async {
+    if (lines == null || lines.isEmpty) return snapshot;
+    final filtered = snapshot.positions
+        .where((bus) => lines.contains(bus.lineLabel))
+        .toList(growable: false);
+    return RealtimeSnapshot(
+      positions: filtered,
+      discardedCount: snapshot.discardedCount,
+      discardReasons: snapshot.discardReasons,
+      duplicateCount: snapshot.duplicateCount,
+    );
+  }
 }

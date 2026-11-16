@@ -103,3 +103,15 @@
 - El diálogo de permiso ahora usa el contexto visible de la hoja “Desde”, en vez del contexto de mapa subyacente.
 - `flutter analyze` sin issues y `flutter test`: 184 tests en verde.
 - APK debug recompilado e instalado en Samsung A34 (`R5CW915LYXH`); buses en vivo siguen no medidos sin proxy activo.
+
+## Búsqueda integrada y mapa
+- La búsqueda normal combina paradas, líneas y direcciones online al escribir; se quitó el botón separado.
+- El consentimiento de geocodificación aparece solo en el primer uso y luego se conserva localmente.
+- Los tramos de ómnibus usan shapes GTFS reales; los buses se consultan con filtros de línea cuando corresponde.
+- `flutter analyze` y la suite completa de tests pasan; hot reload no se ejecutó porque no había una app Flutter conectada.
+
+## Corrección de recorridos, esquinas y buses
+- El mapa recorta cada shape entre la parada de subida y la de bajada, en lugar de dibujar la variante completa.
+- Las búsquedas «calle A y calle B», «esquina» y equivalentes se envían como intersección al geocodificador; `junction` se clasifica como cruce.
+- Al devolver planes se filtran inmediatamente los buses por las líneas útiles del resultado.
+- Tests Flutter completos, tests focalizados y proxy Python: verdes; `flutter analyze`: sin issues.

@@ -98,6 +98,21 @@ Al abrir (comportamiento verificado en emulador Android):
 7. Validar viaje activo, permisos, notificaciones y aviso de bajada en un Android físico y en iOS; hoy solo está compilado Android y probado con dobles.
 8. Validar en dispositivo los controles de privacidad, la atribución y las condiciones del geocodificador configurado.
 
+## 7. Flujo de pruebas Android asistido
+
+- Android Studio, Android SDK 36, AVD API 37, Java incluido en Android Studio,
+  Flutter 3.47.8 y `adb` quedaron verificados con `flutter doctor -v`.
+- `emulator-5554` fue detectado por Flutter y ADB; Rumbo compiló, instaló y
+  arrancó en modo debug.
+- La conexión al Flutter VM Service permitió ejecutar hot reload y consultar
+  errores runtime; en la sesión piloto no hubo errores Dart.
+- Medición de esa sesión: primer frame en 3,609 s, RSS entre 574 MB y 633 MB,
+  y tramos de 284 frames omitidos durante la carga del mapa/base local.
+- El flujo reproducible y los límites del emulador están documentados en
+  [README.md](../README.md#pruebas-asistidas-en-android). La validación de GPS
+  real, batería, permisos «Siempre» y rendimiento en hardware físico sigue
+  requiriendo un teléfono.
+
 ### Preguntas para mí
 
 1. ¿Qué feed GTFS oficial, licencia y entorno de proxy autorizás para pruebas y producción?

@@ -222,9 +222,20 @@ class ApiProxy:
             wait = 1.0 - (now - self._last_place_request)
             if wait > 0:
                 time.sleep(wait)
+            intersection = re.match(
+                r"^\s*(.+?)\s+(?:y|esq\.?|esquina|con|/)\s+(.+?)\s*$",
+                search,
+                flags=re.IGNORECASE,
+            )
+            upstream_search = search
+            if intersection:
+                upstream_search = (
+                    f"{intersection.group(1).strip()} & "
+                    f"{intersection.group(2).strip()}, Montevideo, Uruguay"
+                )
             params = urllib.parse.urlencode(
                 {
-                    "q": search,
+                    "q": upstream_search,
                     "countrycodes": "uy",
                     "format": "jsonv2",
                     "limit": "5",

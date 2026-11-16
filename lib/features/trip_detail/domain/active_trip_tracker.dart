@@ -31,6 +31,13 @@ class ActiveTripTracker {
   bool _hasAlerted = false;
 
   ActiveTripProgress update(double latitude, double longitude) {
+    if (destinationIndex <= 0) {
+      return const ActiveTripProgress(
+        stopsRemaining: 0,
+        distanceToDestinationMeters: double.infinity,
+        shouldAlert: false,
+      );
+    }
     var nearestIndex = 0;
     var nearestDistance = double.infinity;
     for (var index = 0; index <= destinationIndex; index++) {
@@ -41,7 +48,7 @@ class ActiveTripTracker {
         stop.latitude,
         stop.longitude,
       );
-      if (distance < nearestDistance) {
+      if (distance < nearestDistance && distance <= 180) {
         nearestDistance = distance;
         nearestIndex = index;
       }

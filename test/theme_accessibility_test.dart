@@ -18,6 +18,44 @@ void main() {
     expect(theme.inputDecorationTheme.fillColor, AppColors.darkSurface);
   });
 
+  test('light theme uses dark text and icons on light surfaces', () {
+    final theme = AppTheme.light();
+    final scheme = theme.colorScheme;
+
+    expect(scheme.brightness, Brightness.light);
+    expect(scheme.onSurface, AppColors.ink);
+    expect(theme.textTheme.bodyLarge?.color, AppColors.ink);
+    expect(theme.primaryTextTheme.bodyLarge?.color, AppColors.ink);
+    expect(theme.iconTheme.color, AppColors.ink);
+    expect(theme.primaryIconTheme.color, AppColors.ink);
+    expect(theme.listTileTheme.textColor, AppColors.ink);
+    expect(theme.inputDecorationTheme.hintStyle?.color, scheme.onSurfaceVariant);
+    expect(
+      contrastRatio(scheme.onSurface, scheme.surface),
+      greaterThanOrEqualTo(4.5),
+    );
+  });
+
+  test('dark theme uses light, high-contrast text and icons', () {
+    final theme = AppTheme.dark();
+    final scheme = theme.colorScheme;
+
+    expect(scheme.brightness, Brightness.dark);
+    expect(scheme.onSurface, AppColors.ivory);
+    expect(theme.textTheme.bodyLarge?.color, AppColors.ivory);
+    expect(theme.primaryTextTheme.bodyLarge?.color, AppColors.ivory);
+    expect(theme.iconTheme.color, AppColors.ivory);
+    expect(theme.primaryIconTheme.color, AppColors.ivory);
+    expect(
+      contrastRatio(scheme.onSurface, scheme.surface),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      contrastRatio(scheme.onSurfaceVariant, AppColors.darkElevatedSurface),
+      greaterThanOrEqualTo(4.5),
+    );
+  });
+
   test('option menus and theme segments use contrasting colors', () {
     for (final theme in [AppTheme.light(), AppTheme.dark()]) {
       final scheme = theme.colorScheme;

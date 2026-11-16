@@ -104,6 +104,33 @@ void main() {
       expect(results.first.source, SearchDataSource.openStreetMap);
     });
 
+    test(
+      'envía las dos calles de una intersección al geocodificador',
+      () async {
+        final client = MockClient((request) async {
+          expect(
+            request.url.queryParameters['q'],
+            'faraminan & santa lucia, Montevideo, Uruguay',
+          );
+          return http.Response(
+            '[{"display_name":"Faramiñan & Santa Lucía, Montevideo",'
+            '"lat":"-34.86","lon":"-56.25","type":"junction"}]',
+            200,
+          );
+        });
+        final source = RemoteGeocodingSource(
+          endpoint: 'https://example.test/geocode',
+          client: client,
+        );
+        addTearDown(source.close);
+
+        final results = await source.searchRemote(
+          parser.parse('Faramiñan y Santa Lucía'),
+        );
+        expect(results.single.kind, SearchEntityKind.intersection);
+      },
+    );
+
     test('rechaza endpoints http no locales', () async {
       final source = RemoteGeocodingSource(
         endpoint: 'http://insecure.test/geocode',

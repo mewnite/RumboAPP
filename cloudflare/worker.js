@@ -214,7 +214,15 @@ async function handle(request, env, ctx) {
       if (text.length < 3 || text.length > 160) {
         return errorResponse(400, 'La búsqueda debe tener entre 3 y 160 caracteres.');
       }
-      query.set('q', text);
+      const intersection = text.match(
+        /^\s*(.+?)\s+(?:y|esq\.?|esquina|con|\/)\s+(.+?)\s*$/i,
+      );
+      query.set(
+        'q',
+        intersection
+          ? `${intersection[1].trim()} & ${intersection[2].trim()}, Montevideo, Uruguay`
+          : text,
+      );
       query.set('format', 'jsonv2');
       query.set('countrycodes', 'uy');
       query.set('limit', '5');

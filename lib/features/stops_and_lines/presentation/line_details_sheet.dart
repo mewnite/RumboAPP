@@ -467,6 +467,9 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
                                     backgroundColor: Theme.of(context)
                                         .colorScheme
                                         .surfaceContainerHighest,
+                                    foregroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface,
                                     child: Text(
                                       '${index + 1}',
                                       style: Theme.of(context)
@@ -474,6 +477,9 @@ class _LineDetailsSheetState extends ConsumerState<LineDetailsSheet> {
                                           .labelSmall
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface,
                                           ),
                                     ),
                                   ),

@@ -33,6 +33,52 @@ Para depurar la interfaz en Chrome:
 flutter run -d chrome
 ```
 
+### Pruebas asistidas en Android
+
+El proyecto puede ejecutarse en un AVD de Android Studio y conectarse al
+Flutter VM Service. Esto permite repetir escenarios reales de la app, hacer
+hot reload/hot restart, consultar errores runtime, revisar logs de Android y
+medir el arranque o la memoria sin incluir credenciales en el APK.
+
+1. Iniciá un AVD desde Android Studio o listá los disponibles:
+
+   ```powershell
+   flutter emulators
+   flutter emulators --launch Medium_Phone_API_37.0
+   ```
+
+2. Confirmá que Flutter y ADB lo detecten:
+
+   ```powershell
+   flutter devices
+   adb devices -l
+   ```
+
+3. Ejecutá Rumbo en modo debug:
+
+   ```powershell
+   flutter run -d emulator-5554
+   ```
+
+   Si se usa un teléfono físico con el proxy local, agregá el `adb reverse`
+   y el `--dart-define` indicados en [Datos de transporte](#datos-de-transporte).
+
+4. Mientras `flutter run` está activo, VS Code o las herramientas de Dart
+   pueden conectarse al VM Service para hot reload, inspección y errores
+   runtime. También se pueden recoger logs sin secretos:
+
+   ```powershell
+   adb logcat -s flutter ActivityManager AndroidRuntime
+   ```
+
+Escenarios recomendados: primer arranque y mapa, búsqueda local+online,
+consentimiento de geocodificación, tema claro/oscuro, ubicación y permisos,
+planificación, shapes de recorridos, buses en vivo y viaje activo. Las
+interacciones visuales, permisos del sistema, notificaciones y comportamiento
+de batería deben marcarse como verificados solo después de observarlos en el
+emulador o en un dispositivo físico. El emulador no reemplaza la validación
+de GPS real, sensores, rendimiento térmico ni permisos «Siempre».
+
 Para compilar un APK de depuración:
 
 ```sh
@@ -101,13 +147,11 @@ planifica usando sus coordenadas y el GTFS local.
 ## Datos de transporte
 
 La URL, el nombre de fuente, la atribución y el intervalo mínimo se declaran en
-`lib/core/config/transit_config.dart`. En debug Android, la URL apunta por
-defecto al host del emulador `10.0.2.2:8765`; en Chrome y otras plataformas usa
-`127.0.0.1:8765`. Iniciá el proxy antes de abrir la app. En un teléfono físico
-conectado por USB, usá `adb reverse tcp:8765 tcp:8765` y configurá
-`--dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765`. Si el proxy no está
-disponible, Rumbo muestra el estado de conexión y no sustituye los datos reales
-con recorridos inventados.
+`lib/core/config/transit_config.dart`. Los builds normales usan por defecto el
+backend HTTPS público `https://rumboapp.onrender.com`, tanto en debug como en
+release. Por eso un APK instalado manualmente en un teléfono con conexión a
+Internet no necesita proxy local, `adb` ni Android Studio durante el uso.
+`RUMBO_API_BASE_URL` permite reemplazarlo explícitamente para desarrollo.
 
 El GTFS oficial aporta paradas, recorridos, variantes y horarios; Android/iOS
 lo guardan en SQLite. En Chrome se consulta el mismo feed, se indexan sus
@@ -234,17 +278,65 @@ En otra terminal:
 ```powershell
 adb devices -l
 adb reverse tcp:8765 tcp:8765
-flutter run -d <ID-del-dispositivo> --dart-define=RUMBO_API_BASE_URL=http://127.0.0.1:8765
+flutter build apk --release --dart-define=RUMBO_API_BASE_URL=https://rumboapp.onrender.com
 ```
 
-En el emulador Android alcanza con `flutter run -d emulator-5554`; la app usa
-`10.0.2.2` para llegar al proxy del host. La primera actualización descarga el ZIP GTFS oficial y lo importa a SQLite; el proceso muestra el avance y puede demorar según el teléfono. En una prueba de depuración del emulador tardó alrededor de 3 minutos para 4.930 paradas y 2.221.437 horarios. Las siguientes aperturas reutilizan la base local. Permití ubicación desde el botón del mapa para
+Si se configura explícitamente el proxy local, en el emulador Android alcanza
+con `flutter run -d emulator-5554`; la app usa `10.0.2.2` para llegar al proxy
+del host. La primera actualización descarga el ZIP GTFS oficial y lo importa a
+SQLite; el proceso muestra el avance y puede demorar según el teléfono. En una
+prueba de depuración del emulador tardó alrededor de 3 minutos para 4.930
+paradas y 2.221.437 horarios. Las siguientes aperturas reutilizan la base
+local. Permití ubicación desde el botón del mapa para
 centrarlo. Los buses se descargan sin enviar coordenadas y se filtran en el
 teléfono alrededor de esa posición. Si el panel informa que no hay unidades,
 puede que no haya buses reportando en ese instante; la API también puede
 devolver `[]` sin que sea un error de autenticación. En debug se habilita HTTP
 solo para este proxy local; una compilación de producción debe usar un backend
 HTTPS propio y revisar antes las condiciones de uso del feed y de la API.
+
+### Probar un APK real sin proxy local ni ADB
+
+Esta es la opción recomendada para probar Rumbo en un teléfono físico sin
+dejar una computadora encendida:
+
+1. Compilá un APK release universal desde la raíz del proyecto. No agregues
+   `RUMBO_API_BASE_URL` si querés usar Render:
+
+   ```powershell
+   flutter build apk --release `
+     --obfuscate --split-debug-info=build/symbols
+   ```
+
+   El archivo queda en
+   `build\app\outputs\flutter-apk\app-release.apk`. También podés generar
+   APK más pequeños separados por arquitectura con
+   `--split-per-abi`; en ese caso elegí el ABI compatible con tu teléfono.
+
+2. Transferí `app-release.apk` al teléfono por Drive, correo, cable, tarjeta
+   SD u otro medio. No hace falta habilitar depuración USB ni ejecutar
+   `adb reverse`.
+
+3. Abrí el APK desde el teléfono y autorizá la instalación de fuentes
+   desconocidas si Android lo solicita. Luego abrí Rumbo con Wi-Fi o datos
+   móviles activos.
+
+4. En la primera apertura, la app descargará el GTFS oficial desde Render y lo
+   importará localmente. Esa importación puede demorar y ocupar espacio; las
+   siguientes aperturas reutilizan la base local. Los buses en vivo y la
+   búsqueda de direcciones usan también `https://rumboapp.onrender.com`.
+
+5. Si el APK muestra error de red, verificá primero
+   `https://rumboapp.onrender.com/health` desde el navegador del teléfono.
+   Render puede dormir después de un período sin tráfico y tardar en despertar.
+   No incluyas credenciales STM en `--dart-define`, el APK ni el repositorio.
+
+Este flujo prueba el binario y la red como una persona usuaria real. No permite
+hot reload, logs de Flutter ni inspección de errores desde la computadora; para
+eso se necesita `flutter run` con un emulador/dispositivo conectado. La
+ubicación, notificaciones, rendimiento, batería y permisos de segundo plano
+deben validarse en el teléfono físico porque el emulador no los representa por
+completo.
 
 La prueba aislada midió menos de un segundo para parsear desde disco e importar a SQLite el
 ZIP sintético de 2.202 bytes (18 paradas, 3 líneas, 6 variantes y 48 horarios)

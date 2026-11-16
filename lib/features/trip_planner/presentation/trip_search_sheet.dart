@@ -184,8 +184,6 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
         }
         if (mounted &&
             normalizedQuery.length >= 3 &&
-            _remoteSearchEnabled &&
-            widget.searchService != null &&
             requestId == _searchGeneration) {
           await _searchOnline();
         }
@@ -647,16 +645,6 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                 ),
               ],
             ),
-            if (_activeController.text.trim().length >= 3)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: _searchOnline,
-                  icon: const Icon(Symbols.public_rounded),
-                  label: Text(l10n.searchRemoteButton),
-                ),
-              ),
-
             if (_searching)
               const Padding(
                 padding: EdgeInsets.all(20),

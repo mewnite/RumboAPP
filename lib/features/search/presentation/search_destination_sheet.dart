@@ -70,11 +70,7 @@ class _SearchDestinationSheetState
           isOffline: isOffline,
         );
     if (query.trim().length >= 3 && !isOffline) {
-      final remoteEnabled =
-          ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
-      if (remoteEnabled) {
-        unawaited(_searchOnline());
-      }
+      unawaited(_searchOnline());
     }
   }
 
@@ -190,20 +186,6 @@ class _SearchDestinationSheetState
                   ),
                 ),
               ),
-
-              if (_textController.text.trim().length >= 3)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: TextButton.icon(
-                    onPressed:
-                        (ref.watch(networkAvailableProvider).asData?.value ??
-                            true)
-                        ? _searchOnline
-                        : null,
-                    icon: const Icon(Symbols.public_rounded),
-                    label: Text(l10n.searchRemoteButton),
-                  ),
-                ),
 
               if (_showRemotePrivacy &&
                   remoteSearchEnabled &&
