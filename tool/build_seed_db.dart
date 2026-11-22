@@ -13,6 +13,8 @@ import "package:rumbo/core/config/transit_config.dart";
 import "package:rumbo/features/stops_and_lines/data/gtfs_parser.dart";
 import "package:sqlite3/sqlite3.dart";
 
+import "feed_seed_freshness.dart";
+
 const _schema = [
   "CREATE TABLE stops(id TEXT PRIMARY KEY,name TEXT NOT NULL,lat REAL NOT NULL,lon REAL NOT NULL,code TEXT)",
   "CREATE INDEX stops_lat_lon ON stops(lat,lon)",
@@ -75,6 +77,18 @@ Future<void> main() async {
     if (spool.existsSync()) spool.deleteSync();
     final zip = File(zipPath);
     if (zip.existsSync()) zip.deleteSync();
+    final feedEndDate = parsed.feedInfo.endDate;
+    if (feedEndDate == null ||
+        !hasSevenDaysOfFeedValidityLeft(feedEndDate, today: DateTime.now())) {
+      stderr.writeln(
+        "GTFS feed_end_date is missing or less than 7 days away: "
+        "${feedEndDate?.toIso8601String() ?? 'missing'}",
+      );
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln("seed_feed_version=${parsed.feedInfo.version}");
+    stdout.writeln("seed_feed_end_date=${feedEndDate.toIso8601String()}");
 
     final outDir = Directory("build/rumbo_transit_seed");
     if (outDir.existsSync()) outDir.deleteSync(recursive: true);

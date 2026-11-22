@@ -15,12 +15,74 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
+  build-seeds:
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.16.0
+        with:
+          flutter-version: "3.47.8"
+          cache: true
+
+      - name: Install osmium-tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool=1.16.0-1build1
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build and validate fresh GTFS seed
+        run: dart run tool/build_seed_db.dart
+
+      - name: Build pinned OSM walking seed
+        run: python3 tool/fetch_seeds/fetch_seeds.py
+
+      - name: Verify the pinned OSM seed manifest
+        run: diff -u docs/walk_graph_seed_manifest.json build/seeds/walk_graph_seed_manifest.json
+
+      - name: Stage seeds for this workflow run
+        run: |
+          mkdir -p build/seed-artifacts
+          cp assets/transit_db/rumbo_transit_seed.db \
+            build/seed-artifacts/rumbo_transit_seed.db
+          cp build/seeds/walk_graph_seed.bin \
+            build/seed-artifacts/walk_graph_seed.bin
+          cp build/seeds/walk_graph_seed_manifest.json \
+            build/seed-artifacts/walk_graph_seed_manifest.json
+
+      - name: Upload generated seeds
+        uses: actions/upload-artifact@v4
+        with:
+          name: rumbo-release-seeds
+          path: build/seed-artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+
+  build-and-release:
+    needs: build-seeds
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download seeds from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: rumbo-release-seeds
+          path: build/seed-artifacts
+
+      - name: Install generated seeds into Flutter assets
+        run: |
+          cp build/seed-artifacts/rumbo_transit_seed.db \
+            assets/transit_db/rumbo_transit_seed.db
+          cp build/seed-artifacts/walk_graph_seed.bin \
+            assets/walk_graph/walk_graph_seed.bin
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -43,9 +105,9 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build universal release APK
+      - name: Build split-per-ABI release APKs
         run: |
-          flutter build apk --release \
+          flutter build apk --release --split-per-abi \
             --obfuscate \
             --split-debug-info=build/symbols
 
@@ -57,8 +119,12 @@ jobs:
             TAG="${{ inputs.tag }}"
           fi
           echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            "Rumbo-${TAG}-release.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            "Rumbo-${TAG}-arm64-v8a-release.apk"
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+            "Rumbo-${TAG}-armeabi-v7a-release.apk"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk \
+            "Rumbo-${TAG}-x86_64-release.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -66,6 +132,7 @@ jobs:
           name: Rumbo-release-apk
           path: Rumbo-*-release.apk
           if-no-files-found: error
+          retention-days: 90
 
       - name: Publish GitHub release
         env:
@@ -73,11 +140,15 @@ jobs:
         run: |
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release upload "${RELEASE_TAG}" \
-              "Rumbo-${RELEASE_TAG}-release.apk" \
+              "Rumbo-${RELEASE_TAG}-arm64-v8a-release.apk" \
+              "Rumbo-${RELEASE_TAG}-armeabi-v7a-release.apk" \
+              "Rumbo-${RELEASE_TAG}-x86_64-release.apk" \
               --clobber
           else
             gh release create "${RELEASE_TAG}" \
-              "Rumbo-${RELEASE_TAG}-release.apk" \
+              "Rumbo-${RELEASE_TAG}-arm64-v8a-release.apk" \
+              "Rumbo-${RELEASE_TAG}-armeabi-v7a-release.apk" \
+              "Rumbo-${RELEASE_TAG}-x86_64-release.apk" \
               --title "Rumbo ${RELEASE_TAG}" \
-              --notes "APK Android release construido automáticamente por GitHub Actions. Verificá permisos y privacidad antes de instalar."
+              --notes "APKs Android split-per-ABI construidos automáticamente por GitHub Actions. Verificá permisos y privacidad antes de instalar."
           fi

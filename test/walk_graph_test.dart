@@ -57,6 +57,125 @@ void main() {
   });
 
   test(
+    'seed parser excludes restricted roads and accepts foot=yes exceptions',
+    () async {
+      final data = jsonDecode(
+        await File('test/fixtures/osm_seed_minimal.json').readAsString(),
+      ) as Map<String, dynamic>;
+      final graph = WalkGraph.fromGeoJson(data);
+      expect(graph, isNotNull);
+      expect(graph!.wayCount, 5);
+      expect(graph.edgeCount, 5);
+    },
+  );
+
+  test(
+    'excludes motorways without foot=yes and all construction/proposed ways',
+    () {
+      final excludedHighways = [
+        'motorway',
+        'motorway_link',
+        'trunk',
+        'trunk_link',
+        'construction',
+        'proposed',
+      ];
+      final elements = <Map<String, dynamic>>[];
+      var id = 1;
+      for (final highway in excludedHighways) {
+        elements.add({
+          'type': 'way',
+          'id': id++,
+          'tags': {'highway': highway},
+          'geometry': [
+            {'lat': -34.9, 'lon': -56.2},
+            {'lat': -34.9, 'lon': -56.199},
+          ],
+        });
+      }
+      for (final highway in [
+        'motorway',
+        'motorway_link',
+        'trunk',
+        'trunk_link',
+      ]) {
+        elements.add({
+          'type': 'way',
+          'id': id++,
+          'tags': {'highway': highway, 'foot': 'yes'},
+          'geometry': [
+            {'lat': -34.91, 'lon': -56.2},
+            {'lat': -34.91, 'lon': -56.199},
+          ],
+        });
+      }
+      for (final highway in ['construction', 'proposed']) {
+        elements.add({
+          'type': 'way',
+          'id': id++,
+          'tags': {'highway': highway, 'foot': 'yes'},
+          'geometry': [
+            {'lat': -34.92, 'lon': -56.2},
+            {'lat': -34.92, 'lon': -56.199},
+          ],
+        });
+      }
+
+      final graph = WalkGraph.fromGeoJson({'elements': elements});
+
+      expect(graph!.wayCount, 4);
+    },
+  );
+
+  test('binary seed round-trips typed arrays and detects corruption', () async {
+    final data = jsonDecode(
+      await File('test/fixtures/osm_seed_minimal.json').readAsString(),
+    ) as Map<String, dynamic>;
+    final graph = WalkGraph.fromGeoJson(
+      data,
+      sourceDate: '261121',
+      sourceSha256: List.filled(64, 'a').join(),
+    )!;
+    final bytes = graph.toSeedBytes();
+    final restored = WalkGraph.fromSeedBytes(bytes);
+    final before = graph.shortestPath(-34.9, -56.2, -34.9, -56.199);
+    final after = restored.shortestPath(-34.9, -56.2, -34.9, -56.199);
+
+    expect(restored.sourceDate, '261121');
+    expect(restored.sourceSha256, List.filled(64, 'a').join());
+    expect(restored.vertexCount, graph.vertexCount);
+    expect(restored.edgeCount, graph.edgeCount);
+    expect(after!.lengthMeters, closeTo(before!.lengthMeters, .1));
+
+    bytes[bytes.length - 1] ^= 1;
+    expect(() => WalkGraph.fromSeedBytes(bytes), throwsFormatException);
+  });
+
+  test('Montevideo snap search stays within the 75 m spatial window', () {
+    final graph = WalkGraph.fromWays([
+      [ShapePoint(-34.9, -56.2, 0), ShapePoint(-34.9, -56.195, 1)],
+    ]);
+    final watch = Stopwatch()..start();
+    final path = graph.shortestPath(-34.9001, -56.2, -34.9001, -56.195);
+    watch.stop();
+
+    expect(path, isNotNull);
+    expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+  });
+
+  test('per-query snap overlay does not mutate the immutable base graph', () {
+    final graph = blockAroundGraph();
+    final before = graph.toSeedBytes();
+    for (var i = 0; i < 3; i++) {
+      expect(
+        graph.shortestPath(x0 - .006, y0 + i * .00001, x1 + .006, y0),
+        isNotNull,
+      );
+    }
+    expect(graph.toSeedBytes(), orderedEquals(before));
+  });
+
+  test(
     "caminata entre dos puntos separados por una manzana - desvia el camino",
     () {
       final graph = blockAroundGraph();
@@ -165,13 +284,13 @@ void main() {
     expect(path.points.first.latitude, closeTo(origin.$1, .001));
     expect(path.points.first.longitude, closeTo(origin.$2, .001));
     expect(path.points[1].latitude, closeTo(0, .001));
-    expect(path.points[1].longitude, closeTo(0, .001));
+    expect(path.points[1].longitude, closeTo(origin.$2, .00001));
     expect(path.points.last.latitude, closeTo(dest.$1, .001));
     expect(path.points.last.longitude, closeTo(dest.$2, .001));
     expect(path.points[path.points.length - 2].latitude, closeTo(0, .001));
     expect(
       path.points[path.points.length - 2].longitude,
-      closeTo(dest.$2, .001),
+      closeTo(dest.$2, .00001),
     );
     // La distancia incluye el gap punteado.
     expect(path.lengthMeters, greaterThan(30));
@@ -209,6 +328,8 @@ void main() {
     final path = graph!.shortestPath(firstLat, firstLon, lastLat, lastLon);
     expect(path, isNotNull);
     expect(path!.lengthMeters, greaterThan(0));
+    expect(path.lengthMeters, closeTo(600.59, .05));
+    expect(path.points, hasLength(8));
     expect(path.points.first.latitude, closeTo(firstLat, .01));
     expect(path.points.first.longitude, closeTo(firstLon, .01));
     expect(path.points.last.latitude, closeTo(lastLat, .01));

@@ -72,6 +72,7 @@ flutter:
   assets:
     - assets/sample_gtfs/
     - assets/transit_db/
+    - assets/walk_graph/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

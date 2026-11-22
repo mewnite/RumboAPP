@@ -1,0 +1,18 @@
+{
+  "elements": [
+    {"type":"way","id":1,"tags":{"highway":"footway"},"geometry":[{"lat":-34.9000,"lon":-56.2000},{"lat":-34.9000,"lon":-56.1990}]},
+    {"type":"way","id":2,"tags":{"highway":"motorway"},"geometry":[{"lat":-34.9100,"lon":-56.2000},{"lat":-34.9100,"lon":-56.1990}]},
+    {"type":"way","id":3,"tags":{"highway":"motorway","foot":"yes"},"geometry":[{"lat":-34.9200,"lon":-56.2000},{"lat":-34.9200,"lon":-56.1990}]},
+    {"type":"way","id":4,"tags":{"highway":"motorway_link"},"geometry":[{"lat":-34.9300,"lon":-56.2000},{"lat":-34.9300,"lon":-56.1990}]},
+    {"type":"way","id":5,"tags":{"highway":"motorway_link","foot":"yes"},"geometry":[{"lat":-34.9400,"lon":-56.2000},{"lat":-34.9400,"lon":-56.1990}]},
+    {"type":"way","id":6,"tags":{"highway":"trunk"},"geometry":[{"lat":-34.9500,"lon":-56.2000},{"lat":-34.9500,"lon":-56.1990}]},
+    {"type":"way","id":7,"tags":{"highway":"trunk","foot":"yes"},"geometry":[{"lat":-34.9600,"lon":-56.2000},{"lat":-34.9600,"lon":-56.1990}]},
+    {"type":"way","id":8,"tags":{"highway":"construction","foot":"yes"},"geometry":[{"lat":-34.9700,"lon":-56.2000},{"lat":-34.9700,"lon":-56.1990}]},
+    {"type":"way","id":9,"tags":{"highway":"proposed"},"geometry":[{"lat":-34.9800,"lon":-56.2000},{"lat":-34.9800,"lon":-56.1990}]},
+    {"type":"way","id":10,"tags":{"highway":"footway","foot":"no"},"geometry":[{"lat":-34.9900,"lon":-56.2000},{"lat":-34.9900,"lon":-56.1990}]},
+    {"type":"way","id":11,"tags":{"highway":"footway","access":"private"},"geometry":[{"lat":-35.0000,"lon":-56.2000},{"lat":-35.0000,"lon":-56.1990}]},
+    {"type":"way","id":12,"tags":{"highway":"footway","barrier":"wall"},"geometry":[{"lat":-35.0100,"lon":-56.2000},{"lat":-35.0100,"lon":-56.1990}]},
+    {"type":"way","id":13,"tags":{"highway":"footway","barrier":"fence"},"geometry":[{"lat":-35.0200,"lon":-56.2000},{"lat":-35.0200,"lon":-56.1990}]},
+    {"type":"way","id":14,"tags":{"highway":"primary_link"},"geometry":[{"lat":-35.0300,"lon":-56.2000},{"lat":-35.0300,"lon":-56.1990}]}
+  ]
+}
