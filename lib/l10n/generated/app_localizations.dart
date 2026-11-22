@@ -1555,6 +1555,12 @@ abstract class AppLocalizations {
   /// **'{minutes} min · Horario programado'**
   String tripEtaScheduledMinutes(int minutes);
 
+  /// No description provided for @tripEtaFutureScheduledTime.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Tramo posterior · horario programado: {time}'**
+  String tripEtaFutureScheduledTime(String time);
+
   /// No description provided for @tripEtaFallback.
   ///
   /// In es_UY, this message translates to:

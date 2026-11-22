@@ -49,6 +49,9 @@ class TripPlanDetails extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final steps = _timelineSteps(l10n);
+    final firstTransitLegIndex = plan.legs.indexWhere(
+      (leg) => leg.kind == TripLegKind.transit,
+    );
     final secondaryStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -152,6 +155,7 @@ class TripPlanDetails extends StatelessWidget {
             _TripLegEtaCard(
               plan: plan,
               legIndex: index,
+              showLiveEta: index == firstTransitLegIndex,
               livePositions: livePositions,
               shapes: tripPlanShapes,
             ),
@@ -306,12 +310,14 @@ class _TripLegEtaCard extends ConsumerWidget {
   const _TripLegEtaCard({
     required this.plan,
     required this.legIndex,
+    required this.showLiveEta,
     required this.livePositions,
     required this.shapes,
   });
 
   final TripPlan plan;
   final int legIndex;
+  final bool showLiveEta;
   final List<BusPosition> livePositions;
   final Map<String, Shape> shapes;
 
@@ -327,9 +333,10 @@ class _TripLegEtaCard extends ConsumerWidget {
     final estimate = estimateTripLegEta(
       plan: plan,
       legIndex: legIndex,
-      livePositions: livePositions,
+      livePositions: showLiveEta ? livePositions : const [],
       shapes: shapes,
       now: DateTime.now(),
+      considerMissedBoarding: showLiveEta,
     );
     final theme = Theme.of(context);
     final nextDepartures = estimate.missedBoarding
@@ -349,7 +356,9 @@ class _TripLegEtaCard extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              estimate.fromGps
+              !showLiveEta
+                  ? l10n.tripEtaFutureScheduledTime(_clock(leg.departureTime))
+                  : estimate.fromGps
                   ? estimate.minMinutes == estimate.maxMinutes
                         ? l10n.tripEtaGpsMinutes(estimate.minMinutes)
                         : l10n.tripEtaGpsRange(
@@ -437,6 +446,7 @@ TripLegEtaEstimate estimateTripLegEta({
   required List<BusPosition> livePositions,
   required Map<String, Shape> shapes,
   required DateTime now,
+  bool considerMissedBoarding = true,
 }) {
   final leg = plan.legs[legIndex];
   final stop = leg.fromStop;
@@ -495,6 +505,7 @@ TripLegEtaEstimate estimateTripLegEta({
           .toInt();
   final maxMinutes = liveEstimate?.max ?? minMinutes;
   final missedBoarding =
+      considerMissedBoarding &&
       hasWalkingLeg &&
       walkingIsReal &&
       !leg.departureTime.isBefore(now.subtract(const Duration(minutes: 1))) &&

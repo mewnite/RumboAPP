@@ -411,6 +411,28 @@ void main() {
       latitude: -34.91,
       longitude: -56.2,
     );
+    const firstVariant = RouteVariant(
+      id: 'v1',
+      routeId: 'r1',
+      directionId: '0',
+      destination: 'Ciudad Vieja',
+      externalVariantId: 5221,
+    );
+    const secondVariant = RouteVariant(
+      id: 'v2',
+      routeId: 'r2',
+      directionId: '0',
+      destination: 'Plaza',
+      externalVariantId: 1031,
+    );
+    const firstShape = Shape(
+      id: 'shape1',
+      points: [ShapePoint(-34.91, -56.16, 0), ShapePoint(-34.88, -56.16, 1)],
+    );
+    const secondShape = Shape(
+      id: 'shape2',
+      points: [ShapePoint(-34.92, -56.19, 0), ShapePoint(-34.88, -56.19, 1)],
+    );
     var changedTrip = false;
     var closedTrip = false;
 
@@ -447,6 +469,7 @@ void main() {
                       departureTime: departure.add(const Duration(minutes: 8)),
                       arrivalTime: departure.add(const Duration(minutes: 25)),
                       route: const Route(id: 'r1', shortName: '522'),
+                      variant: firstVariant,
                       headsign: 'Ciudad Vieja',
                       fromStop: firstStop,
                       toStop: transferStop,
@@ -462,6 +485,7 @@ void main() {
                       departureTime: departure.add(const Duration(minutes: 30)),
                       arrivalTime: departure.add(const Duration(minutes: 40)),
                       route: const Route(id: 'r2', shortName: '103'),
+                      variant: secondVariant,
                       fromStop: transferStop,
                       toStop: finalStop,
                     ),
@@ -480,6 +504,21 @@ void main() {
                 ),
                 originName: 'Mi ubicación',
                 destinationName: 'Plaza Independencia',
+                livePositions: [
+                  _liveBus(
+                    variantId: 5221,
+                    lineLabel: '522',
+                    latitude: -34.91,
+                    longitude: -56.16,
+                  ),
+                  _liveBus(
+                    variantId: 1031,
+                    lineLabel: '103',
+                    latitude: -34.92,
+                    longitude: -56.19,
+                  ),
+                ],
+                tripPlanShapes: const {'v1': firstShape, 'v2': secondShape},
                 onChangeTrip: () => changedTrip = true,
                 onCloseTrip: () => closedTrip = true,
               ),
@@ -492,6 +531,11 @@ void main() {
     expect(find.text('Tu recorrido'), findsOneWidget);
     expect(find.text('Línea 522 · subida en Tres Cruces'), findsOneWidget);
     expect(find.text('Línea 103 · subida en Centro'), findsOneWidget);
+    expect(
+      find.text('Tramo posterior · horario programado: 12:30'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Estimado con GPS'), findsOneWidget);
     expect(find.text('12:00–12:45'), findsOneWidget);
     expect(find.text('45 min'), findsOneWidget);
     expect(find.text('8 min de caminata'), findsOneWidget);
@@ -969,3 +1013,27 @@ void main() {
     );
   });
 }
+
+BusPosition _liveBus({
+  required int variantId,
+  required String lineLabel,
+  required double latitude,
+  required double longitude,
+}) => BusPosition(
+  sourceId: 'bus-$variantId',
+  companyCode: 1,
+  busCode: variantId,
+  variantId: variantId,
+  lineLabel: lineLabel,
+  sublineDescription: '',
+  destinationCode: '',
+  destinationName: '',
+  lineTypeCode: 1,
+  lineTypeName: '',
+  subsystemCode: 1,
+  subsystemName: '',
+  latitude: latitude,
+  longitude: longitude,
+  speedKmh: 18,
+  receivedAt: DateTime.now(),
+);

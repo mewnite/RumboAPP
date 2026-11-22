@@ -858,6 +858,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String tripEtaFutureScheduledTime(String time) {
+    return 'Tramo posterior · horario programado: $time';
+  }
+
+  @override
   String get tripEtaFallback =>
       'Aproximado con velocidad de referencia de 18 km/h.';
 
@@ -2055,6 +2060,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   @override
   String tripEtaScheduledMinutes(int minutes) {
     return '$minutes min · Horario programado';
+  }
+
+  @override
+  String tripEtaFutureScheduledTime(String time) {
+    return 'Tramo posterior · horario programado: $time';
   }
 
   @override

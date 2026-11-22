@@ -486,6 +486,14 @@
       }
     }
   },
+  "tripEtaFutureScheduledTime": "Tramo posterior · horario programado: {time}",
+  "@tripEtaFutureScheduledTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "tripEtaFallback": "Aproximado con velocidad de referencia de 18 km/h.",
   "tripEtaMissed": "No llegás a tiempo: la caminata real lleva {walkMinutes} min y el ómnibus llega en {etaMinutes} min (margen de 1 min).",
   "@tripEtaMissed": {
