@@ -203,7 +203,7 @@ class SqfliteTransitRepository implements TransitRepository {
       [variantId],
     );
     if (patternRows.isEmpty) return const [];
-    final patternId = patternRows.first['pattern_id'] as String;
+    final patternId = patternRows.first['pattern_id'];
 
     final rows = await db.rawQuery(
       'SELECT s.id, s.name, s.lat, s.lon, s.code FROM pattern_stops ps '
@@ -228,6 +228,7 @@ class SqfliteTransitRepository implements TransitRepository {
       where: 'variant_id = ? AND start_secs IS NOT NULL',
       whereArgs: [variantId],
       orderBy: 'start_secs ASC',
+      limit: limit == 0 ? null : math.max(limit * 4, 40),
     );
     if (rows.isEmpty) return const [];
 
@@ -557,7 +558,7 @@ TransitScheduleData _mapTransitScheduleRows(
           serviceId: row['service_id'] as String,
           variantId: row['variant_id'] as String,
           headsign: row['headsign'] as String? ?? '',
-          patternId: row['pattern_id'] as String?,
+          patternId: row['pattern_id']?.toString(),
           startSecs: row['start_secs'] as int?,
         ),
       )

@@ -110,6 +110,17 @@ class TransitDatabase {
               'CREATE INDEX IF NOT EXISTS pattern_stops_pattern_ordinal ON pattern_stops(pattern_id,ordinal)',
             );
           }
+          if (oldVersion < 7) {
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS trips_variant_start ON trips(variant_id,start_secs)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS trips_service ON trips(service_id)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS calendar_exceptions_service_date_type ON calendar_exceptions(service_id,date,type)',
+            );
+          }
         },
       ),
     );
@@ -147,6 +158,54 @@ class TransitDatabase {
         (row['patterns'] as int? ?? 0) > 0 &&
         (row['pattern_stops'] as int? ?? 0) > 0;
   }
+
+  /// Copies a bundled seed database into place atomically (write temp +
+  /// rename). Returns `true` when the seed is usable; when `false`, the live
+  /// database is left untouched. [onProgress] reports 0-1 while the seed is
+  /// written, validated and renamed into place.
+  Future<bool> installSeed(
+    Uint8List seedBytes, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final dir = await _directoryProvider();
+    final target = File(p.join(dir.path, 'rumbo_transit.db'));
+    final temp = File('${target.path}.seednew');
+    try {
+      await temp.writeAsBytes(seedBytes, flush: true);
+      onProgress?.call(0.5);
+      // Validate before replacing the live database.
+      final check = await _factory.openDatabase(
+        temp.path,
+        options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+      );
+      var usable = false;
+      try {
+        usable = await hasUsableFeed(check);
+      } finally {
+        await check.close();
+      }
+      if (!usable) {
+        onProgress?.call(0);
+        await temp.delete();
+        return false;
+      }
+      if (await target.exists()) await target.delete();
+      await temp.rename(target.path);
+      onProgress?.call(1);
+      return true;
+    } catch (_) {
+      try {
+        if (await temp.exists()) await temp.delete();
+      } on Object {
+        // Ignore cleanup failures; the live database is untouched.
+      }
+      onProgress?.call(0);
+      return false;
+    }
+  }
+
+  /// Asset path of the bundled seed database used on first install.
+  static const String seedAssetPath = 'assets/transit_db/rumbo_transit_seed.db';
 
   Future<void> replaceFeed(
     GtfsParseResult feed, {
@@ -267,21 +326,10 @@ class TransitDatabase {
             },
           ),
         );
-        await insertRows(
-          'trips',
-          feed.trips.map(
-            (t) => {
-              'id': t.id,
-              'route_id': t.routeId,
-              'service_id': t.serviceId,
-              'variant_id': t.variantId,
-              'headsign': t.headsign,
-              'pattern_id': t.patternId,
-              'start_secs': t.startSecs,
-            },
-          ),
-        );
         late final List<TripPattern> patternsToWrite;
+        // Compact INTEGER ids (1..N) stored in trips/pattern_stops/
+        // trip_patterns; the parser's SHA ids stay app-level ids only.
+        late final Map<String?, int> patternIdToSurrogate;
         // The GTFS parser already groups rows into patterns as it streams the
         // file. Prefer that compact result; rereading every stop_time into a
         // second in-memory list made the first launch needlessly slow.
@@ -336,17 +384,37 @@ class TransitDatabase {
             );
           }
         }
+        patternIdToSurrogate = {
+          for (var i = 0; i < patternsToWrite.length; i++)
+            patternsToWrite[i].id: i + 1,
+        };
 
         await insertRows(
+          'trips',
+          feed.trips.map(
+            (t) => {
+              'id': t.id,
+              'route_id': t.routeId,
+              'service_id': t.serviceId,
+              'variant_id': t.variantId,
+              'headsign': t.headsign,
+              'pattern_id': patternIdToSurrogate[t.patternId],
+              'start_secs': t.startSecs,
+            },
+          ),
+        );
+        await insertRows(
           'trip_patterns',
-          patternsToWrite.map((pattern) => {'pattern_id': pattern.id}),
+          patternsToWrite.map(
+            (pattern) => {'id': patternIdToSurrogate[pattern.id]},
+          ),
         );
         await insertRows(
           'pattern_stops',
           patternsToWrite.expand(
             (pattern) => pattern.stops.map(
               (point) => {
-                'pattern_id': pattern.id,
+                'pattern_id': patternIdToSurrogate[pattern.id],
                 'ordinal': point.ordinal,
                 'stop_id': point.stopId,
                 'arrival_offset_secs': point.arrivalOffsetSecs,
@@ -483,7 +551,7 @@ class TransitDatabase {
 }
 
 const _importBatchSize = 500;
-const _databaseVersion = 6;
+const _databaseVersion = 7;
 
 Future<bool> _columnExists(
   DatabaseExecutor db,
@@ -516,9 +584,11 @@ Future<void> _schema(DatabaseExecutor db) async {
   await db.execute(
     'CREATE INDEX variants_external_id ON variants(external_variant_id)',
   );
-  await db.execute('CREATE TABLE trip_patterns(pattern_id TEXT PRIMARY KEY)');
   await db.execute(
-    'CREATE TABLE pattern_stops(pattern_id TEXT,ordinal INTEGER,stop_id TEXT,arrival_offset_secs INTEGER,departure_offset_secs INTEGER,PRIMARY KEY(pattern_id,ordinal))',
+    'CREATE TABLE trip_patterns(id INTEGER PRIMARY KEY AUTOINCREMENT)',
+  );
+  await db.execute(
+    'CREATE TABLE pattern_stops(pattern_id INTEGER,ordinal INTEGER,stop_id TEXT,arrival_offset_secs INTEGER,departure_offset_secs INTEGER,PRIMARY KEY(pattern_id,ordinal))',
   );
   await db.execute(
     'CREATE INDEX pattern_stops_stop_id ON pattern_stops(stop_id)',
@@ -527,12 +597,16 @@ Future<void> _schema(DatabaseExecutor db) async {
     'CREATE INDEX pattern_stops_pattern_ordinal ON pattern_stops(pattern_id,ordinal)',
   );
   await db.execute(
-    'CREATE TABLE trips(id TEXT PRIMARY KEY,route_id TEXT,service_id TEXT,variant_id TEXT,headsign TEXT,pattern_id TEXT,start_secs INTEGER)',
+    'CREATE TABLE trips(id TEXT PRIMARY KEY,route_id TEXT,service_id TEXT,variant_id TEXT,headsign TEXT,pattern_id INTEGER,start_secs INTEGER)',
   );
   await db.execute('CREATE INDEX trips_route ON trips(route_id)');
   await db.execute(
     'CREATE INDEX trips_pattern_service_start ON trips(pattern_id,service_id,start_secs)',
   );
+  await db.execute(
+    'CREATE INDEX trips_variant_start ON trips(variant_id,start_secs)',
+  );
+  await db.execute('CREATE INDEX trips_service ON trips(service_id)');
   await db.execute(
     'CREATE TABLE shapes(shape_id TEXT,lat REAL,lon REAL,sequence INTEGER)',
   );
@@ -544,6 +618,9 @@ Future<void> _schema(DatabaseExecutor db) async {
   );
   await db.execute(
     'CREATE TABLE calendar_exceptions(service_id TEXT,date TEXT,type INTEGER)',
+  );
+  await db.execute(
+    'CREATE INDEX calendar_exceptions_service_date_type ON calendar_exceptions(service_id,date,type)',
   );
   await db.execute(
     'CREATE TABLE feed_metadata(source TEXT,version TEXT,downloaded_at TEXT,etag TEXT,valid_until TEXT,stop_count INTEGER,route_count INTEGER,variant_count INTEGER,trip_count INTEGER,stop_time_count INTEGER,shape_point_count INTEGER,calendar_count INTEGER,warning_count INTEGER,synthetic INTEGER)',
