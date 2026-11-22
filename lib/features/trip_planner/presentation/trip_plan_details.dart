@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../../core/widgets/rumbo_components.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../stops_and_lines/data/transit_arrivals_source.dart';
+import '../../stops_and_lines/data/stm_linevariant_catalog.dart';
 import '../../stops_and_lines/domain/transit_models.dart';
 import '../../stops_and_lines/domain/transit_repository.dart';
 import '../../stops_and_lines/presentation/transit_repository_provider.dart';
@@ -75,6 +77,15 @@ class TripPlanDetails extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
+        if (firstTransitLegIndex >= 0)
+          _TripLegEtaCard(
+            plan: plan,
+            legIndex: firstTransitLegIndex,
+            showLiveEta: true,
+            compact: true,
+            livePositions: livePositions,
+            shapes: tripPlanShapes,
+          ),
         Row(
           children: [
             const TripEndpointRail(height: 88),
@@ -151,11 +162,13 @@ class TripPlanDetails extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         for (var index = 0; index < plan.legs.length; index++)
-          if (plan.legs[index].kind == TripLegKind.transit)
+          if (plan.legs[index].kind == TripLegKind.transit &&
+              index != firstTransitLegIndex)
             _TripLegEtaCard(
               plan: plan,
               legIndex: index,
-              showLiveEta: index == firstTransitLegIndex,
+              showLiveEta: false,
+              compact: false,
               livePositions: livePositions,
               shapes: tripPlanShapes,
             ),
@@ -306,11 +319,12 @@ final _scheduledDeparturesProvider =
           .upcomingDepartures(stopId, DateTime.now(), limit: 60);
     });
 
-class _TripLegEtaCard extends ConsumerWidget {
+class _TripLegEtaCard extends ConsumerStatefulWidget {
   const _TripLegEtaCard({
     required this.plan,
     required this.legIndex,
     required this.showLiveEta,
+    required this.compact,
     required this.livePositions,
     required this.shapes,
   });
@@ -318,46 +332,159 @@ class _TripLegEtaCard extends ConsumerWidget {
   final TripPlan plan;
   final int legIndex;
   final bool showLiveEta;
+  final bool compact;
   final List<BusPosition> livePositions;
   final Map<String, Shape> shapes;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final leg = plan.legs[legIndex];
+  ConsumerState<_TripLegEtaCard> createState() => _TripLegEtaCardState();
+}
+
+class _TripLegEtaCardState extends ConsumerState<_TripLegEtaCard> {
+  static const _pollInterval = Duration(seconds: 30);
+
+  Timer? _pollTimer;
+  OfficialUpcomingBusArrivalsSource? _officialSource;
+  List<OfficialBusArrival>? _officialArrivals;
+  bool _requestInFlight = false;
+  int _requestGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startOfficialPolling();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TripLegEtaCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldLeg = oldWidget.plan.legs[oldWidget.legIndex];
+    final leg = widget.plan.legs[widget.legIndex];
+    final queryChanged =
+        oldLeg.fromStop?.id != leg.fromStop?.id ||
+        oldLeg.route?.shortName != leg.route?.shortName ||
+        oldLeg.variant?.externalVariantId != leg.variant?.externalVariantId;
+    if (oldWidget.showLiveEta != widget.showLiveEta || queryChanged) {
+      _stopOfficialPolling();
+      _officialArrivals = null;
+      _startOfficialPolling();
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopOfficialPolling();
+    super.dispose();
+  }
+
+  void _startOfficialPolling() {
+    final leg = widget.plan.legs[widget.legIndex];
+    final route = leg.route;
+    if (!widget.showLiveEta ||
+        leg.fromStop == null ||
+        route == null ||
+        _externalVariantId(leg.variant) == null) {
+      return;
+    }
+    _officialSource = ref.read(
+      officialUpcomingBusArrivalsSourceFactoryProvider,
+    )();
+    unawaited(_refreshOfficialArrivals());
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      unawaited(_refreshOfficialArrivals());
+    });
+  }
+
+  void _stopOfficialPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _requestGeneration++;
+    _requestInFlight = false;
+    _officialSource?.close();
+    _officialSource = null;
+  }
+
+  Future<void> _refreshOfficialArrivals() async {
+    final source = _officialSource;
+    if (source == null || _requestInFlight) return;
+    final leg = widget.plan.legs[widget.legIndex];
+    final stop = leg.fromStop;
+    final route = leg.route;
+    if (stop == null || route == null) return;
+
+    _requestInFlight = true;
+    final requestGeneration = ++_requestGeneration;
+    try {
+      final arrivals = await source.upcomingForStop(
+        stopId: stop.id,
+        lines: {route.shortName.isEmpty ? route.id : route.shortName},
+        amountPerLine: 5,
+      );
+      if (mounted && requestGeneration == _requestGeneration) {
+        setState(() => _officialArrivals = arrivals);
+      }
+    } on Exception catch (error) {
+      debugPrint('[trip_eta] official arrivals failed: $error');
+      if (mounted && requestGeneration == _requestGeneration) {
+        setState(() => _officialArrivals = null);
+      }
+    } finally {
+      if (requestGeneration == _requestGeneration) {
+        _requestInFlight = false;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final leg = widget.plan.legs[widget.legIndex];
     final stop = leg.fromStop;
     final route = leg.route;
     if (stop == null || route == null) return const SizedBox.shrink();
 
     final l10n = AppLocalizations.of(context);
     final line = route.shortName.isEmpty ? route.id : route.shortName;
+    final matchingOfficial = _matchingOfficialArrivals(leg, line);
     final estimate = estimateTripLegEta(
-      plan: plan,
-      legIndex: legIndex,
-      livePositions: showLiveEta ? livePositions : const [],
-      shapes: shapes,
+      plan: widget.plan,
+      legIndex: widget.legIndex,
+      livePositions: widget.showLiveEta ? widget.livePositions : const [],
+      shapes: widget.shapes,
       now: DateTime.now(),
-      considerMissedBoarding: showLiveEta,
+      considerMissedBoarding: widget.showLiveEta,
+      officialEtaSeconds: matchingOfficial.isEmpty
+          ? null
+          : matchingOfficial.first.etaSeconds,
+      nextOfficialEtaSeconds: matchingOfficial.length < 2
+          ? null
+          : matchingOfficial[1].etaSeconds,
     );
     final theme = Theme.of(context);
-    final nextDepartures = estimate.missedBoarding
+    final nextDepartures =
+        estimate.missedBoarding && estimate.nextOfficialMinutes == null
         ? ref.watch(_scheduledDeparturesProvider(stop.id))
         : null;
 
     return Card(
+      key: widget.compact ? const ValueKey('trip-first-bus-eta') : null,
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(widget.compact ? 8 : 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               l10n.tripEtaBoardingStop(line, stop.name),
               style: theme.textTheme.titleSmall,
+              maxLines: widget.compact ? 1 : 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: widget.compact ? 2 : 4),
             Text(
-              !showLiveEta
+              !widget.showLiveEta
                   ? l10n.tripEtaFutureScheduledTime(_clock(leg.departureTime))
+                  : estimate.source == TripEtaSource.official
+                  ? l10n.tripEtaOfficialMinutes(estimate.minMinutes)
                   : estimate.fromGps
                   ? estimate.minMinutes == estimate.maxMinutes
                         ? l10n.tripEtaGpsMinutes(estimate.minMinutes)
@@ -383,19 +510,26 @@ class _TripLegEtaCard extends ConsumerWidget {
                 ),
                 style: TextStyle(color: theme.colorScheme.error),
               ),
-              nextDepartures!.when(
-                data: (departures) {
-                  final next = _nextScheduledDeparture(departures, leg);
-                  return Text(
-                    next == null
-                        ? l10n.tripEtaNoNextScheduled
-                        : l10n.tripEtaNextScheduled(_clock(next.departure)),
-                  );
-                },
-                loading: () => Text(l10n.tripEtaNextLoading),
-                error: (error, stackTrace) =>
-                    Text(l10n.tripEtaNextError(error.toString())),
-              ),
+              if (estimate.nextOfficialMinutes != null)
+                Text(l10n.tripEtaNextOfficial(estimate.nextOfficialMinutes!))
+              else
+                nextDepartures!.when(
+                  data: (departures) {
+                    final next = _nextScheduledDeparture(
+                      departures,
+                      leg,
+                      DateTime.now(),
+                    );
+                    return Text(
+                      next == null
+                          ? l10n.tripEtaNoNextScheduled
+                          : l10n.tripEtaNextScheduled(_clock(next.departure)),
+                    );
+                  },
+                  loading: () => Text(l10n.tripEtaNextLoading),
+                  error: (error, stackTrace) =>
+                      Text(l10n.tripEtaNextError(error.toString())),
+                ),
             ],
           ],
         ),
@@ -403,16 +537,34 @@ class _TripLegEtaCard extends ConsumerWidget {
     );
   }
 
+  List<OfficialBusArrival> _matchingOfficialArrivals(TripLeg leg, String line) {
+    final variantId = _externalVariantId(leg.variant);
+    if (variantId == null) return const [];
+    final arrivals =
+        (_officialArrivals ?? const <OfficialBusArrival>[])
+            .where(
+              (arrival) =>
+                  normalizeTransitLabel(arrival.line) ==
+                      normalizeTransitLabel(line) &&
+                  arrival.lineVariantId == variantId,
+            )
+            .toList()
+          ..sort((a, b) => a.etaSeconds.compareTo(b.etaSeconds));
+    return arrivals;
+  }
+
   UpcomingDeparture? _nextScheduledDeparture(
     List<UpcomingDeparture> departures,
     TripLeg leg,
+    DateTime now,
   ) {
     final variantId = leg.variant?.id;
     final matching = departures.where(
       (departure) =>
           departure.trip.routeId == leg.route?.id &&
           (variantId == null || departure.trip.variantId == variantId) &&
-          departure.departure.isAfter(leg.departureTime),
+          departure.departure.isAfter(leg.departureTime) &&
+          departure.departure.isAfter(now),
     );
     if (matching.isEmpty) return null;
     return matching.reduce(
@@ -426,19 +578,25 @@ class TripLegEtaEstimate {
   const TripLegEtaEstimate({
     required this.minMinutes,
     required this.maxMinutes,
-    required this.fromGps,
     required this.usesFallbackSpeed,
     required this.walkingMinutes,
     required this.missedBoarding,
+    required this.source,
+    this.nextOfficialMinutes,
   });
 
   final int minMinutes;
   final int maxMinutes;
-  final bool fromGps;
+  final TripEtaSource source;
   final bool usesFallbackSpeed;
   final int walkingMinutes;
   final bool missedBoarding;
+  final int? nextOfficialMinutes;
+
+  bool get fromGps => source == TripEtaSource.gps;
 }
+
+enum TripEtaSource { official, gps, scheduled }
 
 TripLegEtaEstimate estimateTripLegEta({
   required TripPlan plan,
@@ -447,13 +605,16 @@ TripLegEtaEstimate estimateTripLegEta({
   required Map<String, Shape> shapes,
   required DateTime now,
   bool considerMissedBoarding = true,
+  int? officialEtaSeconds,
+  int? nextOfficialEtaSeconds,
 }) {
   final leg = plan.legs[legIndex];
   final stop = leg.fromStop;
   final variant = leg.variant;
   final shape = variant == null ? null : shapes[variant.id] ?? leg.shape;
+  final externalVariantId = _externalVariantId(variant);
   ({int min, int max, bool fallback})? liveEstimate;
-  if (stop != null && variant?.externalVariantId != null && shape != null) {
+  if (stop != null && externalVariantId != null && shape != null) {
     for (final position in livePositions) {
       final age = now.difference(position.receivedAt);
       if (RealtimeMatcher.matchPositionToVariant(
@@ -498,12 +659,22 @@ TripLegEtaEstimate estimateTripLegEta({
     if (seconds > 0) walkingSeconds += seconds;
   }
   final walkingMinutes = (walkingSeconds / 60).ceil();
-  final minMinutes =
-      liveEstimate?.min ??
-      math
-          .max(0, (leg.departureTime.difference(now).inSeconds / 60).ceil())
-          .toInt();
-  final maxMinutes = liveEstimate?.max ?? minMinutes;
+  final officialMinutes = officialEtaSeconds == null
+      ? null
+      : math.max(0, (officialEtaSeconds / 60).ceil()).toInt();
+  final nextOfficialMinutes = nextOfficialEtaSeconds == null
+      ? null
+      : math.max(0, (nextOfficialEtaSeconds / 60).ceil()).toInt();
+  final scheduledMinutes = math
+      .max(0, (leg.departureTime.difference(now).inSeconds / 60).ceil())
+      .toInt();
+  final source = officialMinutes != null
+      ? TripEtaSource.official
+      : liveEstimate != null
+      ? TripEtaSource.gps
+      : TripEtaSource.scheduled;
+  final minMinutes = officialMinutes ?? liveEstimate?.min ?? scheduledMinutes;
+  final maxMinutes = officialMinutes ?? liveEstimate?.max ?? scheduledMinutes;
   final missedBoarding =
       considerMissedBoarding &&
       hasWalkingLeg &&
@@ -513,12 +684,16 @@ TripLegEtaEstimate estimateTripLegEta({
   return TripLegEtaEstimate(
     minMinutes: minMinutes,
     maxMinutes: maxMinutes,
-    fromGps: liveEstimate != null,
+    source: source,
     usesFallbackSpeed: liveEstimate?.fallback ?? false,
     walkingMinutes: walkingMinutes,
     missedBoarding: missedBoarding,
+    nextOfficialMinutes: nextOfficialMinutes,
   );
 }
+
+int? _externalVariantId(RouteVariant? variant) =>
+    variant?.externalVariantId ?? int.tryParse(variant?.shapeId ?? '');
 
 class _TimelineStep {
   const _TimelineStep({

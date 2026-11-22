@@ -459,7 +459,7 @@
       }
     }
   },
-  "tripEtaGpsMinutes": "{minutes} min · Estimado con GPS",
+  "tripEtaGpsMinutes": "Llega en {minutes} min · Estimado con GPS",
   "@tripEtaGpsMinutes": {
     "placeholders": {
       "minutes": {
@@ -467,7 +467,7 @@
       }
     }
   },
-  "tripEtaGpsRange": "{min}-{max} min · Estimado con GPS",
+  "tripEtaGpsRange": "Llega en {min}-{max} min · Estimado con GPS",
   "@tripEtaGpsRange": {
     "placeholders": {
       "min": {
@@ -478,8 +478,16 @@
       }
     }
   },
-  "tripEtaScheduledMinutes": "{minutes} min · Horario programado",
+  "tripEtaScheduledMinutes": "Llega en {minutes} min · Horario programado",
   "@tripEtaScheduledMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripEtaOfficialMinutes": "Llega en {minutes} min · Oficial",
+  "@tripEtaOfficialMinutes": {
     "placeholders": {
       "minutes": {
         "type": "int"
@@ -511,6 +519,14 @@
     "placeholders": {
       "time": {
         "type": "String"
+      }
+    }
+  },
+  "tripEtaNextOfficial": "Siguiente ómnibus según STM: llega en {minutes} min · Oficial",
+  "@tripEtaNextOfficial": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
       }
     }
   },

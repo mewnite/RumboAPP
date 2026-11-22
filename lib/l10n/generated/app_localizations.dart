@@ -1540,20 +1540,26 @@ abstract class AppLocalizations {
   /// No description provided for @tripEtaGpsMinutes.
   ///
   /// In es_UY, this message translates to:
-  /// **'{minutes} min · Estimado con GPS'**
+  /// **'Llega en {minutes} min · Estimado con GPS'**
   String tripEtaGpsMinutes(int minutes);
 
   /// No description provided for @tripEtaGpsRange.
   ///
   /// In es_UY, this message translates to:
-  /// **'{min}-{max} min · Estimado con GPS'**
+  /// **'Llega en {min}-{max} min · Estimado con GPS'**
   String tripEtaGpsRange(int min, int max);
 
   /// No description provided for @tripEtaScheduledMinutes.
   ///
   /// In es_UY, this message translates to:
-  /// **'{minutes} min · Horario programado'**
+  /// **'Llega en {minutes} min · Horario programado'**
   String tripEtaScheduledMinutes(int minutes);
+
+  /// No description provided for @tripEtaOfficialMinutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Llega en {minutes} min · Oficial'**
+  String tripEtaOfficialMinutes(int minutes);
 
   /// No description provided for @tripEtaFutureScheduledTime.
   ///
@@ -1578,6 +1584,12 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'Siguiente bus según horario: {time}'**
   String tripEtaNextScheduled(String time);
+
+  /// No description provided for @tripEtaNextOfficial.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Siguiente ómnibus según STM: llega en {minutes} min · Oficial'**
+  String tripEtaNextOfficial(int minutes);
 
   /// No description provided for @tripEtaNoNextScheduled.
   ///

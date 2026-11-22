@@ -7,7 +7,13 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from tool.montevideo_api_proxy import ApiError, ApiProxy, Handler, load_env
+from tool.montevideo_api_proxy import (
+    LIVE_STALE_SECONDS,
+    ApiError,
+    ApiProxy,
+    Handler,
+    load_env,
+)
 from tool.montevideo_api_proxy import geocoding_query
 from tool.fetch_seeds.fetch_seeds import feature_collection_to_overpass
 
@@ -143,6 +149,18 @@ class ApiProxyTest(unittest.TestCase):
                 self.proxy._live_request("/buses?lines=522&format=json")
             self.assertEqual(context.exception.status, 429)
 
+    def test_live_cache_refreshes_after_fifteen_seconds(self):
+        path = "/buses/busstops/3628/upcomingbuses?lines=163"
+        self.proxy._last_live_path = path
+        self.proxy._last_live_response = (200, "application/json", b"[]")
+        self.proxy._last_live_request = (
+            time.monotonic() - LIVE_STALE_SECONDS - 1
+        )
+        fresh = (200, "application/json", b'[{"eta":30}]')
+        with patch.object(self.proxy, "_upstream", return_value=fresh) as upstream:
+            self.assertEqual(self.proxy._live_request(path), fresh)
+        upstream.assert_called_once_with(path)
+
     def test_line_variants_are_cached_reference_data_not_live_polling(self):
         payload = (200, "application/json", b"[]")
         with patch.object(
@@ -173,6 +191,14 @@ class ApiProxyTest(unittest.TestCase):
         self.assertEqual(
             self.proxy._validate_upcoming_query("lines=522&amountperline=2"),
             "lines=522&amountperline=2&format=json",
+        )
+        self.assertEqual(
+            self.proxy._validate_upcoming_query("lines=124+Sd&amountperline=1"),
+            "lines=124+Sd&amountperline=1&format=json",
+        )
+        self.assertEqual(
+            self.proxy._validate_bus_query("lines=124+Sd"),
+            "format=geojson&lines=124+Sd",
         )
         with self.assertRaises(ApiError):
             self.proxy._validate_upcoming_query("lines=522&amountperline=99")

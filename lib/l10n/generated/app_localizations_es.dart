@@ -844,17 +844,22 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String tripEtaGpsMinutes(int minutes) {
-    return '$minutes min · Estimado con GPS';
+    return 'Llega en $minutes min · Estimado con GPS';
   }
 
   @override
   String tripEtaGpsRange(int min, int max) {
-    return '$min-$max min · Estimado con GPS';
+    return 'Llega en $min-$max min · Estimado con GPS';
   }
 
   @override
   String tripEtaScheduledMinutes(int minutes) {
-    return '$minutes min · Horario programado';
+    return 'Llega en $minutes min · Horario programado';
+  }
+
+  @override
+  String tripEtaOfficialMinutes(int minutes) {
+    return 'Llega en $minutes min · Oficial';
   }
 
   @override
@@ -874,6 +879,11 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String tripEtaNextScheduled(String time) {
     return 'Siguiente bus según horario: $time';
+  }
+
+  @override
+  String tripEtaNextOfficial(int minutes) {
+    return 'Siguiente ómnibus según STM: llega en $minutes min · Oficial';
   }
 
   @override
@@ -2049,17 +2059,22 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String tripEtaGpsMinutes(int minutes) {
-    return '$minutes min · Estimado con GPS';
+    return 'Llega en $minutes min · Estimado con GPS';
   }
 
   @override
   String tripEtaGpsRange(int min, int max) {
-    return '$min-$max min · Estimado con GPS';
+    return 'Llega en $min-$max min · Estimado con GPS';
   }
 
   @override
   String tripEtaScheduledMinutes(int minutes) {
-    return '$minutes min · Horario programado';
+    return 'Llega en $minutes min · Horario programado';
+  }
+
+  @override
+  String tripEtaOfficialMinutes(int minutes) {
+    return 'Llega en $minutes min · Oficial';
   }
 
   @override
@@ -2079,6 +2094,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   @override
   String tripEtaNextScheduled(String time) {
     return 'Siguiente bus según horario: $time';
+  }
+
+  @override
+  String tripEtaNextOfficial(int minutes) {
+    return 'Siguiente ómnibus según STM: llega en $minutes min · Oficial';
   }
 
   @override

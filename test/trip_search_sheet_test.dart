@@ -2,6 +2,8 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
+import 'package:rumbo/features/stops_and_lines/domain/transit_repository.dart';
+import 'package:rumbo/features/stops_and_lines/presentation/transit_repository_provider.dart';
 import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
 import 'package:rumbo/features/trip_planner/domain/trip_planner.dart';
 import 'package:rumbo/features/trip_planner/presentation/trip_plan_details.dart';
@@ -435,9 +437,15 @@ void main() {
     );
     var changedTrip = false;
     var closedTrip = false;
+    final officialSource = _EmptyOfficialSource();
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          officialUpcomingBusArrivalsSourceFactoryProvider.overrideWithValue(
+            () => officialSource,
+          ),
+        ],
         child: MaterialApp(
           locale: const Locale('es', 'UY'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -531,6 +539,8 @@ void main() {
     expect(find.text('Tu recorrido'), findsOneWidget);
     expect(find.text('Línea 522 · subida en Tres Cruces'), findsOneWidget);
     expect(find.text('Línea 103 · subida en Centro'), findsOneWidget);
+    expect(officialSource.requests, hasLength(1));
+    expect(officialSource.requests.single.$2, {'522'});
     expect(
       find.text('Tramo posterior · horario programado: 12:30'),
       findsOneWidget,
@@ -611,6 +621,8 @@ void main() {
     await tester.tap(find.byTooltip('Cerrar recorrido'));
     expect(changedTrip, isTrue);
     expect(closedTrip, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(officialSource.closed, isTrue);
   });
 
   testWidgets('shows all scheduled data on the result card', (tester) async {
@@ -1037,3 +1049,21 @@ BusPosition _liveBus({
   speedKmh: 18,
   receivedAt: DateTime.now(),
 );
+
+class _EmptyOfficialSource implements OfficialUpcomingBusArrivalsSource {
+  final List<(String, Set<String>, int)> requests = [];
+  bool closed = false;
+
+  @override
+  Future<List<OfficialBusArrival>> upcomingForStop({
+    required String stopId,
+    required Set<String> lines,
+    int amountPerLine = 1,
+  }) async {
+    requests.add((stopId, lines, amountPerLine));
+    return const [];
+  }
+
+  @override
+  void close() => closed = true;
+}

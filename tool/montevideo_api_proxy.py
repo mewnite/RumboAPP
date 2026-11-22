@@ -23,7 +23,7 @@ TOKEN_URL = (
 )
 API_BASE = "https://api.montevideo.gub.uy/api/transportepublico"
 LIVE_MIN_INTERVAL_SECONDS = 10
-LIVE_STALE_SECONDS = 60
+LIVE_STALE_SECONDS = 15
 GTFS_CACHE_SECONDS = 24 * 60 * 60
 REFERENCE_DATA_CACHE_SECONDS = 24 * 60 * 60
 PLACE_SEARCH_CACHE_SECONDS = 24 * 60 * 60
@@ -632,7 +632,9 @@ class ApiProxy:
         if set(values) - {"lines", "format"}:
             raise ApiError(400, "Parámetros de buses no permitidos.")
         lines = values.get("lines", [])
-        if len(lines) > 1 or (lines and not re.fullmatch(r"[A-Za-z0-9,-]{1,80}", lines[0])):
+        if len(lines) > 1 or (
+            lines and not re.fullmatch(r"[A-Za-z0-9 ,-]{1,80}", lines[0])
+        ):
             raise ApiError(400, "Filtro de líneas inválido.")
         output_format = values.get("format", ["geojson"])[0]
         if output_format != "geojson":
@@ -647,7 +649,7 @@ class ApiProxy:
         if set(values) - {"lines", "amountperline"}:
             raise ApiError(400, "Parámetros de arribos no permitidos.")
         lines = values.get("lines", [])
-        if len(lines) != 1 or not re.fullmatch(r"[A-Za-z0-9,-]{1,80}", lines[0]):
+        if len(lines) != 1 or not re.fullmatch(r"[A-Za-z0-9 ,-]{1,80}", lines[0]):
             raise ApiError(400, "Se requiere un filtro de líneas válido.")
         amount = values.get("amountperline", ["1"])[0]
         if not amount.isdigit() or not 1 <= int(amount) <= 5:
