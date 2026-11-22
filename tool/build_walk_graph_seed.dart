@@ -4,6 +4,11 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 
+String encodeSeedManifest(Map<String, Object> metadata) {
+  final formatted = const JsonEncoder.withIndent('  ').convert(metadata);
+  return '$formatted\n';
+}
+
 Map<String, String> _arguments(List<String> values) {
   final result = <String, String>{};
   for (final value in values) {
@@ -113,13 +118,10 @@ Future<void> main(List<String> arguments) async {
     'seed_sha256': sha256.convert(bytes).toString(),
   };
   final metadataFile = File(metadataPath)..parent.createSync(recursive: true);
-  await metadataFile.writeAsString(
-    const JsonEncoder.withIndent('  ').convert(metadata),
-    flush: true,
-  );
+  await metadataFile.writeAsString(encodeSeedManifest(metadata), flush: true);
   stdout.writeln(
     '[performance] walk_seed_graph_build=${buildWatch.elapsedMilliseconds}ms '
     'encode=${encodeWatch.elapsedMilliseconds}ms',
   );
-  stdout.writeln(const JsonEncoder.withIndent('  ').convert(metadata));
+  stdout.write(encodeSeedManifest(metadata));
 }
