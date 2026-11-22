@@ -58,6 +58,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   sqflite_common_ffi: ^2.4.5
+  # Used directly by tool/build_seed_db.dart to build the bundled seed DB
+  # (already in the dependency graph through sqflite_common_ffi).
+  sqlite3: ^3.8.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,6 +70,7 @@ flutter:
   generate: true
   assets:
     - assets/sample_gtfs/
+    - assets/transit_db/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

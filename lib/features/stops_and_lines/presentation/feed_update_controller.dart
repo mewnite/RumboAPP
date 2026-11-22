@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/config/transit_config.dart';
 import '../../../core/debug/performance_measurement.dart';
@@ -109,11 +111,35 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
     try {
       if (!transitConfig.demoMode && !kIsWeb) {
         final database = TransitDatabase();
-        final cachedDatabase = await database.open();
-        final cachedStatus = await SqfliteTransitRepository(
+        var cachedDatabase = await database.open();
+        var cachedStatus = await SqfliteTransitRepository(
           () async => cachedDatabase,
         ).feedStatus();
-        final cachedFeedIsUsable = await database.hasUsableFeed(cachedDatabase);
+        var cachedFeedIsUsable = await database.hasUsableFeed(cachedDatabase);
+        if (!cachedFeedIsUsable) {
+          // Try the bundled seed first (atomic copy, progress visible).
+          final seedInstalled = await _installSeed(
+            database,
+            cachedDatabase,
+            cachedStatus,
+          );
+          if (seedInstalled) {
+            cachedDatabase = await database.open();
+            cachedStatus = await SqfliteTransitRepository(
+              () async => cachedDatabase,
+            ).feedStatus();
+            cachedFeedIsUsable = await database.hasUsableFeed(cachedDatabase);
+            if (cachedFeedIsUsable) {
+              // Mark the check as done so the app doesn't re-download the
+              // GTFS zip immediately after installing the seed.
+              final preferences = await SharedPreferences.getInstance();
+              await preferences.setInt(
+                'transit_last_check_ms',
+                DateTime.now().millisecondsSinceEpoch,
+              );
+            }
+          }
+        }
         await cachedDatabase.close();
         if (cachedFeedIsUsable &&
             !cachedStatus.synthetic &&
@@ -246,7 +272,44 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
       now: DateTime.now(),
       minimumInterval: transitConfig.minimumCheckInterval,
     );
-    if (due) unawaited(_refresh(current));
+    if (!due) return;
+    final connectivity = await Connectivity().checkConnectivity();
+    final hasWifiOrEthernet = connectivity.any(
+      (result) =>
+          result == ConnectivityResult.wifi ||
+          result == ConnectivityResult.ethernet,
+    );
+    if (!hasWifiOrEthernet) {
+      // Don't start a GTFS download on mobile data or without connectivity;
+      // the next launch retries.
+      return;
+    }
+    unawaited(_refresh(current));
+  }
+
+  Future<bool> _installSeed(
+    TransitDatabase database,
+    Database cachedDatabase,
+    FeedStatus status,
+  ) async {
+    final seedBytes = await rootBundle.load(TransitDatabase.seedAssetPath);
+    await cachedDatabase.close();
+    return database.installSeed(
+      seedBytes.buffer.asUint8List(
+        seedBytes.offsetInBytes,
+        seedBytes.lengthInBytes,
+      ),
+      onProgress: (progress) {
+        state = AsyncData(
+          FeedUpdateState(
+            phase: FeedUpdatePhase.downloading,
+            stage: 'importando_seed',
+            progress: progress,
+            status: status,
+          ),
+        );
+      },
+    );
   }
 
   Future<void> updateNow() async {

@@ -1,0 +1,26 @@
+name: Build transit seed DB
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run daily; GTFS is static-ish, the app refreshes every 24h anyway.
+    - cron: "0 6 * * *"
+
+jobs:
+  build-seed-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.16.0
+        with:
+          flutter-version: "3.47.8"
+      - name: flutter pub get
+        run: flutter pub get
+      # Fails (exit != 0) if the feed cannot be downloaded or parsed.
+      - name: dart run tool/build_seed_db.dart
+        run: dart run tool/build_seed_db.dart
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rumbo_transit_seed.db
+          path: assets/transit_db/rumbo_transit_seed.db

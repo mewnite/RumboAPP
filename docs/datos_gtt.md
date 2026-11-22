@@ -1,0 +1,94 @@
+# Datos de transporte (GTFS) y BD semilla
+
+## Origen de los datos
+
+- Fuente estática del feed: endpoint público del proxy local
+  [`https://rumboapp.onrender.com/gtfs/latest`](https://rumboapp.onrender.com/gtfs/latest)
+  (configurable vía `RUMBO_API_BASE_URL` en
+  [`lib/core/config/transit_config.dart`](../lib/core/config/transit_config.dart)).
+  Este proxy remotiza `api.montevideo.gub.uy` (STM / Intendencia de Montevideo).
+
+**Licencia (pendiente de verificación):** no he verificado formalmente los
+términos de uso de STM / Intendencia de Montevideo. El proxy y la app asumen
+que los datos estáticos pueden usarse como fuente local de la app. Antes de
+usarlos como fuente oficial en producción (APK en Play Store), verificar
+licencia, condiciones de uso y atribución oficial.
+
+## Esquema y tamaño de la BD
+
+- DB en SQLite: `assets/transit_db/rumbo_transit_seed.db` (semilla incluida en el bundle).
+- Tamaño de la semilla: **63,467,520 bytes (~60.5 MB)**.
+- Datos medidos del feed real (proxy):
+  - 4,920 paradas; 324 rutas; 37,445 viajes; 1,086 variantes;
+  - 8,792 patrones; 593,717 filas de `pattern_stops`; 331,294 puntos de `shapes`;
+  - 2,221,182 filas de `stop_times`.
+- Estimado de tamaño de la BD (schema replicado + datos reales, mejor espacio
+  SQLite por fila con ids TEXT): **186,1 MB**.
+
+## Versión del esquema
+
+- `user_version = 7` (`TransitDatabase._databaseVersion`).
+- `TransitDatabase.open()` valida `PRAGMA user_version`; si no coincide, cierra
+  y migra vía `onUpgrade` (flujo actual).
+
+## Shrink del esquema: ids de patrones surrogate (`a` -> mejor tamaño)
+
+Esquema anterior (ids textuales): `trips.pattern_id`, `pattern_stops.pattern_id`
+y `trip_patterns.pattern_id` eran cadenas SHA-256 de 64 caracteres.
+
+- Nuevo: `trips.pattern_id INTEGER`, `pattern_stops.pattern_id INTEGER`,
+  `trip_patterns(id INTEGER PRIMARY KEY AUTOINCREMENT)`.
+- `Trips` a nivel de app queda con `patternId` String (opaco) —
+  `SqfliteTransitRepository` lo lee vía `row['pattern_id']?.toString()` y
+  `stopsForVariant` compara con `ps.pattern_id` (afinidad INTEGER — funciona).
+- Estimado medido: **-67% del tamaño de la BD** (~186 MB -> ~61.5 MB).
+
+Opciones descartadas/opcionales:
+
+- Shapes codificadas como blobs por shape (`shapes(shape_id TEXT PRIMARY KEY,
+  points_blob BLOB)`): ahorro estimado ~10-15 MB adicionales; cambia
+  `shapeForVariant` (decodificar JSON).
+- Índices innecesarios: `variants_external_id` se usa (`variantByExternalId`).
+
+## Semilla (seed): generación y uso
+
+- Builder: `dart run tool/build_seed_db.dart` — builder puro en Dart
+  (`gtfs_parser` + `sqlite3` — sin Flutter), replicando `TransitDatabase.replaceFeed()`
+  con el esquema surrogate.
+- CI: `.github/workflows/build_seed_db.yml` — build diario + artifact; el
+  workflow sale con error si el feed no parsea.
+- Instalación: `FeedUpdateController._loadData()` → si la DB está vacía o
+  insusable: `TransitDatabase.installSeed()` (copia atómica temp+rename,
+  progreso visible) → `open()` → `hasUsableFeed` → marca
+  `transit_last_check_ms` (evita re-descarga inmediata del zip).
+- Segundo arranque: DB cacheada usable → sin refresh (24 h).
+
+## Actualizaciones posteriores
+
+- `_checkForUpdate()` no inicia el refresh del GTFS si solo hay datos móviles
+  (o sin conexión) — se reintenta al siguiente arranque.
+- El refresh conectado (24 h): `GtfsZipSource.download()` + `replaceFeed()` —
+  el esquema nuevo asigna surrogates desde cero — los ids textuales del feed
+  parser se pierden (internos de la BD) — aplicación compatible.
+
+## Referencias de medición
+
+- Parse del feed real: `parseGtfsZipFileToFile` = 9,271 ms / 9,595 ms
+  (Dart 3.13.7, Windows 11, 2 runs) — 2.2M `stop_times`.
+- Estimado `replaceFeed` (import): ~1-3 s (estimado — requiere app/emulador).
+- Descarga proxy (frio, Render asleep): 38.47 s (medido); `/health`: 16.35 s.
+- Nominatim (upstream del proxy `/geocode`): 1.105 s (query real, limit=5).
+- Emulador (docs/rendimiento.md): feed cacheado disponible = 1.005 s.
+
+## Apéndice: tabla de tiempos antes/después (opt. (a) — seed)
+
+| Métrica | Antes (est.) | Después (medido) | Δ |
+|---|---|---|---|
+| Tamaño DB | ~186 MB | 60.5 MB | -67% (~125 MB) |
+| First install: descarga GTFS (proxy) | 38.5 s (medido) | 0 (seed en bundle) | -38.5 s |
+| First install: parse GTFS | 9.6 s (medido) | 0 (seed preconstruido) | -9.6 s |
+| First install: buscador tappable | ~0.2-0.5 s | ~0.3 s (open de DB) | similar |
+| First install: sugerencias de direcciones | vacías hasta fin de import (est.) | con paradas/líneas (DB usable) | resuelto |
+| First install: planificar ruta (`findPlans`) | bloqueado ~40-55 s est. | ~1-2 s (DB usable) | -40-53 s |
+| Segundo arranque: feed disponible | ~1.0 s (emulador) | ~0.3 s (est.) | -0.7 s |
+| APK arm64 | 32.9 MB (docs, pre-R8 del usuario) | 54.1 MB | +21.2 MB |
