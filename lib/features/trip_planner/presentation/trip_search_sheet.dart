@@ -184,7 +184,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
         }
         if (mounted &&
             normalizedQuery.length >= 3 &&
-            requestId == _searchGeneration) {
+            requestId == _searchGeneration &&
+            _remoteSearchEnabled) {
           await _searchOnline();
         }
       } on Exception catch (error) {
@@ -701,7 +702,11 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                       ),
                       title: Text(endpoint.name),
                       subtitle: endpoint.stop == null
-                          ? Text(l10n.tripPlaceResult)
+                          ? Text(
+                              endpoint.isApproximate
+                                  ? l10n.tripPlaceApproximate
+                                  : l10n.tripPlaceResult,
+                            )
                           : endpoint.stop!.code.isEmpty
                           ? Text(l10n.tripStopResult)
                           : Text(
@@ -712,6 +717,25 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   },
                 ),
               ),
+            if (_activeController.text.trim().length >= 3 &&
+                !_remoteSearchEnabled &&
+                widget.onRemotePlaceSearchConsentRequested != null &&
+                (_originFocus.hasFocus || _destinationFocus.hasFocus)) ...[
+              const SizedBox(height: 8),
+              Text(
+                l10n.searchOnlinePlacesHint,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              OutlinedButton.icon(
+                key: const ValueKey('trip-search-online'),
+                onPressed: _searching ? null : _searchOnline,
+                icon: const Icon(Symbols.travel_explore_rounded),
+                label: Text(l10n.searchOnlinePlacesAction),
+              ),
+            ],
             if (_showRemotePrivacy &&
                 _remoteSearchEnabled &&
                 _activeController.text.trim().length >= 3) ...[

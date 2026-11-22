@@ -13,6 +13,7 @@ class TripEndpoint {
     required this.longitude,
     this.stop,
     this.route,
+    this.isApproximate = false,
   });
 
   factory TripEndpoint.fromStop(Stop stop) => TripEndpoint(
@@ -38,6 +39,7 @@ class TripEndpoint {
   final double longitude;
   final Stop? stop;
   final Route? route;
+  final bool isApproximate;
 }
 
 enum TripTimingMode { departNow, departAt, arriveBy }

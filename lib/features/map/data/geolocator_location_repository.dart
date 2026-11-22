@@ -4,6 +4,14 @@ import 'package:geolocator/geolocator.dart';
 import '../domain/location_repository.dart';
 
 class GeolocatorLocationRepository implements LocationRepository {
+  static const Duration _maximumCachedFixAge = Duration(seconds: 30);
+
+  @visibleForTesting
+  static bool isLocationFixRecent(
+    DateTime timestamp, {
+    required DateTime now,
+  }) => now.difference(timestamp).abs() <= _maximumCachedFixAge;
+
   @override
   Future<bool> isLocationServiceEnabled() =>
       Geolocator.isLocationServiceEnabled();
@@ -33,12 +41,22 @@ class GeolocatorLocationRepository implements LocationRepository {
   @override
   Future<DeviceLocation> getCurrentLocation() async {
     try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
+      final lastKnownPosition = await Geolocator.getLastKnownPosition();
+      final Position position;
+      if (lastKnownPosition != null &&
+          isLocationFixRecent(
+            lastKnownPosition.timestamp,
+            now: DateTime.now(),
+          )) {
+        position = lastKnownPosition;
+      } else {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 20),
+          ),
+        );
+      }
       return DeviceLocation(
         latitude: position.latitude,
         longitude: position.longitude,

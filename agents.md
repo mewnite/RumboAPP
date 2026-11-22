@@ -1,5 +1,6 @@
 # AGENTS.md
 
+
 ## Proyecto
 Rumbo (nombre provisional): app móvil de transporte público para Montevideo, Uruguay. Similar en propósito a Moovit, pero sin publicidad, sin trackers y mobile-first. Esta es la V1 (MVP).
 
@@ -21,6 +22,7 @@ Rumbo (nombre provisional): app móvil de transporte público para Montevideo, U
 - Prohibido usar identificadores publicitarios.
 - La ubicación se procesa en el dispositivo. No se envía a ningún servidor.
 - No copiar nombre, logo, paleta ni assets de Moovit ni de otras apps existentes.
+- El objetivo siempre es tener un APK de Rumbo al final de cada cambio.
 
 ## UX y accesibilidad
 - Acciones principales en la mitad inferior de la pantalla (uso con una mano).

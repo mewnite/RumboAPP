@@ -44,6 +44,12 @@ void main() {
         'doctor manuel quintela',
       );
       expect(parser.normalizeText('Sta. Lucía'), 'santa lucia');
+      expect(parser.normalizeText('Avda. Italia'), 'avenida italia');
+      expect(parser.normalizeText('Pza. Independencia'), 'plaza independencia');
+      expect(
+        parser.normalizeText('Rbla. República del Perú'),
+        'rambla republica del peru',
+      );
     });
   });
 
@@ -58,7 +64,7 @@ void main() {
       expect(q2.stopCode, '4218');
     });
 
-    test('identifica intersecciones con separadores típicos ("y", "esq.", "con", "/")', () {
+    test('identifica cruces sin cortar nombres que contienen "y"', () {
       final q1 = parser.parse('18 de Julio y Ejido');
       expect(q1.intent, QueryIntentKind.intersection);
       expect(q1.street1, '18 de julio');
@@ -78,6 +84,26 @@ void main() {
       expect(q4.intent, QueryIntentKind.intersection);
       expect(q4.street1, 'colonia');
       expect(q4.street2, 'convencion');
+
+      final q5 = parser.parse('Batlle y Ordóñez y Ejido');
+      expect(q5.intent, QueryIntentKind.intersection);
+      expect(q5.street1, 'batlle y ordonez');
+      expect(q5.street2, 'ejido');
+
+      final q6 = parser.parse('Av. Italia x Ejido');
+      expect(q6.intent, QueryIntentKind.intersection);
+      expect(q6.street1, 'avenida italia');
+      expect(q6.street2, 'ejido');
+
+      final q7 = parser.parse('Rivera esquina de Soca');
+      expect(q7.intent, QueryIntentKind.intersection);
+      expect(q7.street1, 'rivera');
+      expect(q7.street2, 'soca');
+
+      final q8 = parser.parse('Colonia & Convención');
+      expect(q8.intent, QueryIntentKind.intersection);
+      expect(q8.street1, 'colonia');
+      expect(q8.street2, 'convencion');
     });
 
     test('identifica direcciones con número de puerta', () {

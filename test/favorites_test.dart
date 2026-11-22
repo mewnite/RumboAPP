@@ -197,7 +197,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Buscá una calle, esquina, parada o lugar…'),
+        find.text('Calle y número, cruce, parada o lugar…'),
         findsOneWidget,
       );
     });

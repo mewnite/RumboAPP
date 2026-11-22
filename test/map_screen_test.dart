@@ -28,7 +28,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('does not request location until user confirms the action', (
+  testWidgets('location consent appears once and recenter uses the fix', (
     tester,
   ) async {
     await tester.pumpWidget(_mapApp(repository));
@@ -44,6 +44,12 @@ void main() {
 
     expect(repository.permissionChecks, 1);
     expect(repository.locationReads, 1);
+
+    await tester.tap(find.byTooltip('Usar mi ubicación'));
+    await tester.pumpAndSettle();
+    expect(find.text('Usar tu ubicación'), findsNothing);
+    expect(repository.permissionChecks, 2);
+    expect(repository.locationReads, 2);
   });
 
   testWidgets('shows search, attribution, and live bus configuration state', (

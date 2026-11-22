@@ -69,7 +69,9 @@ class _SearchDestinationSheetState
           userLongitude: widget.userLongitude,
           isOffline: isOffline,
         );
-    if (query.trim().length >= 3 && !isOffline) {
+    final remoteEnabled =
+        ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
+    if (query.trim().length >= 3 && !isOffline && remoteEnabled) {
       unawaited(_searchOnline());
     }
   }
@@ -142,6 +144,8 @@ class _SearchDestinationSheetState
     final searchState = ref.watch(searchControllerProvider);
     final remoteSearchEnabled =
         ref.watch(remotePlaceSearchEnabledProvider).asData?.value ?? false;
+    final networkAvailable =
+        ref.watch(networkAvailableProvider).asData?.value ?? true;
 
     return SafeArea(
       child: ConstrainedBox(
@@ -235,6 +239,29 @@ class _SearchDestinationSheetState
                     ],
                   ),
                 ),
+
+              if (!remoteSearchEnabled &&
+                  networkAvailable &&
+                  _textController.text.trim().length >= 3) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Text(
+                    l10n.searchOnlinePlacesHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('search-online-places'),
+                    onPressed: _searchOnline,
+                    icon: const Icon(Symbols.travel_explore_rounded),
+                    label: Text(l10n.searchOnlinePlacesAction),
+                  ),
+                ),
+              ],
 
               // Cabezal de sección (Recientes vs Resultados)
               if (_textController.text.trim().isEmpty &&
@@ -372,7 +399,7 @@ class _SearchResultTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      result.subtitle,
+                      _resultSubtitle(result, l10n),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -433,6 +460,15 @@ class _SearchResultTile extends StatelessWidget {
       case SearchEntityKind.recentSearch:
         return Symbols.history_rounded;
     }
+  }
+
+  String _resultSubtitle(SearchResult result, AppLocalizations l10n) {
+    return switch (result.precision) {
+      GeoPrecision.unconfirmedDoorNumber => l10n.searchApproximateAddress,
+      GeoPrecision.approximateIntersection =>
+        l10n.searchApproximateIntersection,
+      _ => result.subtitle,
+    };
   }
 
   Color _kindBackgroundColor(SearchEntityKind kind, ThemeData theme) {

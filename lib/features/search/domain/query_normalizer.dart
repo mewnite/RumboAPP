@@ -39,34 +39,23 @@ class MontevideoQueryParser {
   const MontevideoQueryParser();
 
   static const Map<String, String> _abbreviations = {
-    'av.': 'avenida',
-    'avda.': 'avenida',
     'av': 'avenida',
-    'bvar.': 'bulevar',
+    'avda': 'avenida',
     'bvar': 'bulevar',
-    'bvr.': 'bulevar',
     'bvr': 'bulevar',
-    'bv.': 'bulevar',
     'bv': 'bulevar',
     'bulevar': 'bulevar',
-    'gral.': 'general',
     'gral': 'general',
-    'cno.': 'camino',
     'cno': 'camino',
-    'tte.': 'teniente',
     'tte': 'teniente',
-    'dr.': 'doctor',
     'dr': 'doctor',
-    'sta.': 'santa',
     'sta': 'santa',
-    'sto.': 'santo',
     'sto': 'santo',
-    'pta.': 'punta',
     'pta': 'punta',
-    'pto.': 'puerto',
     'pto': 'puerto',
-    'pje.': 'pasaje',
     'pje': 'pasaje',
+    'pza': 'plaza',
+    'rbla': 'rambla',
   };
 
   static final RegExp _diacritics = RegExp(r'[áàäâéèëêíìïîóòöôúùüûñ]');
@@ -78,7 +67,7 @@ class MontevideoQueryParser {
     caseSensitive: false,
   );
   static final RegExp _intersectionPattern = RegExp(
-    r'^(.*?)\s+(?:y|esq\.?|esquina|con|\/)\s+(.*?)$',
+    r'^\s*(.+)\s+(?:y|x|esq\.?(?:\s+(?:de|con))?|esquina(?:\s+(?:de|con))?|con|\/|&)\s+(.+?)\s*$',
     caseSensitive: false,
   );
   static final RegExp _doorNumberPattern = RegExp(

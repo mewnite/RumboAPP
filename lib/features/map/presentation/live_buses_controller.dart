@@ -119,6 +119,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
   Duration _baseDelay = const Duration(seconds: 15);
   DateTime Function() _clock = DateTime.now;
   int _pollGeneration = 0;
+  int _fetchGeneration = 0;
 
   @override
   LiveBusesState build() {
@@ -152,6 +153,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
   }
 
   void setSelectedVariantIds(Set<int> variantIds) {
+    if (setEquals(state.selectedVariantIds, variantIds)) return;
     state = state.copyWith(selectedVariantIds: variantIds);
   }
 
@@ -167,6 +169,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
 
   void clearLiveDataAndPause() {
     _pollGeneration++;
+    _fetchGeneration++;
     _pollTimer?.cancel();
     _pollTimer = null;
     state = LiveBusesState(
@@ -196,12 +199,17 @@ class LiveBusesController extends Notifier<LiveBusesState> {
   Future<void> refreshNow() async {
     if (_source == null) return;
     final generation = _pollGeneration;
+    final fetchGeneration = ++_fetchGeneration;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final snapshot = await _source!.fetch(
         lines: state.selectedLines.isEmpty ? null : state.selectedLines,
       );
-      if (!ref.mounted || generation != _pollGeneration) return;
+      if (!ref.mounted ||
+          generation != _pollGeneration ||
+          fetchGeneration != _fetchGeneration) {
+        return;
+      }
       final shouldContinuePolling = state.isPolling;
       state = state.copyWith(
         positions: snapshot.positions,
@@ -213,7 +221,11 @@ class LiveBusesController extends Notifier<LiveBusesState> {
       );
       if (shouldContinuePolling) _scheduleNextPoll();
     } on Exception catch (error) {
-      if (!ref.mounted || generation != _pollGeneration) return;
+      if (!ref.mounted ||
+          generation != _pollGeneration ||
+          fetchGeneration != _fetchGeneration) {
+        return;
+      }
       final shouldContinuePolling = state.isPolling;
       final nextDelay = _nextBackoffDelay();
       state = state.copyWith(

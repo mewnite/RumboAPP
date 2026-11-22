@@ -39,6 +39,18 @@ void main() {
         'EXPLAIN QUERY PLAN SELECT * FROM stops WHERE id = ? LIMIT 1',
         ['stop-1'],
       );
+      final variantDeparturesPlan = await db.rawQuery(
+        'EXPLAIN QUERY PLAN SELECT id,service_id,start_secs FROM trips '
+        'WHERE variant_id = ? AND start_secs IS NOT NULL '
+        'ORDER BY start_secs ASC',
+        ['variant-1'],
+      );
+      final calendarExceptionPlan = await db.rawQuery(
+        'EXPLAIN QUERY PLAN SELECT service_id,date,type '
+        'FROM calendar_exceptions '
+        'WHERE service_id = ? AND date = ?',
+        ['service-1', '2026-11-21'],
+      );
       String details(List<Map<String, Object?>> rows) =>
           rows.map((row) => row['detail']).join(' ');
 
@@ -47,6 +59,11 @@ void main() {
       expect(details(arrivalsPlan), contains('trips_pattern_service_start'));
       expect(details(stopDetailPlan), contains('SEARCH stops'));
       expect(details(stopDetailPlan), contains('INDEX'));
+      expect(details(variantDeparturesPlan), contains('trips_variant_start'));
+      expect(
+        details(calendarExceptionPlan),
+        contains('calendar_exceptions_service_date_type'),
+      );
 
       await expectLater(
         db.insert('stops', {

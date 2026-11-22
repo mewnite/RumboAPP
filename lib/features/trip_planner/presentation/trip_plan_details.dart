@@ -262,7 +262,11 @@ class TripPlanDetails extends StatelessWidget {
     final to =
         leg.toStop?.name ??
         (leg.toLatitude != null ? destinationName : l10n.tripDetailUnknownStop);
-    return l10n.tripDetailBetweenStops(from, to);
+    return l10n.tripDetailWalkInstructions(
+      from,
+      leg.distanceMeters.round(),
+      to,
+    );
   }
 
   String _lineLabel(AppLocalizations l10n, TripLeg leg) {

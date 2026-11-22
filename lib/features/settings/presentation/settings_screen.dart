@@ -19,213 +19,274 @@ class SettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final themeMode = ref.watch(themeModeControllerProvider);
     final feedState = ref.watch(feedUpdateControllerProvider);
+    final theme = Theme.of(context);
+    final onSurface = theme.colorScheme.onSurface;
+    final bodyStyle = theme.textTheme.bodyMedium!.copyWith(color: onSurface);
+    final secondaryBodyStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsScreenTitle)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
-            child: Text(
-              l10n.settingsIntro,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: DefaultTextStyle(
+        style: bodyStyle,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
+              child: Text(
+                l10n.settingsIntro,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.themePreferenceTitle,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.themePreferenceDescription,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  themeMode.when(
-                    data: (mode) => SegmentedButton<ThemeMode>(
-                      showSelectedIcon: false,
-                      segments: [
-                        ButtonSegment(
-                          value: ThemeMode.light,
-                          icon: const Icon(Symbols.light_mode_rounded),
-                          label: Text(l10n.themeLight),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.dark,
-                          icon: const Icon(Symbols.dark_mode_rounded),
-                          label: Text(l10n.themeDark),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.system,
-                          icon: const Icon(Symbols.settings_suggest_rounded),
-                          label: Text(l10n.themeSystem),
-                        ),
-                      ],
-                      selected: {mode},
-                      onSelectionChanged: (selection) {
-                        unawaited(
-                          ref
-                              .read(themeModeControllerProvider.notifier)
-                              .setThemeMode(selection.first),
-                        );
-                      },
-                    ),
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stackTrace) => Text(l10n.settingsLoadError),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Symbols.privacy_tip_rounded),
-              title: Text(l10n.privacyTitle),
-              trailing: const Icon(Symbols.chevron_right_rounded),
-              onTap: () => context.push('/settings/privacy'),
-            ),
-          ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: feedState.when(
-                loading: () => Column(
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      l10n.transitDataTitle,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      l10n.themePreferenceTitle,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: onSurface,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    const LinearProgressIndicator(),
-                    const SizedBox(height: 8),
-                    Text(l10n.transitDataLoading),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.themePreferenceDescription,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    themeMode.when(
+                      data: (mode) => SegmentedButton<ThemeMode>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            icon: Icon(
+                              Symbols.light_mode_rounded,
+                              color: onSurface,
+                            ),
+                            label: Text(
+                              l10n.themeLight,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: onSurface,
+                              ),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            icon: Icon(
+                              Symbols.dark_mode_rounded,
+                              color: onSurface,
+                            ),
+                            label: Text(
+                              l10n.themeDark,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: onSurface,
+                              ),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            icon: Icon(
+                              Symbols.settings_suggest_rounded,
+                              color: onSurface,
+                            ),
+                            label: Text(
+                              l10n.themeSystem,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                        selected: {mode},
+                        onSelectionChanged: (selection) {
+                          unawaited(
+                            ref
+                                .read(themeModeControllerProvider.notifier)
+                                .setThemeMode(selection.first),
+                          );
+                        },
+                      ),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (error, stackTrace) =>
+                          Text(l10n.settingsLoadError),
+                    ),
                   ],
                 ),
-                error: (error, stack) =>
-                    Text('${l10n.transitDataTitle}: ${l10n.transitNoData}'),
-                data: (feed) {
-                  final info = feed.feed?.feedInfo;
-                  final valid = feed.status.validUntil;
-                  final updated = feed.status.downloadedAt;
-                  return Column(
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  Symbols.privacy_tip_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                title: Text(
+                  l10n.privacyTitle,
+                  style: theme.textTheme.bodyLarge?.copyWith(color: onSurface),
+                ),
+                trailing: Icon(
+                  Symbols.chevron_right_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onTap: () => context.push('/settings/privacy'),
+              ),
+            ),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: feedState.when(
+                  loading: () => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         l10n.transitDataTitle,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: onSurface,
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        '${l10n.transitSourceLabel}: ${feed.status.source.isEmpty ? l10n.transitNoData : feed.status.source}',
-                      ),
-                      Text(
-                        '${l10n.transitVersionLabel}: ${feed.status.version.isEmpty ? l10n.transitUnknownValue : feed.status.version}',
-                      ),
-                      Text(
-                        '${l10n.transitUpdatedLabel}: ${updated == null ? l10n.transitUpdatedAtNone : updated.toLocal().toString().substring(0, 16)}',
-                      ),
-                      Text(
-                        '${l10n.transitValidityLabel}: ${valid == null ? l10n.transitUnknownValue : (feed.status.stale ? l10n.transitExpired : l10n.transitCurrent)}',
-                      ),
-                      if (feed.feed != null ||
-                          feed.status.stopCount > 0 ||
-                          feed.status.routeCount > 0)
-                        Text(
-                          l10n.transitCounts(
-                            feed.status.stopCount,
-                            feed.status.routeCount,
-                          ),
-                        ),
-                      if (feed.phase == FeedUpdatePhase.downloading ||
-                          feed.phase == FeedUpdatePhase.processing)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: LinearProgressIndicator(
-                            value: feed.phase == FeedUpdatePhase.processing
-                                ? feed.progress
-                                : null,
-                          ),
-                        ),
-                      if (feed.status.synthetic || (info?.synthetic ?? false))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            l10n.transitDemoNotice,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      if (feed.phase == FeedUpdatePhase.offline)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            l10n.transitNoSource,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      if (feed.phase == FeedUpdatePhase.errorWithOldData)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            l10n.transitUpdateError,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
+                      const LinearProgressIndicator(),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: FilledButton.icon(
-                          onPressed: feed.phase == FeedUpdatePhase.downloading
-                              ? null
-                              : () => ref
-                                    .read(feedUpdateControllerProvider.notifier)
-                                    .updateNow(),
-                          icon: const Icon(Symbols.refresh_rounded),
-                          label: Text(l10n.transitUpdateNow),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${l10n.transitAttributionLabel}: ${transitConfig.attribution}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      Text(
-                        '${l10n.transitLicenseLabel}: ${transitConfig.license}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                      Text(l10n.transitDataLoading, style: bodyStyle),
                     ],
-                  );
-                },
+                  ),
+                  error: (error, stack) =>
+                      Text('${l10n.transitDataTitle}: ${l10n.transitNoData}'),
+                  data: (feed) {
+                    final info = feed.feed?.feedInfo;
+                    final valid = feed.status.validUntil;
+                    final updated = feed.status.downloadedAt;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.transitDataTitle,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${l10n.transitSourceLabel}: ${feed.status.source.isEmpty ? l10n.transitNoData : feed.status.source}',
+                          style: bodyStyle,
+                        ),
+                        Text(
+                          '${l10n.transitVersionLabel}: ${feed.status.version.isEmpty ? l10n.transitUnknownValue : feed.status.version}',
+                          style: bodyStyle,
+                        ),
+                        Text(
+                          '${l10n.transitUpdatedLabel}: ${updated == null ? l10n.transitUpdatedAtNone : updated.toLocal().toString().substring(0, 16)}',
+                          style: bodyStyle,
+                        ),
+                        Text(
+                          '${l10n.transitValidityLabel}: ${valid == null ? l10n.transitUnknownValue : (feed.status.stale ? l10n.transitExpired : l10n.transitCurrent)}',
+                          style: bodyStyle,
+                        ),
+                        if (feed.feed != null ||
+                            feed.status.stopCount > 0 ||
+                            feed.status.routeCount > 0)
+                          Text(
+                            l10n.transitCounts(
+                              feed.status.stopCount,
+                              feed.status.routeCount,
+                            ),
+                            style: bodyStyle,
+                          ),
+                        if (feed.phase == FeedUpdatePhase.downloading ||
+                            feed.phase == FeedUpdatePhase.processing)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: LinearProgressIndicator(
+                              value: feed.phase == FeedUpdatePhase.processing
+                                  ? feed.progress
+                                  : null,
+                            ),
+                          ),
+                        if (feed.status.synthetic || (info?.synthetic ?? false))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              l10n.transitDemoNotice,
+                              style: secondaryBodyStyle,
+                            ),
+                          ),
+                        if (feed.phase == FeedUpdatePhase.offline)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              l10n.transitNoSource,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        if (feed.phase == FeedUpdatePhase.errorWithOldData)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              l10n.transitUpdateError,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: FilledButton.icon(
+                            onPressed: feed.phase == FeedUpdatePhase.downloading
+                                ? null
+                                : () => ref
+                                      .read(
+                                        feedUpdateControllerProvider.notifier,
+                                      )
+                                      .updateNow(),
+                            icon: const Icon(Symbols.refresh_rounded),
+                            label: Text(l10n.transitUpdateNow),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${l10n.transitAttributionLabel}: ${transitConfig.attribution}',
+                          style: secondaryBodyStyle,
+                        ),
+                        Text(
+                          '${l10n.transitLicenseLabel}: ${transitConfig.license}',
+                          style: secondaryBodyStyle,
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-          if (kDebugMode)
-            Card(
-              child: ListTile(
-                leading: const Icon(Symbols.palette_rounded),
-                title: Text(l10n.debugThemeSample),
-                trailing: const Icon(Symbols.chevron_right_rounded),
-                onTap: () => context.push('/debug/theme'),
+            if (kDebugMode)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Symbols.palette_rounded),
+                  title: Text(
+                    l10n.debugThemeSample,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: onSurface,
+                    ),
+                  ),
+                  trailing: const Icon(Symbols.chevron_right_rounded),
+                  onTap: () => context.push('/debug/theme'),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

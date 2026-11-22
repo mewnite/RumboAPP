@@ -1,9 +1,13 @@
 import tempfile
+import time
 import unittest
+import urllib.error
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 from tool.montevideo_api_proxy import ApiError, ApiProxy, Handler, load_env
+from tool.montevideo_api_proxy import geocoding_query
 
 
 class ApiProxyTest(unittest.TestCase):
@@ -64,6 +68,7 @@ class ApiProxyTest(unittest.TestCase):
         upstream.assert_called_once()
         request = upstream.call_args.args[0]
         self.assertIn("countrycodes=uy", request.full_url)
+        self.assertIn("addressdetails=1", request.full_url)
         self.assertEqual(request.get_header("User-agent"), "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)")
 
     def test_place_search_accepts_app_parameters_and_rejects_unknown_ones(self):
@@ -74,7 +79,7 @@ class ApiProxyTest(unittest.TestCase):
             self.assertEqual(
                 self.proxy.handle(
                     "/geocode?q=Centro&countrycodes=uy&format=jsonv2"
-                    "&limit=5&bias_lat=-34.9&bias_lon=-56.2"
+                    "&limit=5"
                 ),
                 (*payload, {}),
             )
@@ -82,12 +87,30 @@ class ApiProxyTest(unittest.TestCase):
         for path in (
             "/geocode?q=Centro&viewbox=1",
             "/geocode?q=Centro&format=json",
-            "/geocode?q=Centro&bias_lat=-34.9",
+            "/geocode?q=Centro&bias_lat=-34.9&bias_lon=-56.2",
             "/geocode?q=UY",
         ):
             with self.assertRaises(ApiError) as context:
                 self.proxy.handle(path)
             self.assertEqual(context.exception.status, 400)
+
+    def test_place_query_adds_montevideo_context_and_normalizes_crossings(self):
+        self.assertEqual(
+            geocoding_query("Shopping Punta Carretas"),
+            "Shopping Punta Carretas, Montevideo, Uruguay",
+        )
+        self.assertEqual(
+            geocoding_query("Faramiñán x Santa Lucía"),
+            "Faramiñán & Santa Lucía, Montevideo, Uruguay",
+        )
+        self.assertEqual(
+            geocoding_query("18 de Julio y Ejido en Montevideo"),
+            "18 de Julio & Ejido en Montevideo",
+        )
+        self.assertEqual(
+            geocoding_query("Av. Italia 2450, Uruguay"),
+            "Av. Italia 2450, Uruguay",
+        )
 
     def test_geo_request_validates_bounds_and_normalizes_query(self):
         result = (200, "application/json", b"[]")
@@ -166,6 +189,52 @@ class ApiProxyTest(unittest.TestCase):
             load_env(path),
             {"CLIENT_ID": "app-id", "CLIENT_SECRET": "secret"},
         )
+
+    def test_place_search_returns_stale_cache_when_provider_fails(self):
+        stale = (200, "application/json", b'[{"display_name":"Centro"}]')
+        self.proxy._place_responses["centro"] = (
+            time.monotonic() - 48 * 60 * 60,
+            stale,
+        )
+        with patch(
+            "tool.montevideo_api_proxy.urllib.request.urlopen",
+            side_effect=urllib.error.URLError("offline"),
+        ):
+            self.assertEqual(self.proxy._search_places("Centro"), stale)
+
+    def test_reference_data_returns_stale_cache_when_upstream_fails(self):
+        stale = (200, "application/json", b"[]")
+        self.proxy._reference_responses["/buses/busstops"] = (
+            time.monotonic() - 48 * 60 * 60,
+            stale,
+        )
+        with patch.object(
+            self.proxy,
+            "_request_upstream",
+            side_effect=ApiError(502, "offline"),
+        ):
+            self.assertEqual(
+                self.proxy._cached_reference("/buses/busstops"),
+                stale,
+            )
+
+    def test_gtfs_returns_last_valid_archive_when_upstream_is_offline(self):
+        archive = Path(self.directory.name) / "google_transit.zip"
+        archive.write_bytes(b"last-valid-feed")
+        stale_time = time.time() - 48 * 60 * 60
+        os.utime(archive, (stale_time, stale_time))
+        with patch.object(
+            self.proxy._oauth,
+            "access_token",
+            return_value="test-token",
+        ), patch(
+            "tool.montevideo_api_proxy.urllib.request.urlopen",
+            side_effect=urllib.error.URLError("offline"),
+        ):
+            self.assertEqual(
+                self.proxy._gtfs(),
+                (200, "application/zip", b"last-valid-feed"),
+            )
 
 
 if __name__ == "__main__":

@@ -123,6 +123,7 @@
   "mapLiveNeedsTrip": "Indicá origen y destino para ver en vivo los ómnibus que te sirven.",
   "mapLiveEmpty": "El STM no reporta ómnibus en vivo cerca de este punto.",
   "mapLiveServiceDown": "El servicio de ómnibus en vivo no está disponible.",
+  "mapRouteShapeUnavailable": "El feed GTFS no trae un trazado válido para esta variante.",
   "mapBusAge": "hace {seconds} s",
   "@mapBusAge": {
     "placeholders": {
@@ -354,8 +355,8 @@
   "tripDepartureLabel": "Salida",
   "tripChangeDate": "Cambiar fecha",
   "tripChangeTime": "Cambiar hora",
-  "tripNoStops": "No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.",
-  "tripNoPlaces": "No encontramos lugares o direcciones con ese texto.",
+  "tripNoStops": "No encontramos paradas o líneas. Si buscabas una dirección o un lugar, podés buscarlo en línea.",
+  "tripNoPlaces": "No encontramos lugares o direcciones. Probá otra búsqueda o elegí una parada.",
   "tripSearchError": "No se pudo buscar: {error}",
   "@tripSearchError": {
     "placeholders": {
@@ -377,6 +378,7 @@
   "searchRemoteButton": "Buscar lugares en línea",
   "cancel": "Cancelar",
   "tripPlaceResult": "Lugar o dirección · OpenStreetMap",
+  "tripPlaceApproximate": "Ubicación aproximada; verificá el punto en el mapa.",
   "tripStopResult": "Parada del STM",
   "tripGeocodingPrivacy": "La búsqueda combina paradas y lugares. El texto se envía al servicio en línea; tu ubicación actual no se envía.",
   "tripPlaceSearchUnavailable": "La búsqueda de lugares no está configurada en esta instalación.",
@@ -480,6 +482,9 @@
   "activeTripRouteUnavailable": "No están disponibles las paradas de esta variante.",
   "activeTripUnsupported": "El viaje activo solo está disponible en Android y iOS.",
   "activeTripLocationDisabled": "Activá la ubicación para iniciar el seguimiento.",
+  "activeTripLocationPermission": "Permití el acceso a la ubicación para iniciar y mantener este viaje activo.",
+  "activeTripLocationUnavailable": "No se pudo obtener tu ubicación. Probá otra vez cuando el emulador o el teléfono tenga una posición disponible.",
+  "activeTripStorageUnavailable": "No se pudo guardar este viaje en el dispositivo; no se inició el seguimiento.",
   "activeTripNotificationsRequired": "Habilitá las notificaciones de Rumbo para recibir avisos de bajada.",
   "activeTripPermissionTitle": "Permiso de ubicación en segundo plano",
   "activeTripPermissionBody": "Para avisarte cuándo acercarte a bajar aunque uses otras aplicaciones, habilitá «Permitir siempre» en los ajustes. La ubicación se procesa en este dispositivo y el seguimiento se detiene al finalizar el viaje.",
@@ -490,6 +495,12 @@
   "@activeTripNotificationProgress": {
     "placeholders": {
       "stops": { "type": "String" },
+      "stop": { "type": "String" }
+    }
+  },
+  "activeTripNotificationProgressOne": "Queda 1 parada hasta {stop}",
+  "@activeTripNotificationProgressOne": {
+    "placeholders": {
       "stop": { "type": "String" }
     }
   },
@@ -508,11 +519,14 @@
     }
   },
   "activeTripBackgroundNotice": "Rumbo está siguiendo tu viaje en este dispositivo.",  "tripDetailTitle": "Tu recorrido",
-  "tripDetailBetweenStops": "{from} → {to}",
-  "@tripDetailBetweenStops": {
+  "tripDetailWalkInstructions": "Desde {from}, caminá aprox. {meters} m en dirección a {to}. El tramo es una línea estimada y no incluye giros.",
+  "@tripDetailWalkInstructions": {
     "placeholders": {
       "from": {
         "type": "String"
+      },
+      "meters": {
+        "type": "int"
       },
       "to": {
         "type": "String"
@@ -530,7 +544,7 @@
   "tripDetailUnknownStop": "Parada",
   "tripDetailStart": "Salida",
   "tripDetailEnd": "Llegada",
-  "tripDetailWalkStep": "Caminar {meters} m",
+  "tripDetailWalkStep": "Caminata aprox. {meters} m",
   "@tripDetailWalkStep": {
     "placeholders": {
       "meters": {
@@ -577,7 +591,11 @@
   "tripDetailScheduleNotice": "Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.",
   "tripDetailChangeTrip": "Cambiar viaje",
   "tripDetailClose": "Cerrar recorrido",
-  "searchHint": "Buscá una calle, esquina, parada o lugar…",
+  "searchHint": "Calle y número, cruce, parada o lugar…",
+  "searchOnlinePlacesAction": "Buscar direcciones y lugares",
+  "searchOnlinePlacesHint": "Incluye cruces, direcciones con número, shoppings y otros lugares.",
+  "searchApproximateAddress": "Número no confirmado · ubicación aproximada",
+  "searchApproximateIntersection": "Cruce aproximado · punto por tramo de calle",
   "searchRecent": "Búsquedas recientes",
   "searchClearRecent": "Borrar historial",
   "searchEmptyTitle": "Sin resultados",

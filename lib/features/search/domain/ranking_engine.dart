@@ -202,8 +202,12 @@ class SmartRankingEngine {
     switch (candidate.precision) {
       case GeoPrecision.exactDoorNumber:
         return 100.0;
+      case GeoPrecision.unconfirmedDoorNumber:
+        return 30.0;
       case GeoPrecision.intersectionPoint:
         return 95.0;
+      case GeoPrecision.approximateIntersection:
+        return 35.0;
       case GeoPrecision.stopCoordinates:
         return 90.0;
       case GeoPrecision.rooftopPoi:

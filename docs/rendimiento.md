@@ -1,5 +1,29 @@
 # Rendimiento
 
+## Fase 1: desacople del arranque y caché de respaldo
+
+Fecha de ejecución: 2026-11-21.
+
+### Cambios medidos por código y pruebas
+
+| Operación | Resultado después | Estado |
+|---|---|---|
+| Inicio de la app | Ya no ejecuta una consulta `/buses` ni solicita `/health` antes de `runApp` | implementado; falta capturar un dispositivo release |
+| Búsqueda de dirección | El buscador integrado se crea en Android/iOS sin esperar al feed | implementado y cubierto por la suite existente |
+| Planificación | Sigue usando exclusivamente GTFS/SQLite; no lee posiciones GPS para calcular alternativas | implementado y cubierto por pruebas del planificador |
+| Caché de lugares | El proxy conserva el último resultado ante una falla del proveedor | implementado y probado |
+| Datos estáticos de referencia | Líneas y paradas conservan la última respuesta válida ante fallos | implementado y probado |
+| GTFS | Conserva el último ZIP válido ante OAuth/red/HTTP y una actualización inválida | implementado y probado con archivo local |
+| Geocodificación distribuida | Cloudflare normaliza y reutiliza una clave de caché por consulta | implementado; falta medir una instancia desplegada |
+
+### Verificaciones realizadas
+
+- `flutter analyze`: cero errores y warnings.
+- `flutter test`: la suite completa terminó con código 0 antes del ajuste final de lint.
+- `python -m unittest tool/test_montevideo_api_proxy_test.py tool/test_montevideo_api_test.py`: 16 pruebas pasaron.
+- `node --check cloudflare/worker.js`: sintaxis válida.
+- No se declara cumplimiento del objetivo de 5 segundos hasta ejecutar mediciones reales de interfaz, red Render y dispositivos.
+
 ## Fase 0: línea base
 
 Fecha de ejecución: 2026-10-28.
@@ -226,3 +250,117 @@ El primer frame y la disponibilidad del feed mejoraron, pero el mapa nativo y
 la base GTFS de 198 MB mantienen el consumo de memoria por encima del objetivo.
 La medición de buses en vivo queda pendiente hasta iniciar el proxy oficial de
 desarrollo; no se inventan posiciones ni tiempos.
+
+## Fase 2: auditoría profunda y optimizaciones medibles
+
+Fecha de ejecución: 2026-11-21.
+
+### Diagnóstico probado
+
+- RSS distingue la memoria residente del proceso de memoria Dart y nativa:
+  la medición existente registra RSS con `ProcessInfo.currentRss`.
+- En las pruebas FFI, RSS quedó en 175-176 MB para una base sintética; no se
+  compara con el RSS Android histórico de 717,5 MB porque los entornos son
+  distintos.
+- MapLibre mantiene su caché nativa de teselas y puede estar fuera del heap
+  Dart. La caché ambiental se limita a 256 MB y debe configurarse al crear el
+  mapa; no se encontró una copia de GTFS cargada completa en memoria durante
+  consultas normales.
+- La base vive en una sola conexión readonly reutilizada. Abrir el archivo
+  como escribible y dejarlo abierto no era parte del camino normal.
+- El planificador ya limita endpoints a 15 paradas, consulta solo viajes
+  relevantes y ejecuta la construcción de índices fuera del isolate principal.
+- Se encontraron tres índices compuestos sin crear: viajes por variante y hora,
+  viajes por servicio y excepciones de calendario por servicio/fecha/tipo.
+- La carga de salidas de una variante todavía debía limitarse antes de
+  calcular el conjunto final de horarios.
+- Las búsquedas locales repetidas compartían el mismo índice, pero no tenían
+  caché acotada ni un índice de candidatos por bigramas.
+- Las formas cargadas para planes anteriores podían permanecer en memoria hasta
+  reemplazar toda la pantalla. Ahora se podan al cargar un nuevo plan.
+- Las respuestas simultáneas de buses podían aplicar una respuesta antigua
+  sobre una consulta nueva. Se agregó invalidación por generación.
+
+### Optimizaciones implementadas
+
+| Área | Cambio | Evidencia |
+|---|---|---|
+| SQLite | Versión de esquema 7 e índices compuestos para variantes, servicios y excepciones | Cubierto por `EXPLAIN QUERY PLAN` |
+| SQLite | Las próximas salidas de una variante consultan como máximo 40 o 4 veces el límite solicitado | Evita materializar viajes innecesarios |
+| Búsqueda | Índice de candidatos normalizados por bigramas construido una vez | Escanea menos entradas antes del ranking |
+| Búsqueda | Caché in-memory limitada a 32 consultas y consultas por 20 resultados | Evita trabajo repetido en la misma sesión |
+| Planificador | Conserva límite de 15 candidatos y aislamiento del cálculo puro | Sin cambios de GPS ni datos simulados |
+| Mapa | Poda las formas de viaje que dejan de pertenecer al plan seleccionado | Reduce retención de geometrías |
+| Mapa | Las respuestas de live buses obsoletas se descartan por generación | Evita estado tardío y políticas duplicadas |
+
+### Mediciones verificadas
+
+| Medición | Antes | Después | Entorno |
+|---|---:|---:|---|
+| Importación GTFS sintético | 356 ms | 268 ms | Linux/Dart en el equipo; 2202 bytes y 48 stop_times |
+| RSS prueba SQLite sintética | 226,5 MB | 175,4 MB | FFI local; no Android |
+| Plan típico del test | 54 ms | 59 ms | Flutter test local; datos sintéticos |
+| Base sintética con esquemas previos | 106496 bytes | 118784 bytes | FFI local; el crecimiento incluye índices adicionales |
+| Caché de búsqueda repetida | no medido antes | prueba `< 100 ms` | Flutter test local |
+
+Estas cifras son reproducibles en pruebas locales, no sustituyen mediciones
+Android release. No se declara cumplimiento de la meta RSS de 300 MB ni de los
+objetivos de primer frame hasta capturar un dispositivo físico o un emulador
+documentado por separado.
+
+### Consultas lentas y planes
+
+`transit_query_plan_test.dart` verifica con FFI que:
+
+- `nearbyStops` usa `stops_lat_lon`.
+- las llegadas usan `pattern_stops_stop_id` y
+  `trips_pattern_service_start`.
+- el detalle de parada usa el índice de clave primaria.
+- las salidas por variante usan `trips_variant_start`.
+- las excepciones usan `calendar_exceptions_service_date_type`.
+- la base abierta en modo lectura rechaza escrituras.
+
+### Archivos modificados
+
+- [`transit_database.dart`](../lib/features/stops_and_lines/data/transit_database.dart):
+  migración de esquema e índices.
+- [`sqflite_transit_repository.dart`](../lib/features/stops_and_lines/data/sqflite_transit_repository.dart):
+  límite de materialización de salidas.
+- [`transit_search_index.dart`](../lib/features/search/data/transit_search_index.dart):
+  candidatos por bigramas y caché acotada.
+- [`map_screen.dart`](../lib/features/map/presentation/map_screen.dart):
+  poda de formas y cachés al desmontar.
+- [`live_buses_controller.dart`](../lib/features/map/presentation/live_buses_controller.dart):
+  invalidación de consultas obsoletas.
+- [`transit_query_plan_test.dart`](../test/transit_query_plan_test.dart) y
+  [`transit_search_index_test.dart`](../test/search/transit_search_index_test.dart):
+  pruebas del plan SQL y caché.
+
+### Pruebas ejecutadas
+
+- `flutter analyze`: cero errores ni warnings.
+- Suite focalizada: 25 pruebas superadas.
+- `flutter test`: suite completa superada.
+- `flutter build apk --release`: APK generado en
+  `build/app/outputs/flutter-apk/app-release.apk`, tamaño 89,9 MB.
+
+### Problemas pendientes
+
+- Falta capturar RSS Dart, RSS nativo, heap Dart y tiles MapLibre en Android
+  debug/profile/release.
+- Falta una base GTFS oficial real: los tamaños y tiempos sintéticos no pueden
+  estimar 198 MB ni la distribución real de recorridos.
+- Falta medir búsquedas remotas, primera tesela, marcos omitidos y posición GPS
+  en dispositivos físicos separados de emuladores.
+- La primera y segunda fase no deben declarar éxito de memoria sin esa
+  medición.
+
+### Recomendación siguiente
+
+Antes de cambiar el motor, algoritmo o estructura GTFS:
+
+1. Capturar Android release con la base real y una matriz debug/profile/release.
+2. Registrar heap Dart, RSS, memoria nativa/gráfica y tamaños por tabla/índice.
+3. Medir resultados por consulta SQL con `EXPLAIN QUERY PLAN` y datos reales.
+4. Comparar RAPTOR solo si las mediciones muestran que el planificador puro ya
+   consume una fracción relevante del presupuesto.

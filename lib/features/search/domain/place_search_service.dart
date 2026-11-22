@@ -14,8 +14,6 @@ abstract interface class LocalTransitSearchRepository {
 abstract interface class GeocodingRepository {
   Future<List<SearchResult>> searchRemote(
     ParsedQuery query, {
-    double? biasLatitude,
-    double? biasLongitude,
     int limit = 10,
     Future<void>? abortTrigger,
   });
@@ -104,8 +102,6 @@ class DefaultPlaceSearchService implements PlaceSearchService {
       try {
         final remoteCandidates = await geocodingRepo.searchRemote(
           parsed,
-          biasLatitude: userLatitude,
-          biasLongitude: userLongitude,
           limit: 10,
           abortTrigger: remoteAbortTrigger,
         );

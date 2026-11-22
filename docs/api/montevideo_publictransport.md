@@ -91,11 +91,14 @@ Uso:
 
 - Búsqueda de direcciones completas, intersecciones, barrios, POIs y otras ubicaciones.
 - El proyecto la usa como capa remota opcional para el buscador de destinos.
+- Las consultas libres se contextualizan en Montevideo, Uruguay; separadores como `y`, `x`, `esquina`, `esq.` y `/` se convierten a una búsqueda de cruce.
+- La búsqueda en línea empieza solo después de tocar el botón correspondiente y aceptar el aviso. La aceptación se recuerda en el dispositivo.
 
 Notas:
 
 - Si el usuario no habilita la búsqueda remota en ajustes, la app usa solo datos locales.
-- La ubicación precisa del usuario solo se usa en el dispositivo para desempatar resultados y no se envía al backend.
+- Se envía el texto de búsqueda al geocodificador. La ubicación precisa del usuario solo se usa en el dispositivo para desempatar resultados y no se envía al backend ni al proveedor.
+- Un número de puerta se presenta como exacto solo si el resultado del proveedor confirma ese número; los tramos de calle y cruces sin punto confirmado se marcan como aproximados.
 - La geocodificación solo se habilita si está documentada y configurada en la app.
 
 ### 4.5 Planificación de rutas
@@ -110,6 +113,21 @@ No se documenta un endpoint de planificación real en este repositorio. La capa 
 - prioridad por llegada y por menor cantidad de transferencias.
 
 Si se habilita un servicio oficial de planificación en el futuro, debe tener un switch explícito en ajustes y una advertencia clara de que origen y destino se envían a servidores externos.
+
+La API pública documenta posiciones de vehículos y arribos por parada; no
+publica geometrías de variantes ni un planificador A→B. Rumbo dibuja el trazado
+con los `shapes.txt` del GTFS estático y muestra las posiciones de la API como
+marcadores separados. La relación entre `lineVariantId` de la flota y la
+variante/shape del GTFS debe estar confirmada para cada feed; cuando no hay
+shape válida, una línea recta entre extremos no debe presentarse como trazado
+real; la app omite el trazo de esa variante y avisa que falta geometría. La
+cobertura y frescura del GTFS, además del contrato de esa relación, impiden
+prometer exactitud del 100 %.
+
+Los tramos peatonales del planificador son distancias en línea recta entre
+coordenadas. La pantalla indica origen, destino y distancia aproximada, pero no
+puede dar giros por calles mientras no exista un proveedor de ruteo peatonal
+configurado y aprobado.
 
 ## 5. Límite y comportamiento de red
 

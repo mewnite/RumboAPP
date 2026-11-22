@@ -7,6 +7,7 @@ import 'package:rumbo/features/map/domain/location_repository.dart';
 import 'package:rumbo/features/map/presentation/map_location_controller.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/trip_detail/data/active_trip_notifications.dart';
+import 'package:rumbo/features/trip_detail/data/active_trip_storage.dart';
 import 'package:rumbo/features/trip_detail/presentation/active_trip_controller.dart';
 
 class _StreamingLocationRepository implements LocationRepository {
@@ -58,6 +59,19 @@ class _RecordingNotifications implements ActiveTripNotifications {
   Future<void> cancel() async => cancelCount++;
 }
 
+class _MemoryActiveTripStorage implements ActiveTripStorage {
+  ActiveTripSnapshot? snapshot;
+
+  @override
+  Future<ActiveTripSnapshot?> read() async => snapshot;
+
+  @override
+  Future<void> write(ActiveTripSnapshot value) async => snapshot = value;
+
+  @override
+  Future<void> clear() async => snapshot = null;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -66,10 +80,12 @@ void main() {
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final locations = _StreamingLocationRepository();
     final notifications = _RecordingNotifications();
+    final storage = _MemoryActiveTripStorage();
     final container = ProviderContainer(
       overrides: [
         locationRepositoryProvider.overrideWithValue(locations),
         activeTripNotificationsProvider.overrideWithValue(notifications),
+        activeTripStorageProvider.overrideWithValue(storage),
       ],
     );
     addTearDown(container.dispose);
@@ -87,12 +103,15 @@ void main() {
       destinationStop: stops.last,
       progressTitle: 'Viaje activo',
       progressBody: '{stops} paradas hasta {stop}',
+      progressBodySingular: 'Queda 1 parada hasta {stop}',
       alertTitle: 'Próxima parada',
       alertBody: 'Bajar en {stop}',
       backgroundNotificationText: 'Seguimiento activo',
     );
 
     expect(result, ActiveTripStartResult.started);
+    expect(notifications.progress.single.$2, '3 paradas hasta Bajada');
+    expect(storage.snapshot?.stopsRemaining, 3);
     locations.locations.add(
       const DeviceLocation(
         latitude: -34.9,
@@ -104,11 +123,62 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(container.read(activeTripControllerProvider).isActive, isTrue);
-    expect(notifications.progress.last.$2, '1 paradas hasta Bajada');
+    expect(notifications.progress.last.$2, 'Queda 1 parada hasta Bajada');
     expect(notifications.alerts.single.$2, 'Bajar en Bajada');
+    expect(storage.snapshot?.stopsRemaining, 1);
 
     await notifier.stop();
     expect(container.read(activeTripControllerProvider).isActive, isFalse);
     expect(notifications.cancelCount, 1);
+    expect(storage.snapshot, isNull);
   });
+
+  test(
+    'restores the same route and progress after the controller is recreated',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      const stops = [
+        Stop(id: 'a', name: 'Subida', latitude: -34.9, longitude: -56.20),
+        Stop(id: 'b', name: 'Una antes', latitude: -34.9, longitude: -56.19),
+        Stop(id: 'c', name: 'Destino', latitude: -34.9, longitude: -56.18),
+      ];
+      final storage = _MemoryActiveTripStorage()
+        ..snapshot = ActiveTripSnapshot(
+          variantStops: stops,
+          destinationStopId: 'c',
+          targetStopName: 'Destino',
+          stopsRemaining: 1,
+          progressTitle: 'Viaje activo',
+          progressBody: '{stops} paradas hasta {stop}',
+          progressBodySingular: 'Queda 1 parada hasta {stop}',
+          alertTitle: 'Próxima parada',
+          alertBody: 'Bajar en {stop}',
+          backgroundNotificationText: 'Seguimiento activo',
+        );
+      final locations = _StreamingLocationRepository();
+      final notifications = _RecordingNotifications();
+      final container = ProviderContainer(
+        overrides: [
+          locationRepositoryProvider.overrideWithValue(locations),
+          activeTripNotificationsProvider.overrideWithValue(notifications),
+          activeTripStorageProvider.overrideWithValue(storage),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(locations.locations.close);
+
+      final notifier = container.read(activeTripControllerProvider.notifier);
+      await notifier.ready;
+      final restored = container.read(activeTripControllerProvider);
+      expect(restored.isActive, isTrue);
+      expect(restored.isTracking, isTrue);
+      expect(restored.targetStopName, 'Destino');
+      expect(restored.stopsRemaining, 1);
+      expect(notifications.progress.single.$2, 'Queda 1 parada hasta Destino');
+
+      await notifier.stop();
+      expect(storage.snapshot, isNull);
+    },
+  );
 }

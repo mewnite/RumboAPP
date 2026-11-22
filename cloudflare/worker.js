@@ -30,6 +30,18 @@ function errorResponse(status, message) {
   return jsonResponse({ error: message }, status);
 }
 
+function geocodingQuery(text) {
+  const intersection = text.match(
+    /^\s*(.+)\s+(?:y|x|esq\.?(?:\s+(?:de|con))?|esquina(?:\s+(?:de|con))?|con|\/|&)\s+(.+?)\s*$/i,
+  );
+  const scoped = intersection
+    ? `${intersection[1].trim()} & ${intersection[2].trim()}`
+    : text.trim();
+  return /\b(?:montevideo|uruguay)\b/i.test(scoped)
+    ? scoped
+    : `${scoped}, Montevideo, Uruguay`;
+}
+
 function copyResponse(response, cacheSeconds = 0) {
   const headers = new Headers(corsHeaders(
     response.headers.get('content-type') || 'application/json',
@@ -214,17 +226,22 @@ async function handle(request, env, ctx) {
       if (text.length < 3 || text.length > 160) {
         return errorResponse(400, 'La búsqueda debe tener entre 3 y 160 caracteres.');
       }
-      const intersection = text.match(
-        /^\s*(.+?)\s+(?:y|esq\.?|esquina|con|\/)\s+(.+?)\s*$/i,
+      const normalizedText = text
+        .toLocaleLowerCase('es')
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const cacheKey = new Request(
+        `${url.origin}/geocode?q=${encodeURIComponent(normalizedText)}`
       );
-      query.set(
-        'q',
-        intersection
-          ? `${intersection[1].trim()} & ${intersection[2].trim()}, Montevideo, Uruguay`
-          : text,
-      );
+      const cache = caches.default;
+      const cached = await cache.match(cacheKey);
+      if (cached) return cached;
+      query.set('q', geocodingQuery(text));
       query.set('format', 'jsonv2');
       query.set('countrycodes', 'uy');
+      query.set('addressdetails', '1');
       query.set('limit', '5');
       const response = await fetch(`${GEOCODING_API}?${query}`, {
         headers: {
@@ -232,7 +249,9 @@ async function handle(request, env, ctx) {
           'User-Agent': 'RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)',
         },
       });
-      return copyResponse(response, 86_400);
+      const result = copyResponse(response, 86_400);
+      if (response.ok) ctx.waitUntil(cache.put(cacheKey, result.clone()));
+      return result;
     } else if (url.pathname === '/api/linevariants') {
       upstreamPath = '/buses/linevariants';
       cacheSeconds = 86_400;

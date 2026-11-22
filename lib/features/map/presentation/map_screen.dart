@@ -122,6 +122,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   int _mapGeneration = 0;
   bool _mapLoading = true;
   bool _mapError = false;
+  bool _mapStyleReady = false;
+  bool _pendingLocationRecenter = false;
+  Future<void>? _locationRequestInFlight;
   bool _mapVisible = false;
   bool _appResumed = true;
   bool _realtimeAttached = false;
@@ -136,9 +139,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
   bool? _lastDarkTheme;
   int? _mapLayerSignature;
   List<Layer>? _cachedMapLayers;
-  List<Stop>? _cachedFallbackShapeStops;
-  String? _cachedFallbackShapeVariantId;
-  Shape? _cachedFallbackShape;
   List<BusPosition>? _cachedBusSourcePositions;
   LiveBusesBounds? _cachedBusBounds;
   Set<String> _cachedBusLines = const {};
@@ -225,6 +225,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void dispose() {
     _mapLoadTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    _tripPlanShapes.clear();
+    _cachedMapLayers = null;
+    _cachedVisibleBuses = null;
+    _cachedBusSourcePositions = null;
+    _cachedBusBounds = null;
     if (_realtimeAttached) {
       _liveBusesController?.pausePolling();
     }
@@ -260,6 +265,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   void _beginMapLoad() {
+    _mapStyleReady = false;
     setState(() {
       _mapLoading = true;
       _mapError = false;
@@ -269,6 +275,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   void _retryMap() {
     _mapController = null;
+    _mapStyleReady = false;
     setState(() {
       _mapGeneration++;
       _mapLoading = true;
@@ -331,6 +338,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _onMapCreated(MapController controller) async {
     _mapController = controller;
+    _mapStyleReady = false;
     _startMapLoadTimer();
     _updateMetersPerPixel();
     _updateVisibleBounds();
@@ -342,6 +350,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   void _onStyleLoaded(StyleController _) {
+    _mapStyleReady = true;
     _mapLoadTimer?.cancel();
     // getVisibleRegion may be unavailable in onMapCreated until the native
     // map style has finished loading; refresh bounds now so the first bus
@@ -352,6 +361,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _mapLoading = false;
         _mapError = false;
       });
+    }
+    if (_pendingLocationRecenter) {
+      unawaited(_centerMapOnCurrentLocation());
     }
   }
 
@@ -516,7 +528,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  Future<void> _requestLocation({BuildContext? dialogContext}) async {
+  Future<void> _requestLocation({BuildContext? dialogContext}) {
+    final inFlight = _locationRequestInFlight;
+    if (inFlight != null) return inFlight;
+
+    final request = _performLocationRequest(dialogContext: dialogContext);
+    _locationRequestInFlight = request;
+    return request.whenComplete(() {
+      if (identical(_locationRequestInFlight, request)) {
+        _locationRequestInFlight = null;
+      }
+    });
+  }
+
+  Future<void> _performLocationRequest({BuildContext? dialogContext}) async {
     final l10n = AppLocalizations.of(context);
     final preferences = await SharedPreferences.getInstance();
     var shouldContinue =
@@ -564,17 +589,32 @@ class _MapScreenState extends ConsumerState<MapScreen>
         ..showSnackBar(SnackBar(content: Text(message)));
       return;
     }
-    final position = Geographic(
-      lon: location.longitude,
-      lat: location.latitude,
-    );
-    await _mapController?.animateCamera(
-      center: position,
-      zoom: 15,
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
-      ),
-    );
+    _pendingLocationRecenter = true;
+    await _centerMapOnCurrentLocation();
+  }
+
+  Future<void> _centerMapOnCurrentLocation() async {
+    final location = ref.read(mapLocationControllerProvider).location;
+    final controller = _mapController;
+    if (location == null || !mounted) return;
+    if (controller == null || !_mapStyleReady) {
+      _pendingLocationRecenter = true;
+      return;
+    }
+
+    try {
+      await controller.animateCamera(
+        center: Geographic(lon: location.longitude, lat: location.latitude),
+        zoom: 15,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+        ),
+      );
+    } on Exception {
+      _pendingLocationRecenter = true;
+      return;
+    }
+    _pendingLocationRecenter = false;
     _updateMetersPerPixel();
     _updateVisibleBounds();
   }
@@ -585,11 +625,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }) async {
     final l10n = AppLocalizations.of(context);
     final location = ref.read(mapLocationControllerProvider).location;
-    final feed = ref.read(feedUpdateControllerProvider).asData?.value;
-    final hasOfficialFeed = hasOfficialTransitData(feed);
-    final searchService = hasOfficialFeed
-        ? ref.read(searchServiceProvider)
-        : null;
+    final searchService = ref.read(searchServiceProvider);
     final remotePlaceSearchEnabled =
         ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
     final placeSource = transitConfig.placeSearchEndpoint.isEmpty
@@ -670,13 +706,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
             unawaited(_showLineDetails(route));
           },
           searchStops: (query) async {
-            final feed = ref.read(feedUpdateControllerProvider).asData?.value;
-            if (!hasOfficialTransitData(feed)) {
-              // Without an official feed there are no stops to search, but
-              // address search must remain available. Planning will still
-              // report the missing feed when the person tries to search trips.
-              return const [];
-            }
             return ref.read(transitRepositoryProvider).searchStops(query);
           },
           searchPlaces: (query) async {
@@ -786,6 +815,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
             '{stops}',
             '{stop}',
           ),
+          progressBodySingular: l10n.activeTripNotificationProgressOne(
+            '{stop}',
+          ),
           alertTitle: l10n.activeTripAlertTitle,
           alertBody: l10n.activeTripAlertBody('{stop}'),
           backgroundNotificationText: l10n.activeTripBackgroundNotice,
@@ -800,10 +832,16 @@ class _MapScreenState extends ConsumerState<MapScreen>
         _showMessage(l10n.activeTripUnsupported);
       case ActiveTripStartResult.serviceDisabled:
         _showMessage(l10n.activeTripLocationDisabled);
+      case ActiveTripStartResult.locationPermissionRequired:
+        _showMessage(l10n.activeTripLocationPermission);
       case ActiveTripStartResult.backgroundPermissionRequired:
         await _showBackgroundPermissionHelp();
+      case ActiveTripStartResult.locationUnavailable:
+        _showMessage(l10n.activeTripLocationUnavailable);
       case ActiveTripStartResult.notificationsPermissionRequired:
         _showMessage(l10n.activeTripNotificationsRequired);
+      case ActiveTripStartResult.storageUnavailable:
+        _showMessage(l10n.activeTripStorageUnavailable);
       case ActiveTripStartResult.invalidRoute:
         _showMessage(l10n.activeTripRouteUnavailable);
     }
@@ -912,8 +950,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
       case MapLocationStatus.error:
         await _requestLocation();
       case MapLocationStatus.idle:
-      case MapLocationStatus.loading:
       case MapLocationStatus.available:
+        await _requestLocation();
+      case MapLocationStatus.loading:
         break;
     }
   }
@@ -1047,27 +1086,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
     ];
   }
 
-  Shape _fallbackShapeFor(String variantId, List<Stop> stops) {
-    final cached = _cachedFallbackShape;
-    if (identical(stops, _cachedFallbackShapeStops) &&
-        variantId == _cachedFallbackShapeVariantId &&
-        cached != null) {
-      return cached;
-    }
-
-    final shape = Shape(
-      id: variantId,
-      points: [
-        for (var index = 0; index < stops.length; index++)
-          ShapePoint(stops[index].latitude, stops[index].longitude, index),
-      ],
-    );
-    _cachedFallbackShapeStops = stops;
-    _cachedFallbackShapeVariantId = variantId;
-    _cachedFallbackShape = shape;
-    return shape;
-  }
-
   List<BusPosition> _visibleBusesFor(
     LiveBusesState state, {
     required Set<String> selectedLines,
@@ -1104,9 +1122,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
     required bool isDark,
   }) {
     final location = locationState.location;
-    final shapeKey = shape == null
-        ? Object.hash(_selectedVariantId, identityHashCode(fallbackStops))
-        : identityHashCode(shape);
+    final shapeKey = identityHashCode(shape);
+    final routeStopsKey = identityHashCode(fallbackStops);
     final locationKey = Object.hash(
       locationState.status,
       location?.latitude,
@@ -1119,6 +1136,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       identityHashCode(stops),
       identityHashCode(_selectedTripPlan),
       shapeKey,
+      routeStopsKey,
       locationKey,
       busKey,
       _selectedStopId,
@@ -1130,7 +1148,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final layers = <Layer>[
       ..._tripPlanLayers(_selectedTripPlan),
       ..._selectedRouteLayers(shape),
-      ..._stopLayers(stops),
+      ..._stopLayers(
+        {
+          for (final stop in [...stops, ...?fallbackStops]) stop.id: stop,
+        }.values.toList(growable: false),
+      ),
       ..._busLayers(
         _selectedTripPlan == null
             ? buses
@@ -1170,6 +1192,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       final shape = leg.kind == TripLegKind.transit && leg.variant != null
           ? _tripPlanShapes[leg.variant!.id]
           : null;
+      if (leg.kind == TripLegKind.transit && shape == null) continue;
       final points = shape == null
           ? [
               Geographic(lon: fromLon, lat: fromLat),
@@ -1308,6 +1331,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
           leg.variant!,
     };
     if (variants.isEmpty) return;
+    final variantIds = variants.map((variant) => variant.id).toSet();
+    _tripPlanShapes.removeWhere((id, _) => !variantIds.contains(id));
     final shapes = await Future.wait(
       variants.map(
         (variant) async => MapEntry(
@@ -1595,18 +1620,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
       selectedLines: selectedRoute == null ? const {} : selectedLines,
       selectedVariantIds: selectedRoute == null ? const {} : selectedVariantIds,
     );
-    final selectedShape = _selectedVariantId == null
+    final selectedShapeAsync = _selectedVariantId == null
         ? null
-        : ref.watch(routeShapeProvider(_selectedVariantId!)).asData?.value;
+        : ref.watch(routeShapeProvider(_selectedVariantId!));
+    final selectedShape = selectedShapeAsync?.asData?.value;
     final fallbackStops = _selectedVariantId == null
         ? null
         : ref.watch(variantStopsProvider(_selectedVariantId!)).asData?.value;
-    final effectiveShape =
-        (selectedShape != null && selectedShape.points.length >= 2)
-        ? selectedShape
-        : (fallbackStops != null && fallbackStops.length >= 2
-              ? _fallbackShapeFor(_selectedVariantId!, fallbackStops)
-              : null);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mapBuilder =
         widget.mapBuilder ?? ref.watch(mapBuilderOverrideProvider);
@@ -1627,7 +1647,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           layers: _mapLayers(
             stops: stops,
             fallbackStops: fallbackStops,
-            shape: effectiveShape,
+            shape: selectedShape,
             locationState: locationState,
             buses: busesInVisibleArea,
             isDark: isDark,
@@ -1722,6 +1742,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         icon: Symbols.cloud_off_rounded,
                         label: l10n.mapLiveServiceDown,
                       ),
+                    if (_selectedVariantId != null &&
+                        selectedShapeAsync?.hasValue == true &&
+                        (selectedShape == null ||
+                            selectedShape.points.length < 2))
+                      _InfoBanner(
+                        icon: Symbols.route_rounded,
+                        label: l10n.mapRouteShapeUnavailable,
+                      ),
                     _LocationBanner(
                       status: locationState.status,
                       onAction: () =>
@@ -1747,7 +1775,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
                       shape: const CircleBorder(),
                       child: IconButton(
                         tooltip: l10n.locationRecenter,
-                        onPressed: _requestLocation,
+                        onPressed: () =>
+                            _handleLocationAction(locationState.status),
                         icon: locationState.status == MapLocationStatus.loading
                             ? const SizedBox.square(
                                 dimension: 20,
@@ -1905,13 +1934,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
                             unawaited(_showTripSearch());
                           },
                           onCloseTrip: () {
-                            if (activeTrip.isActive) {
-                              unawaited(
-                                ref
-                                    .read(activeTripControllerProvider.notifier)
-                                    .stop(),
-                              );
-                            }
                             ref
                                 .read(liveBusesControllerProvider.notifier)
                                 .setSelectedLines(const {});
@@ -1937,6 +1959,28 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 12),
+                        if (activeTrip.isActive &&
+                            activeTrip.stopsRemaining != null) ...[
+                          TripProgressCard(
+                            title: l10n.activeTripNotificationTitle,
+                            subtitle: l10n.activeTripStopsRemaining(
+                              activeTrip.stopsRemaining!,
+                              activeTrip.targetStopName ??
+                                  l10n.tripDetailUnknownStop,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          PrimaryActionButton(
+                            onPressed: () => unawaited(
+                              ref
+                                  .read(activeTripControllerProvider.notifier)
+                                  .stop(),
+                            ),
+                            icon: const Icon(Symbols.stop_circle_rounded),
+                            label: l10n.activeTripFinish,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         if (transitConfig.url.isNotEmpty &&
                             stops.isNotEmpty) ...[
                           Text(

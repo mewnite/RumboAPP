@@ -40,9 +40,26 @@ PLACE_QUERY_PARAMETERS = {
     "countrycodes",
     "format",
     "limit",
-    "bias_lat",
-    "bias_lon",
 }
+INTERSECTION_QUERY = re.compile(
+    r"^\s*(.+)\s+(?:y|x|esq\.?(?:\s+(?:de|con))?|"
+    r"esquina(?:\s+(?:de|con))?|con|/|&)\s+(.+?)\s*$",
+    flags=re.IGNORECASE,
+)
+MONTEVIDEO_CONTEXT = re.compile(r"\b(?:montevideo|uruguay)\b", re.IGNORECASE)
+
+
+def geocoding_query(search: str) -> str:
+    """Add local city context and turn common intersection syntax into a crossing."""
+    match = INTERSECTION_QUERY.match(search)
+    scoped_search = (
+        f"{match.group(1).strip()} & {match.group(2).strip()}"
+        if match
+        else search.strip()
+    )
+    if MONTEVIDEO_CONTEXT.search(scoped_search):
+        return scoped_search
+    return f"{scoped_search}, Montevideo, Uruguay"
 
 
 class ApiError(Exception):
@@ -194,19 +211,6 @@ class ApiProxy:
                 raise ApiError(
                     400, "El límite de búsqueda debe estar entre 1 y 10."
                 )
-        if ("bias_lat" in values) != ("bias_lon" in values):
-            raise ApiError(400, "La referencia de búsqueda está incompleta.")
-        if "bias_lat" in values:
-            try:
-                latitude = float(values["bias_lat"][0])
-                longitude = float(values["bias_lon"][0])
-            except ValueError:
-                raise ApiError(400, "La referencia de búsqueda no es válida.") from None
-            if (
-                not -90 <= latitude <= 90
-                or not -180 <= longitude <= 180
-            ):
-                raise ApiError(400, "La referencia de búsqueda está fuera de rango.")
         return search
 
     def _search_places(self, search: str) -> tuple[int, str, bytes]:
@@ -222,22 +226,13 @@ class ApiProxy:
             wait = 1.0 - (now - self._last_place_request)
             if wait > 0:
                 time.sleep(wait)
-            intersection = re.match(
-                r"^\s*(.+?)\s+(?:y|esq\.?|esquina|con|/)\s+(.+?)\s*$",
-                search,
-                flags=re.IGNORECASE,
-            )
-            upstream_search = search
-            if intersection:
-                upstream_search = (
-                    f"{intersection.group(1).strip()} & "
-                    f"{intersection.group(2).strip()}, Montevideo, Uruguay"
-                )
+            upstream_search = geocoding_query(search)
             params = urllib.parse.urlencode(
                 {
                     "q": upstream_search,
                     "countrycodes": "uy",
                     "format": "jsonv2",
+                    "addressdetails": "1",
                     "limit": "5",
                 }
             )
@@ -260,11 +255,15 @@ class ApiProxy:
                         body,
                     )
             except urllib.error.HTTPError as error:
+                if cached is not None:
+                    return cached[1]
                 raise ApiError(
                     502,
                     f"El servicio de lugares respondió HTTP {error.code}.",
                 ) from None
             except (urllib.error.URLError, TimeoutError):
+                if cached is not None:
+                    return cached[1]
                 raise ApiError(502, "No se pudo conectar al servicio de lugares.") from None
             self._place_responses[cache_key] = (time.monotonic(), result)
             return result
@@ -325,7 +324,12 @@ class ApiProxy:
             cached = self._reference_responses.get(api_path)
             if cached is not None and now - cached[0] < REFERENCE_DATA_CACHE_SECONDS:
                 return cached[1]
-            result = self._request_upstream(api_path, max_bytes=10 * 1024 * 1024)
+            try:
+                result = self._request_upstream(api_path, max_bytes=10 * 1024 * 1024)
+            except ApiError:
+                if cached is not None:
+                    return cached[1]
+                raise
             self._reference_responses[api_path] = (now, result)
             return result
 
@@ -370,7 +374,12 @@ class ApiProxy:
         ):
             return 200, "application/zip", archive_path.read_bytes()
 
-        token = self._oauth.access_token()
+        try:
+            token = self._oauth.access_token()
+        except ApiError:
+            if archive_path.exists():
+                return 200, "application/zip", archive_path.read_bytes()
+            raise
         url = f"{API_BASE}/buses/gtfs/static/latest/google_transit.zip"
         request = urllib.request.Request(
             url,
@@ -384,12 +393,18 @@ class ApiProxy:
             with urllib.request.urlopen(request, timeout=90) as response:
                 body = response.read(MAX_GTFS_BYTES + 1)
         except urllib.error.HTTPError as error:
+            if archive_path.exists():
+                return 200, "application/zip", archive_path.read_bytes()
             raise ApiError(
                 502, f"La descarga GTFS respondió HTTP {error.code}."
             ) from None
         except (urllib.error.URLError, TimeoutError):
+            if archive_path.exists():
+                return 200, "application/zip", archive_path.read_bytes()
             raise ApiError(502, "No se pudo descargar el feed GTFS.") from None
         if len(body) > MAX_GTFS_BYTES:
+            if archive_path.exists():
+                return 200, "application/zip", archive_path.read_bytes()
             raise ApiError(502, "El ZIP GTFS supera el límite local de 100 MiB.")
         try:
             with zipfile.ZipFile(io.BytesIO(body)) as archive:
@@ -397,6 +412,8 @@ class ApiProxy:
                 if not required.issubset(set(archive.namelist())):
                     raise ApiError(502, "El ZIP GTFS no contiene los archivos requeridos.")
         except zipfile.BadZipFile:
+            if archive_path.exists():
+                return 200, "application/zip", archive_path.read_bytes()
             raise ApiError(502, "El servicio no devolvió un ZIP GTFS válido.") from None
         temporary_path = archive_path.with_suffix(".tmp")
         temporary_path.write_bytes(body)

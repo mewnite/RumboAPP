@@ -285,6 +285,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'El servicio de ómnibus en vivo no está disponible.';
 
   @override
+  String get mapRouteShapeUnavailable =>
+      'El feed GTFS no trae un trazado válido para esta variante.';
+
+  @override
   String mapBusAge(int seconds) {
     return 'hace $seconds s';
   }
@@ -705,11 +709,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripNoStops =>
-      'No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.';
+      'No encontramos paradas o líneas. Si buscabas una dirección o un lugar, podés buscarlo en línea.';
 
   @override
   String get tripNoPlaces =>
-      'No encontramos lugares o direcciones con ese texto.';
+      'No encontramos lugares o direcciones. Probá otra búsqueda o elegí una parada.';
 
   @override
   String tripSearchError(String error) {
@@ -760,6 +764,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripPlaceResult => 'Lugar o dirección · OpenStreetMap';
+
+  @override
+  String get tripPlaceApproximate =>
+      'Ubicación aproximada; verificá el punto en el mapa.';
 
   @override
   String get tripStopResult => 'Parada del STM';
@@ -893,6 +901,18 @@ class AppLocalizationsEs extends AppLocalizations {
       'Activá la ubicación para iniciar el seguimiento.';
 
   @override
+  String get activeTripLocationPermission =>
+      'Permití el acceso a la ubicación para iniciar y mantener este viaje activo.';
+
+  @override
+  String get activeTripLocationUnavailable =>
+      'No se pudo obtener tu ubicación. Probá otra vez cuando el emulador o el teléfono tenga una posición disponible.';
+
+  @override
+  String get activeTripStorageUnavailable =>
+      'No se pudo guardar este viaje en el dispositivo; no se inició el seguimiento.';
+
+  @override
   String get activeTripNotificationsRequired =>
       'Habilitá las notificaciones de Rumbo para recibir avisos de bajada.';
 
@@ -920,6 +940,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String activeTripNotificationProgressOne(String stop) {
+    return 'Queda 1 parada hasta $stop';
+  }
+
+  @override
   String activeTripStopsRemaining(int stops, String stop) {
     return 'Quedan $stops paradas hasta $stop';
   }
@@ -940,8 +965,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripDetailTitle => 'Tu recorrido';
 
   @override
-  String tripDetailBetweenStops(String from, String to) {
-    return '$from → $to';
+  String tripDetailWalkInstructions(String from, int meters, String to) {
+    return 'Desde $from, caminá aprox. $meters m en dirección a $to. El tramo es una línea estimada y no incluye giros.';
   }
 
   @override
@@ -960,7 +985,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String tripDetailWalkStep(int meters) {
-    return 'Caminar $meters m';
+    return 'Caminata aprox. $meters m';
   }
 
   @override
@@ -998,7 +1023,22 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripDetailClose => 'Cerrar recorrido';
 
   @override
-  String get searchHint => 'Buscá una calle, esquina, parada o lugar…';
+  String get searchHint => 'Calle y número, cruce, parada o lugar…';
+
+  @override
+  String get searchOnlinePlacesAction => 'Buscar direcciones y lugares';
+
+  @override
+  String get searchOnlinePlacesHint =>
+      'Incluye cruces, direcciones con número, shoppings y otros lugares.';
+
+  @override
+  String get searchApproximateAddress =>
+      'Número no confirmado · ubicación aproximada';
+
+  @override
+  String get searchApproximateIntersection =>
+      'Cruce aproximado · punto por tramo de calle';
 
   @override
   String get searchRecent => 'Búsquedas recientes';
@@ -1393,6 +1433,10 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
       'El servicio de ómnibus en vivo no está disponible.';
 
   @override
+  String get mapRouteShapeUnavailable =>
+      'El feed GTFS no trae un trazado válido para esta variante.';
+
+  @override
   String mapBusAge(int seconds) {
     return 'hace $seconds s';
   }
@@ -1813,11 +1857,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripNoStops =>
-      'No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.';
+      'No encontramos paradas o líneas. Si buscabas una dirección o un lugar, podés buscarlo en línea.';
 
   @override
   String get tripNoPlaces =>
-      'No encontramos lugares o direcciones con ese texto.';
+      'No encontramos lugares o direcciones. Probá otra búsqueda o elegí una parada.';
 
   @override
   String tripSearchError(String error) {
@@ -1868,6 +1912,10 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripPlaceResult => 'Lugar o dirección · OpenStreetMap';
+
+  @override
+  String get tripPlaceApproximate =>
+      'Ubicación aproximada; verificá el punto en el mapa.';
 
   @override
   String get tripStopResult => 'Parada del STM';
@@ -2001,6 +2049,18 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
       'Activá la ubicación para iniciar el seguimiento.';
 
   @override
+  String get activeTripLocationPermission =>
+      'Permití el acceso a la ubicación para iniciar y mantener este viaje activo.';
+
+  @override
+  String get activeTripLocationUnavailable =>
+      'No se pudo obtener tu ubicación. Probá otra vez cuando el emulador o el teléfono tenga una posición disponible.';
+
+  @override
+  String get activeTripStorageUnavailable =>
+      'No se pudo guardar este viaje en el dispositivo; no se inició el seguimiento.';
+
+  @override
   String get activeTripNotificationsRequired =>
       'Habilitá las notificaciones de Rumbo para recibir avisos de bajada.';
 
@@ -2028,6 +2088,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   }
 
   @override
+  String activeTripNotificationProgressOne(String stop) {
+    return 'Queda 1 parada hasta $stop';
+  }
+
+  @override
   String activeTripStopsRemaining(int stops, String stop) {
     return 'Quedan $stops paradas hasta $stop';
   }
@@ -2048,8 +2113,8 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripDetailTitle => 'Tu recorrido';
 
   @override
-  String tripDetailBetweenStops(String from, String to) {
-    return '$from → $to';
+  String tripDetailWalkInstructions(String from, int meters, String to) {
+    return 'Desde $from, caminá aprox. $meters m en dirección a $to. El tramo es una línea estimada y no incluye giros.';
   }
 
   @override
@@ -2068,7 +2133,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String tripDetailWalkStep(int meters) {
-    return 'Caminar $meters m';
+    return 'Caminata aprox. $meters m';
   }
 
   @override
@@ -2106,7 +2171,22 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripDetailClose => 'Cerrar recorrido';
 
   @override
-  String get searchHint => 'Buscá una calle, esquina, parada o lugar…';
+  String get searchHint => 'Calle y número, cruce, parada o lugar…';
+
+  @override
+  String get searchOnlinePlacesAction => 'Buscar direcciones y lugares';
+
+  @override
+  String get searchOnlinePlacesHint =>
+      'Incluye cruces, direcciones con número, shoppings y otros lugares.';
+
+  @override
+  String get searchApproximateAddress =>
+      'Número no confirmado · ubicación aproximada';
+
+  @override
+  String get searchApproximateIntersection =>
+      'Cruce aproximado · punto por tramo de calle';
 
   @override
   String get searchRecent => 'Búsquedas recientes';

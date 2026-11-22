@@ -116,7 +116,8 @@ El panel puede listar hasta ocho unidades cercanas con destino, línea, velocida
 y hora de recepción; no es una ETA ni un horario de llegada a parada. También
 lista las paradas cercanas y sus líneas GTFS; al expandir una línea se pueden
 ver sus destinos y dibujar la geometría del recorrido elegido. El selector de
-tema claro, oscuro o del sistema persiste localmente.
+tema claro, oscuro o del sistema persiste localmente; texto e íconos usan los
+colores de contraste del tema activo.
 
 Favoritos permite guardar paradas y líneas, definir Casa y Trabajo con el
 buscador existente y abrirlas desde la pestaña o desde los atajos del mapa.
@@ -131,7 +132,8 @@ Las dos variantes de estilo, la atribución y el centro/zoom se cambian en
 servicio sin SLA; revisar sus términos y capacidad antes de un lanzamiento con
 tráfico significativo. La ubicación precisa no se guarda ni se envía desde
 Rumbo; las peticiones de teselas pueden revelar al proveedor la zona aproximada
-que se visualiza.
+que se visualiza. La explicación previa al primer uso se recuerda localmente;
+las coordenadas siguen solo en memoria mientras se usa la app.
 
 En Android, declarar los permisos ya incluidos en `android/app/src/main/` y
 aceptar las licencias del SDK local si Flutter lo solicita. En iOS, abrir el
@@ -171,10 +173,12 @@ diseñado para movilidad urbana en Montevideo:
 - **Geocodificador remoto con gateway y caché:** Consulta direcciones completas con
   número de puerta, esquinas e intersecciones (`18 de Julio y Ejido`), POIs (facultades,
   hospitales, terminales) y barrios mediante un gateway configurable (`/geocode`).
-  La búsqueda combina resultados de STM y lugares en línea automáticamente al
-  escribir cuando está habilitada. La primera búsqueda de lugares solicita
-  consentimiento, sin un botón aparte. Dispone de debounce y descarta consultas
-  obsoletas.
+  La búsqueda local responde al escribir. La búsqueda de direcciones y lugares
+  en línea empieza al tocar un botón y aceptar el aviso; esa preferencia se guarda
+  para las siguientes búsquedas. Las consultas se contextualizan en Montevideo y
+  admiten cruces como `18 de Julio y Ejido`. Los números de puerta y los cruces
+  que el proveedor no confirma se muestran como aproximados. Dispone de debounce
+  y descarta consultas obsoletas.
 - **Normalizador montevideano:** Parser puro (`MontevideoQueryParser`) con expansión de
   abreviaturas rioplatenses (`Av.`, `Bvar.`, `Cno.`, `Gral.`, `Dr.`), plegado de tildes
   y detección de intención (`stopCode`, `intersection`, `addressWithNumber`, `routeCode`).
@@ -209,10 +213,16 @@ Cada resultado resume salida, llegada, duración, líneas, caminata y transbordo
 con horarios programados. Al elegir una alternativa, el mapa conserva el
 recorrido y muestra una línea de tiempo de salida, caminata, abordaje, bajada y
 llegada, con las horas estimadas rotuladas. En el mapa, los tramos de ómnibus
-son continuos y los peatonales punteados. Las distancias a pie son
-aproximaciones en línea recta y el trazo del ómnibus une paradas de forma
-esquemática; los horarios son programados, no posiciones ni ETA en vivo. La app
-no brinda guía paso a paso; el viaje activo avisa cuándo acercarse a la parada de bajada.
+usan la geometría GTFS y los peatonales son líneas punteadas. Si una variante
+no tiene shape válido, Rumbo omite su línea y muestra un aviso; no inventa un
+trazado entre los extremos. Las distancias a pie son aproximaciones en línea
+recta; los horarios son programados, no posiciones ni ETA en vivo. Cada
+tramo peatonal indica desde dónde caminar, hacia qué parada o dirección y la
+distancia aproximada; no ofrece giros por calles. La API pública STM no publica
+un endpoint de geometría ni planificación A→B: el trazo usa shapes GTFS y las
+posiciones en vivo se dibujan aparte. Por eso el trazado no se puede prometer
+como 100 % confiable; depende de la cobertura y del cruce entre variante STM y
+GTFS.
 
 Para regenerar el ZIP pequeño y el fixture GeoJSON sintético, ejecuta
 `python tool/generate_sample_gtfs.py`. El archivo identifica el feed como prueba;
@@ -234,11 +244,16 @@ como campos raw sin interpretar. El mapa dibuja hasta 60 marcadores de buses vis
 ### Viaje activo y avisos de bajada
 
 Al abrir un plan con tramos de ómnibus, toca **Iniciar viaje con avisos**. Rumbo
-solicita el permiso de ubicación en segundo plano y notificaciones en ese momento.
-En Android, la notificación persistente muestra las paradas restantes; en iOS,
+solicita ubicación y notificaciones en ese momento. En Android usa el servicio
+de ubicación en primer plano con su notificación persistente; en iOS requiere
+acceso de ubicación «Siempre» para continuar con la app cerrada. La notificación
+local inicial muestra cuántas paradas quedan y se actualiza durante el viaje.
+Rumbo guarda en el dispositivo la secuencia pública de paradas elegida y el
+avance para recuperar el mismo viaje al volver a abrir la app; no guarda la
+ubicación precisa. En iOS,
 Rumbo actualiza avisos locales y usa el indicador del sistema para ubicación en
 segundo plano. La posición se procesa localmente; el seguimiento termina al
-finalizar el viaje, cambiar el plan o cerrar el detalle.
+finalizarlo explícitamente o al elegir cambiar de plan.
 
 ### Verificar acceso de desarrollador a Montevideo API
 

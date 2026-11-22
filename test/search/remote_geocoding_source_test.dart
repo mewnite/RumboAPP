@@ -32,7 +32,9 @@ void main() {
         final client = MockClient((request) async {
           requests++;
           expect(request.url.host, 'example.test');
-          expect(request.url.queryParameters['q'], 'avenida italia 2450');
+          expect(request.url.queryParameters['q'], 'Av. Italia 2450');
+          expect(request.url.queryParameters, isNot(contains('bias_lat')));
+          expect(request.url.queryParameters, isNot(contains('bias_lon')));
           return http.Response(
             '['
             '  {'
@@ -104,14 +106,35 @@ void main() {
       expect(results.first.source, SearchDataSource.openStreetMap);
     });
 
+    test('mantiene calle y número juntos en una dirección exacta', () async {
+      final client = MockClient((request) async {
+        expect(request.url.queryParameters['q'], 'faramiñán 801');
+        return http.Response(
+          '[{"display_name":"Calle Faramiñán, 801, Montevideo, Uruguay",'
+          '"address":{"road":"Calle Faramiñán","house_number":"801"},'
+          '"lat":"-34.88","lon":"-56.18","type":"house"}]',
+          200,
+        );
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(parser.parse('faramiñán 801'));
+
+      expect(results, hasLength(1));
+      expect(results.single.title, 'Calle Faramiñán 801');
+      expect(results.single.precision, GeoPrecision.exactDoorNumber);
+      expect(results.single.subtitle, contains('Montevideo'));
+    });
+
     test(
       'envía las dos calles de una intersección al geocodificador',
       () async {
         final client = MockClient((request) async {
-          expect(
-            request.url.queryParameters['q'],
-            'faraminan & santa lucia, Montevideo, Uruguay',
-          );
+          expect(request.url.queryParameters['q'], 'Faramiñan y Santa Lucía');
           return http.Response(
             '[{"display_name":"Faramiñan & Santa Lucía, Montevideo",'
             '"lat":"-34.86","lon":"-56.25","type":"junction"}]',
@@ -128,8 +151,107 @@ void main() {
           parser.parse('Faramiñan y Santa Lucía'),
         );
         expect(results.single.kind, SearchEntityKind.intersection);
+        expect(results.single.title, 'Faramiñan y Santa Lucía');
+        expect(results.single.precision, GeoPrecision.intersectionPoint);
       },
     );
+
+    test(
+      'marca el cruce como aproximado si el proveedor devolvió una calle',
+      () async {
+        final client = MockClient((request) async {
+          return http.Response(
+            '[{"display_name":"Av. Italia, Montevideo, Uruguay",'
+            '"lat":"-34.88","lon":"-56.18","type":"residential"},'
+            '{"display_name":"Avenida Italia & Ejido, Montevideo, Uruguay",'
+            '"lat":"-34.89","lon":"-56.19","type":"residential"}]',
+            200,
+          );
+        });
+        final source = RemoteGeocodingSource(
+          endpoint: 'https://example.test/geocode',
+          client: client,
+        );
+        addTearDown(source.close);
+
+        final results = await source.searchRemote(
+          parser.parse('Av. Italia y Ejido'),
+        );
+
+        expect(results.single.kind, SearchEntityKind.intersection);
+        expect(results.single.title, 'Av. Italia y Ejido');
+        expect(results.single.latitude, closeTo(-34.89, 0.00001));
+        expect(results.single.precision, GeoPrecision.approximateIntersection);
+        expect(results.single.toTripEndpoint().isApproximate, isTrue);
+      },
+    );
+
+    test(
+      'descarta una intersección candidata que solo coincide con una calle',
+      () async {
+        final client = MockClient((request) async {
+          return http.Response(
+            '[{"display_name":"Avenida Italia, Montevideo, Uruguay",'
+            '"lat":"-34.88","lon":"-56.18","type":"junction"}]',
+            200,
+          );
+        });
+        final source = RemoteGeocodingSource(
+          endpoint: 'https://example.test/geocode',
+          client: client,
+        );
+        addTearDown(source.close);
+
+        final results = await source.searchRemote(
+          parser.parse('Av. Italia esquina Ejido'),
+        );
+
+        expect(results, isEmpty);
+      },
+    );
+
+    test('no considera que un nombre parcial sea la segunda calle', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          '[{"display_name":"Soca, Montevideo, Uruguay",'
+          '"lat":"-34.88","lon":"-56.18","type":"junction"}]',
+          200,
+        );
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(
+        parser.parse('Soca esquina Oca'),
+      );
+
+      expect(results, isEmpty);
+    });
+
+    test('no afirma un número que el proveedor no confirmó', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          '[{"display_name":"Calle Faramiñán, Montevideo, Uruguay",'
+          '"address":{"road":"Calle Faramiñán"},'
+          '"lat":"-34.88","lon":"-56.18","type":"residential"}]',
+          200,
+        );
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(parser.parse('Faramiñán 801'));
+
+      expect(results.single.title, 'Faramiñán 801');
+      expect(results.single.precision, GeoPrecision.unconfirmedDoorNumber);
+      expect(results.single.toTripEndpoint().isApproximate, isTrue);
+    });
 
     test('rechaza endpoints http no locales', () async {
       final source = RemoteGeocodingSource(

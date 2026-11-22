@@ -7,9 +7,12 @@ import '../domain/query_normalizer.dart';
 import '../domain/search_models.dart';
 
 class TransitSearchIndex {
-  TransitSearchIndex._(this._entries);
+  TransitSearchIndex._(this._entries, [this._prefixIndex = const {}])
+    : _recentQueryCache = <String, List<SearchResult>>{};
 
   final List<_IndexedEntry> _entries;
+  final Map<String, Set<int>> _prefixIndex;
+  final Map<String, List<SearchResult>> _recentQueryCache;
 
   static Future<TransitSearchIndex> fromDatabase(Database db) async {
     final stops = await db.query(
@@ -96,9 +99,10 @@ class TransitSearchIndex {
     List<Map<String, String>> raw,
   ) async {
     final normalized = await compute(_normalizeEntries, raw);
-    return TransitSearchIndex._(
-      normalized.map(_IndexedEntry.fromMap).toList(growable: false),
-    );
+    final entries = normalized
+        .map(_IndexedEntry.fromMap)
+        .toList(growable: false);
+    return TransitSearchIndex._(entries, _buildPrefixIndex(entries));
   }
 
   List<SearchResult> search(
@@ -107,9 +111,15 @@ class TransitSearchIndex {
     Iterable<SearchResult> additionalResults = const [],
   }) {
     if (query.normalized.length < 2 || limit <= 0) return const [];
+    final cacheKey = '$limit:${query.normalized}';
+    if (additionalResults.isEmpty) {
+      final cached = _recentQueryCache[cacheKey];
+      if (cached != null) return cached;
+    }
     final tokens = query.normalized.split(' ');
     final ranked = <({int rank, int index, SearchResult result})>[];
-    for (var index = 0; index < _entries.length; index++) {
+    final candidateIndexes = _candidateIndexes(query.normalized, tokens);
+    for (final index in candidateIndexes) {
       final entry = _entries[index];
       final rank = entry.matchRank(query.normalized, tokens);
       if (rank != null) {
@@ -133,10 +143,35 @@ class TransitSearchIndex {
           ? a.rank.compareTo(b.rank)
           : a.index.compareTo(b.index),
     );
-    return ranked
+    final results = ranked
         .take(limit)
         .map((item) => item.result)
         .toList(growable: false);
+    if (additionalResults.isEmpty) {
+      if (_recentQueryCache.length >= 32) {
+        _recentQueryCache.remove(_recentQueryCache.keys.first);
+      }
+      _recentQueryCache[cacheKey] = results;
+    }
+    return results;
+  }
+
+  Iterable<int> _candidateIndexes(String query, List<String> tokens) {
+    final keys = <String>{};
+    for (var index = 0; index + 1 < query.length; index++) {
+      keys.add(query.substring(index, index + 2));
+    }
+    for (final token in tokens) {
+      for (var index = 0; index + 1 < token.length; index++) {
+        keys.add(token.substring(index, index + 2));
+      }
+    }
+    final candidates = <int>{};
+    for (final key in keys) {
+      candidates.addAll(_prefixIndex[key] ?? const {});
+    }
+    if (candidates.isEmpty) return const <int>[];
+    return candidates;
   }
 
   static int? _resultMatchRank(
@@ -162,6 +197,25 @@ class TransitSearchIndex {
     if (search.contains(query)) return 3;
     return null;
   }
+}
+
+Map<String, Set<int>> _buildPrefixIndex(List<_IndexedEntry> entries) {
+  final result = <String, Set<int>>{};
+  void addText(int entryIndex, String text) {
+    if (text.length < 2) return;
+    for (var position = 0; position + 1 < text.length; position++) {
+      final key = text.substring(position, position + 2);
+      (result[key] ??= <int>{}).add(entryIndex);
+    }
+  }
+
+  for (var entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+    final entry = entries[entryIndex];
+    addText(entryIndex, entry.normalizedTitle);
+    addText(entryIndex, entry.normalizedCode);
+    addText(entryIndex, entry.normalizedSearch);
+  }
+  return result;
 }
 
 List<Map<String, String>> _normalizeEntries(List<Map<String, String>> raw) {

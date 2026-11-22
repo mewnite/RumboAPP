@@ -105,7 +105,7 @@
 - APK debug recompilado e instalado en Samsung A34 (`R5CW915LYXH`); buses en vivo siguen no medidos sin proxy activo.
 
 ## Búsqueda integrada y mapa
-- La búsqueda normal combina paradas, líneas y direcciones online al escribir; se quitó el botón separado.
+- La búsqueda normal muestra primero paradas y líneas locales; la búsqueda de direcciones y lugares online requiere una acción explícita y recuerda la aceptación.
 - El consentimiento de geocodificación aparece solo en el primer uso y luego se conserva localmente.
 - Los tramos de ómnibus usan shapes GTFS reales; los buses se consultan con filtros de línea cuando corresponde.
 - `flutter analyze` y la suite completa de tests pasan; hot reload no se ejecutó porque no había una app Flutter conectada.

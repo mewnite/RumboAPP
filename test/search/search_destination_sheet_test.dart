@@ -138,7 +138,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
-      // 3. Con el consentimiento ya otorgado combina resultados locales y en línea.
+      // 3. Una autorización previa habilita la búsqueda remota al escribir.
       expect(find.text('Av. 18 de Julio y Ejido'), findsOneWidget);
       expect(find.text('14'), findsOneWidget);
       expect(find.text('21'), findsOneWidget);
@@ -189,9 +189,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
 
-    expect(find.text('Buscar lugares en línea'), findsOneWidget);
+    expect(find.text('Buscar direcciones y lugares'), findsOneWidget);
     expect(searchService.remoteCalls, 0);
-    await tester.tap(find.text('Buscar lugares en línea'));
+    await tester.tap(find.byKey(const ValueKey('search-online-places')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Habilitar y buscar'));
     await tester.pumpAndSettle();
@@ -200,4 +200,53 @@ void main() {
     expect(find.text('Av. Italia 2450'), findsOneWidget);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);
   });
+
+  testWidgets(
+    'al cancelar el permiso sigue la búsqueda local sin reabrir el cartel',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final searchService = TestSearchService();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            searchServiceProvider.overrideWithValue(searchService),
+            networkAvailableProvider.overrideWith(
+              (ref) => Stream<bool>.value(true),
+            ),
+          ],
+          child: MaterialApp(
+            locale: const Locale('es', 'UY'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: SearchDestinationSheet(onDestinationSelected: (_) {}),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Shopping Nuevo Centro');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('search-online-places')));
+      await tester.pumpAndSettle();
+      expect(find.text('Buscar lugares en línea'), findsOneWidget);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Shopping Punta Carretas');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        find.byKey(const ValueKey('search-online-places')),
+        findsOneWidget,
+      );
+      expect(searchService.remoteCalls, 0);
+    },
+  );
 }

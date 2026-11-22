@@ -25,6 +25,14 @@ void main() {
       container.read(mapLocationControllerProvider).status,
       MapLocationStatus.available,
     );
+    expect(
+      container.read(mapLocationControllerProvider).location?.latitude,
+      repository.location.latitude,
+    );
+    expect(
+      container.read(mapLocationControllerProvider).location?.longitude,
+      repository.location.longitude,
+    );
     expect(repository.permissionRequests, 0);
     expect(repository.locationReads, 1);
   });

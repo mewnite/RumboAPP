@@ -25,11 +25,14 @@ void main() {
     expect(scheme.brightness, Brightness.light);
     expect(scheme.onSurface, AppColors.ink);
     expect(theme.textTheme.bodyLarge?.color, AppColors.ink);
-    expect(theme.primaryTextTheme.bodyLarge?.color, AppColors.ink);
+    expect(theme.primaryTextTheme.bodyLarge?.color, scheme.onSurface);
     expect(theme.iconTheme.color, AppColors.ink);
-    expect(theme.primaryIconTheme.color, AppColors.ink);
+    expect(theme.primaryIconTheme.color, scheme.onSurface);
     expect(theme.listTileTheme.textColor, AppColors.ink);
-    expect(theme.inputDecorationTheme.hintStyle?.color, scheme.onSurfaceVariant);
+    expect(
+      theme.inputDecorationTheme.hintStyle?.color,
+      scheme.onSurfaceVariant,
+    );
     expect(
       contrastRatio(scheme.onSurface, scheme.surface),
       greaterThanOrEqualTo(4.5),
@@ -43,9 +46,9 @@ void main() {
     expect(scheme.brightness, Brightness.dark);
     expect(scheme.onSurface, AppColors.ivory);
     expect(theme.textTheme.bodyLarge?.color, AppColors.ivory);
-    expect(theme.primaryTextTheme.bodyLarge?.color, AppColors.ivory);
+    expect(theme.primaryTextTheme.bodyLarge?.color, scheme.onSurface);
     expect(theme.iconTheme.color, AppColors.ivory);
-    expect(theme.primaryIconTheme.color, AppColors.ivory);
+    expect(theme.primaryIconTheme.color, scheme.onSurface);
     expect(
       contrastRatio(scheme.onSurface, scheme.surface),
       greaterThanOrEqualTo(4.5),
@@ -54,6 +57,18 @@ void main() {
       contrastRatio(scheme.onSurfaceVariant, AppColors.darkElevatedSurface),
       greaterThanOrEqualTo(4.5),
     );
+  });
+
+  test('primary text and icons follow the active surface theme', () {
+    for (final theme in [AppTheme.light(), AppTheme.dark()]) {
+      final scheme = theme.colorScheme;
+      expect(theme.primaryTextTheme.bodyLarge?.color, scheme.onSurface);
+      expect(theme.primaryIconTheme.color, scheme.onSurface);
+      expect(
+        contrastRatio(scheme.onSurface, scheme.surface),
+        greaterThanOrEqualTo(4.5),
+      );
+    }
   });
 
   test('option menus and theme segments use contrasting colors', () {

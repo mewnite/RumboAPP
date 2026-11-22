@@ -16,7 +16,9 @@ enum SearchEntityKind {
 /// Nivel de precisión geográfica de las coordenadas asociadas.
 enum GeoPrecision {
   exactDoorNumber,
+  unconfirmedDoorNumber,
   intersectionPoint,
+  approximateIntersection,
   stopCoordinates,
   rooftopPoi,
   streetSegment,
@@ -103,7 +105,16 @@ class SearchResult {
         longitude: longitude,
       );
     }
-    return TripEndpoint(name: title, latitude: latitude, longitude: longitude);
+    return TripEndpoint(
+      name: title,
+      latitude: latitude,
+      longitude: longitude,
+      isApproximate:
+          precision == GeoPrecision.streetSegment ||
+          precision == GeoPrecision.approximateArea ||
+          precision == GeoPrecision.unconfirmedDoorNumber ||
+          precision == GeoPrecision.approximateIntersection,
+    );
   }
 
   SearchResult copyWith({

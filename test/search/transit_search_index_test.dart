@@ -25,4 +25,16 @@ void main() {
 
     expect(results, [savedPlace]);
   });
+
+  test('repeated local searches reuse a bounded result cache', () async {
+    const parser = MontevideoQueryParser();
+    final index = await TransitSearchIndex.fromFeed(null);
+    final first = index.search(parser.parse('pocitos'));
+    final stopwatch = Stopwatch()..start();
+    final second = index.search(parser.parse('pocitos'));
+    stopwatch.stop();
+
+    expect(first, second);
+    expect(stopwatch.elapsedMilliseconds, lessThan(100));
+  });
 }

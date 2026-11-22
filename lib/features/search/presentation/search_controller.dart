@@ -22,7 +22,6 @@ import 'search_state.dart';
 
 final searchServiceProvider = Provider<PlaceSearchService>((ref) {
   final endpoint = transitConfig.placeSearchEndpoint;
-  final feed = ref.watch(feedUpdateControllerProvider).asData?.value.feed;
   final repository = ref.watch(transitRepositoryProvider);
   Iterable<SearchResult> savedPlaces() {
     final favorites =
@@ -48,16 +47,20 @@ final searchServiceProvider = Provider<PlaceSearchService>((ref) {
         );
   }
 
-  final localSource = kIsWeb
-      ? InMemoryTransitSearchSource(
-          feed,
-          repository,
-          savedPlacesProvider: savedPlaces,
-        )
-      : LocalTransitSearchSource(
-          () => ref.read(transitDatabaseProvider),
-          savedPlacesProvider: savedPlaces,
-        );
+  final LocalTransitSearchRepository localSource;
+  if (kIsWeb) {
+    final feed = ref.watch(feedUpdateControllerProvider).asData?.value.feed;
+    localSource = InMemoryTransitSearchSource(
+      feed,
+      repository,
+      savedPlacesProvider: savedPlaces,
+    );
+  } else {
+    localSource = LocalTransitSearchSource(
+      () => ref.read(transitDatabaseProvider),
+      savedPlacesProvider: savedPlaces,
+    );
+  }
   final remoteSource = RemoteGeocodingSource(
     endpoint: endpoint.isNotEmpty ? endpoint : defaultTargetPlatformUrl,
   );

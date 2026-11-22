@@ -496,8 +496,14 @@ void main() {
     expect(find.text('Mi ubicación'), findsOneWidget);
     expect(find.text('12:00'), findsOneWidget);
 
-    expect(find.text('Caminar 200 m'), findsOneWidget);
-    expect(find.text('Mi ubicación → Tres Cruces'), findsOneWidget);
+    expect(find.text('Caminata aprox. 200 m'), findsOneWidget);
+    expect(
+      find.text(
+        'Desde Mi ubicación, caminá aprox. 200 m en dirección a Tres Cruces. '
+        'El tramo es una línea estimada y no incluye giros.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('12:03 · estimado'), findsOneWidget);
 
     expect(find.text('Tomar línea 522 en Tres Cruces'), findsOneWidget);
@@ -513,8 +519,11 @@ void main() {
     expect(find.text('Bajar en Plaza'), findsOneWidget);
     expect(find.text('12:40 · estimado'), findsOneWidget);
 
-    expect(find.text('Caminar 350 m'), findsOneWidget);
-    expect(find.text('Plaza → Plaza Independencia'), findsOneWidget);
+    expect(find.text('Caminata aprox. 350 m'), findsOneWidget);
+    expect(
+      find.textContaining('en dirección a Plaza Independencia'),
+      findsOneWidget,
+    );
     expect(find.text('12:45 · estimado'), findsNWidgets(2));
 
     expect(find.text('Llegada'), findsOneWidget);
@@ -526,10 +535,10 @@ void main() {
 
     expect(
       tester.getTopLeft(find.text('Salida')).dy,
-      lessThan(tester.getTopLeft(find.text('Caminar 200 m')).dy),
+      lessThan(tester.getTopLeft(find.text('Caminata aprox. 200 m')).dy),
     );
     expect(
-      tester.getTopLeft(find.text('Caminar 200 m')).dy,
+      tester.getTopLeft(find.text('Caminata aprox. 200 m')).dy,
       lessThan(
         tester.getTopLeft(find.text('Tomar línea 522 en Tres Cruces')).dy,
       ),
@@ -802,7 +811,7 @@ void main() {
     );
   });
 
-  testWidgets('integrates online search while typing after consent', (
+  testWidgets('keeps typing local until the person requests online search', (
     tester,
   ) async {
     var localSearchCount = 0;
@@ -839,15 +848,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(localSearchCount, 1);
+    expect(consentRequestCount, 0);
+    expect(remoteSearchCount, 0);
+    expect(find.byKey(const ValueKey('trip-search-online')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('trip-search-online')));
+    await tester.pumpAndSettle();
+
     expect(consentRequestCount, 1);
     expect(remoteSearchCount, 0);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).last, 'Centro Histórico');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(localSearchCount, 2);
+    expect(consentRequestCount, 1);
+    expect(remoteSearchCount, 0);
   });
 
   testWidgets('runs the combined search after explicit request and consent', (
     tester,
   ) async {
     var remoteSearchCount = 0;
+    var consentRequestCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('es', 'UY'),
@@ -856,7 +880,10 @@ void main() {
         home: Scaffold(
           body: TripSearchSheet(
             hasCurrentLocation: true,
-            onRemotePlaceSearchConsentRequested: () async => true,
+            onRemotePlaceSearchConsentRequested: () async {
+              consentRequestCount++;
+              return true;
+            },
             searchStops: (_) async => const [],
             searchPlaces: (query) async {
               remoteSearchCount++;
@@ -877,8 +904,63 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     await tester.pumpAndSettle();
 
+    expect(remoteSearchCount, 0);
+    expect(find.byKey(const ValueKey('trip-search-online')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('trip-search-online')));
+    await tester.pumpAndSettle();
+
     expect(remoteSearchCount, 1);
+    expect(consentRequestCount, 1);
     expect(find.text('Shopping Nuevo Centro'), findsWidgets);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);
+
+    await tester.enterText(
+      find.byType(TextField).last,
+      'Shopping Punta Carretas',
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(remoteSearchCount, 2);
+    expect(consentRequestCount, 1);
+  });
+
+  testWidgets('shows the full numbered address and its precision', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            onRemotePlaceSearchConsentRequested: () async => true,
+            searchStops: (_) async => const [],
+            searchPlaces: (query) async => [
+              TripEndpoint(
+                name: query,
+                latitude: -34.89,
+                longitude: -56.18,
+                isApproximate: true,
+              ),
+            ],
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Faramiñán 801');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('trip-search-online')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Faramiñán 801'), findsNWidgets(2));
+    expect(
+      find.text('Ubicación aproximada; verificá el punto en el mapa.'),
+      findsOneWidget,
+    );
   });
 }

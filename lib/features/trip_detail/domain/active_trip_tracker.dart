@@ -19,16 +19,20 @@ class ActiveTripTracker {
   ActiveTripTracker({
     required List<Stop> stops,
     required this.destinationStopId,
+    int initialFurthestIndex = 0,
   }) : stops = List.unmodifiable(stops),
        destinationIndex = stops.indexWhere(
          (stop) => stop.id == destinationStopId,
-       );
+       ),
+       _furthestIndex = initialFurthestIndex;
 
   final List<Stop> stops;
   final String destinationStopId;
   final int destinationIndex;
-  int _furthestIndex = 0;
+  int _furthestIndex;
   bool _hasAlerted = false;
+
+  void markAlightAlertSent() => _hasAlerted = true;
 
   ActiveTripProgress update(double latitude, double longitude) {
     if (destinationIndex <= 0) {

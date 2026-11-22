@@ -577,6 +577,12 @@ abstract class AppLocalizations {
   /// **'El servicio de ómnibus en vivo no está disponible.'**
   String get mapLiveServiceDown;
 
+  /// No description provided for @mapRouteShapeUnavailable.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'El feed GTFS no trae un trazado válido para esta variante.'**
+  String get mapRouteShapeUnavailable;
+
   /// No description provided for @mapBusAge.
   ///
   /// In es_UY, this message translates to:
@@ -1324,13 +1330,13 @@ abstract class AppLocalizations {
   /// No description provided for @tripNoStops.
   ///
   /// In es_UY, this message translates to:
-  /// **'No encontramos paradas o líneas con ese texto. Si querés buscar lugares, podés habilitar la búsqueda en línea desde Privacidad.'**
+  /// **'No encontramos paradas o líneas. Si buscabas una dirección o un lugar, podés buscarlo en línea.'**
   String get tripNoStops;
 
   /// No description provided for @tripNoPlaces.
   ///
   /// In es_UY, this message translates to:
-  /// **'No encontramos lugares o direcciones con ese texto.'**
+  /// **'No encontramos lugares o direcciones. Probá otra búsqueda o elegí una parada.'**
   String get tripNoPlaces;
 
   /// No description provided for @tripSearchError.
@@ -1416,6 +1422,12 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'Lugar o dirección · OpenStreetMap'**
   String get tripPlaceResult;
+
+  /// No description provided for @tripPlaceApproximate.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Ubicación aproximada; verificá el punto en el mapa.'**
+  String get tripPlaceApproximate;
 
   /// No description provided for @tripStopResult.
   ///
@@ -1598,6 +1610,24 @@ abstract class AppLocalizations {
   /// **'Activá la ubicación para iniciar el seguimiento.'**
   String get activeTripLocationDisabled;
 
+  /// No description provided for @activeTripLocationPermission.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Permití el acceso a la ubicación para iniciar y mantener este viaje activo.'**
+  String get activeTripLocationPermission;
+
+  /// No description provided for @activeTripLocationUnavailable.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudo obtener tu ubicación. Probá otra vez cuando el emulador o el teléfono tenga una posición disponible.'**
+  String get activeTripLocationUnavailable;
+
+  /// No description provided for @activeTripStorageUnavailable.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudo guardar este viaje en el dispositivo; no se inició el seguimiento.'**
+  String get activeTripStorageUnavailable;
+
   /// No description provided for @activeTripNotificationsRequired.
   ///
   /// In es_UY, this message translates to:
@@ -1640,6 +1670,12 @@ abstract class AppLocalizations {
   /// **'Quedan {stops} paradas hasta {stop}'**
   String activeTripNotificationProgress(String stops, String stop);
 
+  /// No description provided for @activeTripNotificationProgressOne.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Queda 1 parada hasta {stop}'**
+  String activeTripNotificationProgressOne(String stop);
+
   /// No description provided for @activeTripStopsRemaining.
   ///
   /// In es_UY, this message translates to:
@@ -1670,11 +1706,11 @@ abstract class AppLocalizations {
   /// **'Tu recorrido'**
   String get tripDetailTitle;
 
-  /// No description provided for @tripDetailBetweenStops.
+  /// No description provided for @tripDetailWalkInstructions.
   ///
   /// In es_UY, this message translates to:
-  /// **'{from} → {to}'**
-  String tripDetailBetweenStops(String from, String to);
+  /// **'Desde {from}, caminá aprox. {meters} m en dirección a {to}. El tramo es una línea estimada y no incluye giros.'**
+  String tripDetailWalkInstructions(String from, int meters, String to);
 
   /// No description provided for @tripDetailWalkingTotal.
   ///
@@ -1703,7 +1739,7 @@ abstract class AppLocalizations {
   /// No description provided for @tripDetailWalkStep.
   ///
   /// In es_UY, this message translates to:
-  /// **'Caminar {meters} m'**
+  /// **'Caminata aprox. {meters} m'**
   String tripDetailWalkStep(int meters);
 
   /// No description provided for @tripDetailBoard.
@@ -1757,8 +1793,32 @@ abstract class AppLocalizations {
   /// No description provided for @searchHint.
   ///
   /// In es_UY, this message translates to:
-  /// **'Buscá una calle, esquina, parada o lugar…'**
+  /// **'Calle y número, cruce, parada o lugar…'**
   String get searchHint;
+
+  /// No description provided for @searchOnlinePlacesAction.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Buscar direcciones y lugares'**
+  String get searchOnlinePlacesAction;
+
+  /// No description provided for @searchOnlinePlacesHint.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Incluye cruces, direcciones con número, shoppings y otros lugares.'**
+  String get searchOnlinePlacesHint;
+
+  /// No description provided for @searchApproximateAddress.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Número no confirmado · ubicación aproximada'**
+  String get searchApproximateAddress;
+
+  /// No description provided for @searchApproximateIntersection.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cruce aproximado · punto por tramo de calle'**
+  String get searchApproximateIntersection;
 
   /// No description provided for @searchRecent.
   ///
