@@ -65,9 +65,9 @@ void main() {
       find.textContaining('No se pudieron cargar los datos oficiales:'),
       findsOneWidget,
     );
-    expect(find.text('© OSM'), findsOneWidget);
+    expect(find.text('© OSM — ODbL'), findsOneWidget);
 
-    await tester.tap(find.text('© OSM'));
+    await tester.tap(find.text('© OSM — ODbL'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Datos del mapa'), findsOneWidget);
     expect(find.textContaining('zona aproximada'), findsOneWidget);
