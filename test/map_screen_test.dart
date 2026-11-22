@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:rumbo/core/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rumbo/features/favorites/data/fake_favorites_repository.dart';
@@ -200,6 +201,22 @@ void main() {
     expect(find.text('¿A dónde vamos?'), findsOneWidget);
     expect(find.text('Próximos ómnibus'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    final attribution = find.text(
+      '© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap',
+    );
+    final attributionButton = find.ancestor(
+      of: attribution,
+      matching: find.byType(InkWell),
+    );
+    final locationButton = find.ancestor(
+      of: find.byIcon(Symbols.my_location_rounded),
+      matching: find.byType(IconButton),
+    );
+    final attributionRect = tester.getRect(attributionButton.first);
+    final locationRect = tester.getRect(locationButton.first);
+    expect(attributionRect.left, greaterThanOrEqualTo(0));
+    expect(attributionRect.right, lessThanOrEqualTo(360));
+    expect(attributionRect.overlaps(locationRect), isFalse);
   });
 
   testWidgets('does not show favorite shortcuts without defined places', (

@@ -1916,15 +1916,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     onTap: _showAttribution,
                     borderRadius: BorderRadius.circular(24),
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 48),
+                      constraints: BoxConstraints(
+                        minHeight: 48,
+                        maxWidth: MediaQuery.sizeOf(context).width - 32,
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              l10n.mapAttributionShort,
-                              style: Theme.of(context).textTheme.labelSmall,
+                            Flexible(
+                              child: Text(
+                                l10n.mapAttributionShort,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
                             ),
                             const SizedBox(width: 4),
                             const Icon(Symbols.info_rounded, size: 18),
