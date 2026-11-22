@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import '../../../core/debug/performance_measurement.dart';
@@ -162,6 +163,26 @@ class TripLeg {
   /// true si la geometría del tramo es estimada (sin grafo peatonal) — no
   /// representa una ruta real.
   final bool approximate;
+
+  /// Devuelve una copia del tramo con la geometría (y el estado de
+  /// aproximado) reemplazados — usado al recalcular tramos peatonales.
+  TripLeg copyWithShape({Shape? shape, bool? approximate}) => TripLeg(
+    kind: kind,
+    departureTime: departureTime,
+    arrivalTime: arrivalTime,
+    distanceMeters: distanceMeters,
+    fromStop: fromStop,
+    toStop: toStop,
+    fromLatitude: fromLatitude,
+    fromLongitude: fromLongitude,
+    toLatitude: toLatitude,
+    toLongitude: toLongitude,
+    route: route,
+    variant: variant,
+    shape: shape ?? this.shape,
+    headsign: headsign,
+    approximate: approximate ?? this.approximate,
+  );
 }
 
 class TripPlan {
@@ -185,13 +206,57 @@ class TripPlan {
 }
 
 class TransitTripPlanner {
-  TransitTripPlanner(this._repository, {this.now, WalkGraph? walkGraph})
-    : _walkGraph = walkGraph;
+  TransitTripPlanner(this._repository, {this.now, this.walkGraph});
 
   final TransitRepository _repository;
   final DateTime Function()? now;
-  final WalkGraph? _walkGraph;
+
+  /// Red peatonal actual — null si no hay red disponible (tramos
+  /// peatonales aproximados).
+  WalkGraph? walkGraph;
   PlanSearchCancellation? _activeCancellation;
+
+  /// Recalcula los tramos peatonales de [plan] con la red actual
+  /// ([walkGraph]). Devuelve [plan] sin cambios si no hay red o si los
+  /// tramos ya coinciden con la red.
+  TripPlan refreshWalkingSegments(TripPlan plan) {
+    final search = TransitRouteSearch(walkGraph: walkGraph);
+    var changed = false;
+    final legs = <TripLeg>[];
+    for (final leg in plan.legs) {
+      final refreshed = search.refreshWalkingLeg(leg);
+      if (leg.kind == TripLegKind.walking &&
+          !identical(refreshed, leg) &&
+          !_sameWalkingShape(leg, refreshed)) {
+        changed = true;
+      }
+      legs.add(refreshed);
+    }
+    if (!changed) return plan;
+    return TripPlan(
+      requestedDeparture: plan.requestedDeparture,
+      arrivalTime: plan.arrivalTime,
+      legs: legs,
+      totalWalkingMeters: plan.totalWalkingMeters,
+      transferCount: plan.transferCount,
+      timeAccuracy: plan.timeAccuracy,
+    );
+  }
+
+  bool _sameWalkingShape(TripLeg a, TripLeg b) {
+    final pointsA = a.shape?.points;
+    final pointsB = b.shape?.points;
+    if (a.approximate != b.approximate) return false;
+    if (pointsA == null || pointsB == null) return identical(pointsA, pointsB);
+    if (pointsA.length != pointsB.length) return false;
+    for (var i = 0; i < pointsA.length; i++) {
+      if (pointsA[i].latitude != pointsB[i].latitude ||
+          pointsA[i].longitude != pointsB[i].longitude) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   void cancelPendingSearch() {
     _activeCancellation?.cancel();
@@ -279,7 +344,7 @@ class TransitTripPlanner {
         originStopIds: origins.map((stop) => stop.id).toSet(),
         destinationStopIds: destinations.map((stop) => stop.id).toSet(),
         now: current,
-        walkGraph: _walkGraph,
+        walkGraph: walkGraph,
       ),
       cancellation: cancellation,
     );
@@ -451,7 +516,6 @@ class TransitRouteSearch {
         toLatitude: boardStop.latitude,
         toLongitude: boardStop.longitude,
       );
-      if (initialWalk == null) continue;
       final originConnections = index.connectionsBetween(
         originStopId,
         initialWalk.arrivalTime,
@@ -480,7 +544,6 @@ class TransitRouteSearch {
               toLatitude: request.destinationLatitude,
               toLongitude: request.destinationLongitude,
             );
-            if (finalWalk == null) continue;
             final walkingMeters =
                 initialWalk.distanceMeters + finalWalk.distanceMeters;
             if (walkingMeters <= config.maximumWalkingMeters) {
@@ -552,7 +615,6 @@ class TransitRouteSearch {
                   toLatitude: request.destinationLatitude,
                   toLongitude: request.destinationLongitude,
                 );
-                if (finalWalk == null) continue;
                 final walkingMeters =
                     initialWalk.distanceMeters +
                     finalWalk.distanceMeters +
@@ -631,7 +693,6 @@ class TransitRouteSearch {
       toLatitude: request.destinationLatitude,
       toLongitude: request.destinationLongitude,
     );
-    if (walk == null) return null;
     final DateTime departure;
     switch (request.timing.mode) {
       case TripTimingMode.departNow:
@@ -656,10 +717,40 @@ class TransitRouteSearch {
     );
   }
 
-  /// Camino peatonal: con el grafo cargado es la ruta real de la red (null
-  /// si no hay camino válido); sin grafo, el tramo mide en línea recta y no
-  /// tiene forma (no hay red disponible para dibujar).
-  _WalkingLeg? _walkingLeg(
+  /// Recalcula la geometría de un tramo peatonal con la red actual
+  /// ([walkGraph]), conservando los tiempos del tramo original. El tramo
+  /// nunca se omite: con red y snap válido se usa el camino real; si no hay
+  /// red ni camino válido, la geometría es la línea recta marcada como
+  /// aproximada.
+  TripLeg refreshWalkingLeg(TripLeg leg) {
+    if (leg.kind != TripLegKind.walking) return leg;
+    final fromLatitude = leg.fromLatitude;
+    final fromLongitude = leg.fromLongitude;
+    final toLatitude = leg.toLatitude;
+    final toLongitude = leg.toLongitude;
+    if (fromLatitude == null ||
+        fromLongitude == null ||
+        toLatitude == null ||
+        toLongitude == null) {
+      return leg;
+    }
+    final walk = _walkingLeg(
+      fromLatitude,
+      fromLongitude,
+      leg.departureTime,
+      PlannerConfig(),
+      fromStop: leg.fromStop,
+      toStop: leg.toStop,
+      toLatitude: toLatitude,
+      toLongitude: toLongitude,
+    );
+    return leg.copyWithShape(shape: walk.shape, approximate: walk.approximate);
+  }
+
+  /// Camino peatonal: con el grafo cargado es la ruta real de la red; sin
+  /// grafo o sin camino válido, el tramo mide en línea recta y está marcado
+  /// como aproximado (nunca se omite).
+  _WalkingLeg _walkingLeg(
     double fromLatitude,
     double fromLongitude,
     DateTime departure,
@@ -676,19 +767,33 @@ class TransitRouteSearch {
       toLatitude,
       toLongitude,
     );
-    if (graph != null && (path == null || path.points.isEmpty)) return null;
-    // Con grafo: tiempo real sobre la ruta de OSM. Sin grafo: línea recta
-    // con factor de desvío ([PlannerConfig.detourFactor]).
+    final hasPath = path != null && path.points.isNotEmpty;
+    final approximate = graph == null || !hasPath;
+    // Con grafo: tiempo real sobre la ruta de OSM. Sin camino válido:
+    // línea recta con factor de desvío ([PlannerConfig.detourFactor]).
     final distanceMeters =
         path?.lengthMeters ??
         (_distanceMeters(fromLatitude, fromLongitude, toLatitude, toLongitude) *
             config.detourFactor);
-    final shape = path == null
-        ? null
-        : Shape(
+    final shape = hasPath
+        ? Shape(
             id: "walk:${path.points.first.latitude},${path.points.first.longitude}",
             points: path.points,
+          )
+        : Shape(
+            id: "walk:approx:$fromLatitude,$fromLongitude",
+            points: [
+              ShapePoint(fromLatitude, fromLongitude, 0),
+              ShapePoint(toLatitude, toLongitude, 1),
+            ],
           );
+    developer.log(
+      '[rumbo][caminata] tramo: desde $fromLatitude,$fromLongitude hasta '
+      '$toLatitude,$toLongitude; grafo=${graph != null}; camino=$hasPath; '
+      'distancia=${distanceMeters.round()} m; puntos=${shape.points.length}; '
+      'aproximado=$approximate',
+      name: 'Rumbo',
+    );
     return _WalkingLeg(
       fromStop: fromStop,
       toStop: toStop,
@@ -704,7 +809,7 @@ class TransitRouteSearch {
         ),
       ),
       shape: shape,
-      approximate: path == null,
+      approximate: approximate,
     );
   }
 }

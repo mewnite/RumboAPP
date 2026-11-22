@@ -191,6 +191,97 @@ void main() {
     expect(finalWalk.approximate, isFalse);
   });
 
+  test('integración: tramas peatonales se recalculan cuando el grafo carga después de planificar', () async {
+    final repo = FakeTransitRepository(
+      stops: const [],
+      routes: const [],
+      variants: const [],
+      trips: const [],
+      times: const [],
+      calendars: const [],
+    );
+    final planner = TransitTripPlanner(
+      repo,
+      now: () => DateTime(2026, 6, 2, 9),
+    );
+
+    // 1. Planificar sin grafo: los tramos peatonales no se omiten.
+    final plans = await planner.plan(
+      TripRequest(
+        originLatitude: 0,
+        originLongitude: 0,
+        destinationLatitude: 0,
+        destinationLongitude: .005,
+        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+        config: const PlannerConfig(maximumWalkingMeters: 800),
+      ),
+    );
+    final walking = plans.single.legs
+        .where((leg) => leg.kind == TripLegKind.walking)
+        .toList(growable: false);
+    expect(walking, isNotEmpty);
+    for (final leg in walking) {
+      expect(leg.shape, isNotNull);
+      expect(leg.approximate, isTrue);
+    }
+
+    // 2. El grafo termina de cargando después de planificar.
+    planner.walkGraph = WalkGraph.fromWays([
+      [ShapePoint(0, 0, 0), ShapePoint(0, .005, 1)],
+    ]);
+
+    // 3. Los tramos peatonales se recalculan con la red real.
+    final refreshed = planner.refreshWalkingSegments(plans.single);
+    expect(refreshed, isNot(same(plans.single)));
+    final refreshedWalking = refreshed.legs
+        .where((leg) => leg.kind == TripLegKind.walking)
+        .toList(growable: false);
+    expect(refreshedWalking, isNotEmpty);
+    for (final leg in refreshedWalking) {
+      expect(leg.approximate, isFalse);
+      expect(leg.shape!.points.first.latitude, closeTo(0, .001));
+      expect(leg.shape!.points.first.longitude, closeTo(0, .001));
+      expect(leg.shape!.points.last.latitude, closeTo(0, .001));
+      expect(leg.shape!.points.last.longitude, closeTo(.005, .001));
+    }
+  });
+
+  test('snap de un punto a ~50 m de la vértice principal usa la tolerancia de la componente principal', () {
+    final graph = WalkGraph.fromWays([
+      [ShapePoint(0, 0, 0), ShapePoint(0, 1, 1)],
+    ]);
+    // A 0.00045 grados de longitud: ~50 m. Fuera de la tolerancia de 5 m
+    // del build; dentro de la tolerancia de ~75 m de la componente
+    // principal.
+    final vertex = graph.snapToGraph(0, 0.00045);
+    expect(vertex, isNotNull);
+    expect(vertex, lessThan(graph.vertexCount));
+  });
+
+  test('snap fallido (punto lejos de la red) no omite el tramo: línea recta punteada marcada como aproximada', () {
+    final graph = WalkGraph.fromWays([
+      [ShapePoint(0, 0, 0), ShapePoint(0, 1, 1)],
+    ]);
+    final leg = TransitRouteSearch(walkGraph: graph).refreshWalkingLeg(
+      TripLeg(
+        kind: TripLegKind.walking,
+        departureTime: DateTime(2026, 6, 2, 10),
+        arrivalTime: DateTime(2026, 6, 2, 10, 5),
+        fromLatitude: 0,
+        fromLongitude: 0,
+        toLatitude: 0,
+        toLongitude: 2,
+      ),
+    );
+    expect(leg.shape, isNotNull);
+    expect(leg.shape!.points, hasLength(2));
+    expect(leg.shape!.points.first.latitude, closeTo(0, .001));
+    expect(leg.shape!.points.first.longitude, closeTo(0, .001));
+    expect(leg.shape!.points.last.latitude, closeTo(0, .001));
+    expect(leg.shape!.points.last.longitude, closeTo(2, .001));
+    expect(leg.approximate, isTrue);
+  });
+
   test('multimodal plan carries the real shape on the transfer walk', () {
     final data = TransitScheduleData(
       stops: const [

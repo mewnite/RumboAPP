@@ -15,6 +15,7 @@
 // El Dijkstra es una búsqueda pura sobre el grafo: sin fallback recto. Si no
 // existe un camino, [shortestPath] devuelve null.
 import 'dart:collection';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
@@ -54,12 +55,20 @@ class _DijkstraEntry {
 
 /// Grafo peatonal real desde OpenStreetMap.
 class WalkGraph {
+  /// Tolerancia mínima de snapping para puntos externos sobre la componente
+  /// principal del grafo (50-100 m).
+  static const double _mainSnapToleranceMeters = 75;
+
   /// Construye el grafo desde vías (`way.geometry` — polilínea real).
   factory WalkGraph.fromWays(
     List<List<ShapePoint>> ways, {
     double snapToleranceMeters = 5,
+    double mainSnapToleranceMeters = _mainSnapToleranceMeters,
   }) {
-    final graph = WalkGraph._(snapToleranceMeters: snapToleranceMeters);
+    final graph = WalkGraph._(
+      snapToleranceMeters: snapToleranceMeters,
+      mainSnapToleranceMeters: mainSnapToleranceMeters,
+    );
     graph._build(ways);
     return graph;
   }
@@ -68,6 +77,7 @@ class WalkGraph {
   static WalkGraph? fromGeoJson(
     Map<String, dynamic> data, {
     double snapToleranceMeters = 5,
+    double mainSnapToleranceMeters = _mainSnapToleranceMeters,
   }) {
     final elements = data["elements"];
     if (elements is! List) return null;
@@ -93,10 +103,18 @@ class WalkGraph {
       }
       if (points.length >= 2) ways.add(points);
     }
-    return WalkGraph.fromWays(ways, snapToleranceMeters: snapToleranceMeters);
+    return WalkGraph.fromWays(
+      ways,
+      snapToleranceMeters: snapToleranceMeters,
+      mainSnapToleranceMeters: mainSnapToleranceMeters,
+    );
   }
 
-  WalkGraph._({required this.snapToleranceMeters});
+  WalkGraph._({
+    required this.snapToleranceMeters,
+    double? mainSnapToleranceMeters,
+  }) : mainSnapToleranceMeters =
+           mainSnapToleranceMeters ?? WalkGraph._mainSnapToleranceMeters;
 
   final List<ShapePoint> _vertices = [];
   final List<_WalkEdge> _edges = [];
@@ -105,6 +123,11 @@ class WalkGraph {
 
   /// Tolerancia de snapping al camino peatonal más cercano (metros).
   final double snapToleranceMeters;
+
+  /// Tolerancia de snapping para puntos externos sobre la componente
+  /// principal del grafo (50-100 m — origen y destino del usuario, que
+  /// están fuera de la red y pueden estar a más de 5 m de una arista).
+  final double mainSnapToleranceMeters;
 
   /// Componente principal del grafo (la conectada más grande). El snapping
   /// solo se permite sobre ella — snappear a una componente descartada
@@ -229,19 +252,36 @@ class WalkGraph {
     }
     _mainComponent = component;
     _mainRoot = mainRoot;
+    developer.log(
+      '[rumbo][grafo] estado: vértices=${_vertices.length}, '
+      'aristas=$_edges.length, componente principal='
+      '${mainSize.isNegative ? 0 : mainSize}/${_vertices.length}, '
+      'tolerancia=${snapToleranceMeters.round()}m/'
+      '${mainSnapToleranceMeters.round()}m (build/snap)',
+      name: 'Rumbo',
+    );
   }
 
   /// Encuentra el vértice peatonal más cercano a (lat, lon) — proyecta el
   /// punto sobre el segmento peatonal más cercano y incorpora el punto
   /// proyectado al grafo (split de la arista).
   ///
-  /// Devuelve null si no existe arista/vértice dentro de
-  /// [snapToleranceMeters] — no hay ruta válida desde el punto.
+  /// Devuelve null si no existe arista/vértice dentro de la tolerancia de la
+  /// componente principal (ver [mainSnapToleranceMeters]) — no hay ruta
+  /// válida desde el punto.
   int? snapToGraph(double lat, double lon) {
-    final vertex = _nearestVertexWithin(lat, lon, snapToleranceMeters);
+    final tolerance = math.max(snapToleranceMeters, mainSnapToleranceMeters);
+    final vertex = _nearestVertexWithin(lat, lon, tolerance);
     if (vertex != null && _isMainComponent(vertex)) return vertex;
-    final projection = _nearestProjectionWithin(lat, lon, snapToleranceMeters);
-    if (projection == null) return null;
+    final projection = _nearestProjectionWithin(lat, lon, tolerance);
+    if (projection == null) {
+      developer.log(
+        '[rumbo][grafo] snap fallido: sin vértice ni proyección dentro de '
+        '${tolerance.round()} m',
+        name: 'Rumbo',
+      );
+      return null;
+    }
     // Solo snapping sobre la componente principal (no dividir la red).
     final edge = _edges[projection.edgeId];
     if (!_isMainComponent(edge.a) && !_isMainComponent(edge.b)) return null;

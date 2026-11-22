@@ -25,6 +25,7 @@ import '../../../features/stops_and_lines/presentation/line_details_sheet.dart';
 import '../../../features/stops_and_lines/presentation/stop_details_sheet.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
+import '../../../features/trip_planner/domain/walk_graph.dart';
 import '../../../features/trip_planner/presentation/walk_graph_provider.dart';
 import '../../../features/trip_planner/presentation/trip_plan_details.dart';
 import '../../../features/trip_detail/presentation/active_trip_controller.dart';
@@ -632,13 +633,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final placeSource = transitConfig.placeSearchEndpoint.isEmpty
         ? null
         : OpenStreetMapPlaceSource(endpoint: transitConfig.placeSearchEndpoint);
-    // Red peatonal real (OSM via proxy) — planifica walking con geometría real.
-    final walkGraph = await ref.read(walkGraphProvider.future);
-    if (!mounted) return;
+    // Red peatonal real (OSM via proxy). Planifica con la red disponible
+    // ahora; si carga más tarde, los tramos peatonales de los planes
+    // mostrados se recalculan al terminar de cargar.
+    final walkGraphFuture = ref.read(walkGraphProvider.future);
     final tripPlanner = TransitTripPlanner(
       ref.read(transitRepositoryProvider),
-      walkGraph: walkGraph,
+      walkGraph: ref.read(walkGraphProvider).value,
     );
+    if (!mounted) return;
     var didSelectPlan = false;
     try {
       await showModalBottomSheet<void>(
@@ -779,13 +782,33 @@ class _MapScreenState extends ConsumerState<MapScreen>
             curve: Curves.easeOut,
           );
         }
-        final plan = _selectedTripPlan;
+        final plan = await _refreshSelectedTripPlanAfterGraphLoad(
+          tripPlanner,
+          walkGraphFuture,
+        );
         if (plan != null) await _focusOnTripPlan(plan);
       }
     } finally {
       tripPlanner.cancelPendingSearch();
       placeSource?.close();
     }
+  }
+
+  /// Recalcula los tramos peatonales del plan seleccionado con la red
+  /// peatonal (si terminó de cargar después de planificar). Devuelve el
+  /// plan actualizado — o el original cuando no hay cambios.
+  Future<TripPlan?> _refreshSelectedTripPlanAfterGraphLoad(
+    TransitTripPlanner planner,
+    Future<WalkGraph?> graphFuture,
+  ) async {
+    final graph = ref.read(walkGraphProvider).value ?? await graphFuture;
+    final selected = _selectedTripPlan;
+    if (selected == null) return null;
+    if (graph != null) planner.walkGraph = graph;
+    final refreshed = planner.refreshWalkingSegments(selected);
+    if (identical(refreshed, selected) || !mounted) return selected;
+    setState(() => _selectedTripPlan = refreshed);
+    return refreshed;
   }
 
   Future<void> _startActiveTrip(TripPlan plan) async {
@@ -1183,24 +1206,28 @@ class _MapScreenState extends ConsumerState<MapScreen>
   List<Layer> _tripPlanLayers(TripPlan? plan) {
     if (plan == null) return const [];
 
-    final walkingPoints = <Feature<LineString>>[];
+    final realWalkingPoints = <Feature<LineString>>[];
+    final approxWalkingPoints = <Feature<LineString>>[];
     final transitPoints = <Feature<LineString>>[];
     for (final leg in plan.legs) {
       if (leg.kind == TripLegKind.waiting) continue;
 
       if (leg.kind == TripLegKind.walking) {
-        // Tramo peatonal: dibuja la geometría real de la red peatonal
-        // (ajuste 3: solo geometrías reales; nunca líneas rectas).
+        // Tramos peatonales: geometría real de la red peatonal; sin red ni
+        // snap válido, línea recta punteada marcada como aproximada.
         final walkPoints = leg.shape?.points;
         if (walkPoints == null || walkPoints.length < 2) continue;
-        walkingPoints.add(
-          Feature<LineString>(
-            geometry: LineString.from([
-              for (final point in walkPoints)
-                Geographic(lon: point.longitude, lat: point.latitude),
-            ]),
-          ),
+        final feature = Feature<LineString>(
+          geometry: LineString.from([
+            for (final point in walkPoints)
+              Geographic(lon: point.longitude, lat: point.latitude),
+          ]),
         );
+        if (leg.approximate) {
+          approxWalkingPoints.add(feature);
+        } else {
+          realWalkingPoints.add(feature);
+        }
         continue;
       }
 
@@ -1231,13 +1258,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final layers = <Layer>[];
     final routeColor = AppColors.rumbo;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (walkingPoints.isNotEmpty) {
+    if (realWalkingPoints.isNotEmpty) {
       layers.add(
         PolylineLayer(
-          polylines: walkingPoints,
+          polylines: realWalkingPoints,
           color: routeColor.withValues(alpha: 0.72),
           width: 4,
-          dashArray: const [1, 2],
+        ),
+      );
+    }
+    if (approxWalkingPoints.isNotEmpty) {
+      layers.add(
+        PolylineLayer(
+          polylines: approxWalkingPoints,
+          color: routeColor.withValues(alpha: 0.72),
+          width: 4,
+          dashArray: const [2, 3],
         ),
       );
     }
