@@ -18,11 +18,14 @@ final walkGraphProvider = FutureProvider<WalkGraph?>((ref) async {
       return graph;
     }
   }
-  final fetched = await source.fetch();
-  if (fetched != null) {
-    final graph = WalkNetworkSource.buildGraph(fetched);
+  // Fetch + jsonDecode del JSON grande (el build del grafo mide ~0.7s —
+  // razonable para el hilo de UI; la búsqueda Dijkstra ya corre en un
+  // isolate — `runPlanSearch`).
+  final data = await source.fetch();
+  if (data != null) {
+    final graph = WalkNetworkSource.buildGraph(data);
     if (graph != null) {
-      unawaited(source.writeCached(fetched));
+      unawaited(source.writeCached(data));
       return graph;
     }
   }
