@@ -31,6 +31,34 @@ PLACE_SEARCH_URL = os.environ.get(
     "RUMBO_GEOCODING_URL",
     "https://nominatim.openstreetmap.org/search",
 )
+OVERPASS_URL = os.environ.get(
+    "RUMBO_OVERPASS_URL",
+    "https://overpass-api.de/api/interpreter",
+)
+# MCIO bbox (lat -34.9271..-34.7167, lon -56.4048..-55.9955 from the GTFS seed)
+# with a safety margin.
+OVERPASS_QUERY = (
+    "[out:json][timeout:90];("
+    'way["highway"~"pedestrian|path|footway|service|residential|unclassified'
+    '|living_street|track|tertiary|secondary|primary|primary_link'
+    '|secondary_link|tertiary_link"]'
+    '["foot"!="no"]["access"!="private"]["access"!="agricultural"]'
+    '["access"!="forestry"]["access"!="destination"]'
+    '["motor_vehicle"!="private"]["motor_vehicle"!="agricultural"]'
+    '["motor_vehicle"!="forestry"]["motor_vehicle"!="destination"]'
+    '["barrier"!="wall"]["barrier"!="fence"]'
+    "(-34.9771,-56.4548,-34.6667,-55.9455);"
+    'way["highway"="steps"]'
+    '["foot"!="no"]["access"!="private"]["access"!="agricultural"]'
+    '["access"!="forestry"]["access"!="destination"]'
+    '["motor_vehicle"!="private"]["motor_vehicle"!="agricultural"]'
+    '["motor_vehicle"!="forestry"]["motor_vehicle"!="destination"]'
+    '["barrier"!="wall"]["barrier"!="fence"]'
+    "(-34.9771,-56.4548,-34.6667,-55.9455);"
+    ");out geom;"
+)
+PEDESTRIAN_CACHE_SECONDS = 24 * 60 * 60
+MAX_PEDESTRIAN_BYTES = 32 * 1024 * 1024
 RUMBO_USER_AGENT = "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)"
 # Accepted from the app's place sources. The proxy builds its own upstream
 # query, so these only describe the client request and never reach Nominatim
@@ -139,6 +167,7 @@ class ApiProxy:
         self._place_lock = threading.Lock()
         self._place_responses: dict[str, tuple[float, tuple[int, str, bytes]]] = {}
         self._last_place_request = 0.0
+        self._pedestrian_cache: tuple[float, tuple[int, str, bytes]] | None = None
 
     def handle(self, target: str) -> tuple[int, str, bytes, dict[str, str]]:
         parsed = urllib.parse.urlsplit(target)
@@ -186,7 +215,50 @@ class ApiProxy:
                 f"/buses/busstops/{stop_lines.group(1)}/lines"
             )
             return status, content_type, body, {}
+        if parsed.path == "/osm/pedestrian":
+            status, content_type, body = self._pedestrian()
+            return status, content_type, body, {}
         raise ApiError(404, "Ruta no habilitada en el proxy local.")
+
+    def _pedestrian(self) -> tuple[int, str, bytes]:
+        now = time.monotonic()
+        with self._lock:
+            cached = self._pedestrian_cache
+            if cached is not None and now - cached[0] < PEDESTRIAN_CACHE_SECONDS:
+                return cached[1]
+        result = self._request_overpass()
+        with self._lock:
+            self._pedestrian_cache = (now, result)
+        return result
+
+    def _request_overpass(self) -> tuple[int, str, bytes]:
+        request = urllib.request.Request(
+            OVERPASS_URL,
+            data=OVERPASS_QUERY.encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": RUMBO_USER_AGENT,
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                body = response.read(MAX_PEDESTRIAN_BYTES + 1)
+                if len(body) > MAX_PEDESTRIAN_BYTES:
+                    raise ApiError(502, "Respuesta de la red peatonal demasiado grande.")
+                result = (
+                    response.status,
+                    response.headers.get("Content-Type", "application/json"),
+                    body,
+                )
+        except urllib.error.HTTPError as error:
+            raise ApiError(
+                502,
+                f"El servicio de la red peatonal respondió HTTP {error.code}.",
+            ) from None
+        except (urllib.error.URLError, TimeoutError):
+            raise ApiError(502, "No se pudo conectar al servicio de la red peatonal.") from None
+        return result
 
     def _validate_place_query(self, query: str) -> str:
         values = self._query_values(query)
