@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import io
+import logging
 import os
 import re
 import tempfile
@@ -35,6 +36,10 @@ OVERPASS_URL = os.environ.get(
     "RUMBO_OVERPASS_URL",
     "https://overpass-api.de/api/interpreter",
 )
+OVERPASS_MIRROR_URL = os.environ.get(
+    "RUMBO_OVERPASS_MIRROR_URL",
+    "https://overpass.private.coffee/api/interpreter",
+)
 # MCIO bbox (lat -34.9271..-34.7167, lon -56.4048..-55.9955 from the GTFS seed)
 # with a safety margin.
 OVERPASS_QUERY = (
@@ -42,13 +47,15 @@ OVERPASS_QUERY = (
     'way["highway"~"pedestrian|path|footway|service|residential|unclassified'
     '|living_street|track|tertiary|secondary|primary|primary_link'
     '|secondary_link|tertiary_link"]'
-    '["foot"!="no"]["access"!="private"]["access"!="agricultural"]'
-    '["access"!="forestry"]["access"!="destination"]'
+    '["foot"!="no"]["access"!="private"]'
     '["barrier"!="wall"]["barrier"!="fence"]'
     "(-34.9771,-56.4548,-34.6667,-55.9455);"
     'way["highway"="steps"]'
-    '["foot"!="no"]["access"!="private"]["access"!="agricultural"]'
-    '["access"!="forestry"]["access"!="destination"]'
+    '["foot"!="no"]["access"!="private"]'
+    '["barrier"!="wall"]["barrier"!="fence"]'
+    "(-34.9771,-56.4548,-34.6667,-55.9455);"
+    'way["highway"~"motorway|motorway_link|trunk|trunk_link"]'
+    '["foot"="yes"]["access"!="private"]'
     '["barrier"!="wall"]["barrier"!="fence"]'
     "(-34.9771,-56.4548,-34.6667,-55.9455);"
     ");out geom;"
@@ -151,8 +158,11 @@ class ApiProxy:
         minimum_live_interval: int = LIVE_MIN_INTERVAL_SECONDS,
     ):
         self._oauth = OAuthClient(credentials)
-        self._cache_directory = cache_directory or (
-            Path(tempfile.gettempdir()) / "rumbo-montevideo-api"
+        self._cache_directory = cache_directory or Path(
+            os.environ.get(
+                "RUMBO_CACHE_DIR",
+                str(Path(tempfile.gettempdir()) / "rumbo-montevideo-api"),
+            )
         )
         self._minimum_live_interval = minimum_live_interval
         self._last_live_request = 0.0
@@ -164,6 +174,11 @@ class ApiProxy:
         self._place_responses: dict[str, tuple[float, tuple[int, str, bytes]]] = {}
         self._last_place_request = 0.0
         self._pedestrian_cache: tuple[float, tuple[int, str, bytes]] | None = None
+        self._pedestrian_lock = threading.Lock()
+        self._pedestrian_retry_after = 0.0
+        self._overpass_urls = tuple(
+            dict.fromkeys((OVERPASS_URL, OVERPASS_MIRROR_URL))
+        )
 
     def handle(self, target: str) -> tuple[int, str, bytes, dict[str, str]]:
         parsed = urllib.parse.urlsplit(target)
@@ -212,24 +227,114 @@ class ApiProxy:
             )
             return status, content_type, body, {}
         if parsed.path == "/osm/pedestrian":
-            status, content_type, body = self._pedestrian()
-            return status, content_type, body, {}
+            status, content_type, body, cache_status = self._pedestrian()
+            return status, content_type, body, {"X-Rumbo-Cache": cache_status}
         raise ApiError(404, "Ruta no habilitada en el proxy local.")
 
-    def _pedestrian(self) -> tuple[int, str, bytes]:
-        now = time.monotonic()
-        with self._lock:
+    def _pedestrian(self) -> tuple[int, str, bytes, str]:
+        with self._pedestrian_lock:
+            now = time.monotonic()
             cached = self._pedestrian_cache
             if cached is not None and now - cached[0] < PEDESTRIAN_CACHE_SECONDS:
-                return cached[1]
-        result = self._request_overpass()
-        with self._lock:
-            self._pedestrian_cache = (now, result)
-        return result
+                return (*cached[1], "memory")
 
-    def _request_overpass(self) -> tuple[int, str, bytes]:
+            disk_cache = self._read_pedestrian_cache()
+            stale = cached[1] if cached is not None else None
+            if disk_cache is not None:
+                stale = disk_cache[1]
+            if disk_cache is not None:
+                cache_age = time.time() - disk_cache[0]
+                if cache_age < PEDESTRIAN_CACHE_SECONDS:
+                    self._pedestrian_cache = (now, disk_cache[1])
+                    return (*disk_cache[1], "disk")
+
+            if now < self._pedestrian_retry_after and stale is not None:
+                return (*stale, "stale")
+
+            failures = []
+            for endpoint in self._overpass_urls:
+                try:
+                    result = self._request_overpass(endpoint)
+                except ApiError as error:
+                    failures.append(f"{endpoint}: {error}")
+                    continue
+                self._write_pedestrian_cache(result[2])
+                self._pedestrian_cache = (now, result)
+                self._pedestrian_retry_after = 0.0
+                return (*result, "miss")
+
+            self._pedestrian_retry_after = now + 60
+            if stale is not None:
+                logging.warning(
+                    "Overpass primario y mirror fallaron; sirviendo caché "
+                    "peatonal obsoleta. Errores: %s",
+                    "; ".join(failures),
+                )
+                self._pedestrian_cache = (
+                    now - PEDESTRIAN_CACHE_SECONDS,
+                    stale,
+                )
+                return (*stale, "stale")
+            raise ApiError(
+                502,
+                "Fallaron Overpass y su mirror; no hay caché peatonal válida. "
+                + "; ".join(failures),
+            )
+
+    def _read_pedestrian_cache(
+        self,
+    ) -> tuple[float, tuple[int, str, bytes]] | None:
+        cache_path = self._cache_directory / "osm_pedestrian.json"
+        try:
+            stat = cache_path.stat()
+            body = cache_path.read_bytes()
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            logging.warning("No se pudo leer la caché peatonal %s: %s", cache_path, error)
+            return None
+        if len(body) > MAX_PEDESTRIAN_BYTES:
+            logging.warning("La caché peatonal excede el máximo permitido: %s", cache_path)
+            return None
+        try:
+            payload = json.loads(body)
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            logging.warning("La caché peatonal está corrupta (%s): %s", cache_path, error)
+            return None
+        if not isinstance(payload, dict) or not isinstance(payload.get("elements"), list):
+            logging.warning("La caché peatonal no tiene el formato esperado: %s", cache_path)
+            return None
+        return stat.st_mtime, (200, "application/json", body)
+
+    def _write_pedestrian_cache(self, body: bytes) -> None:
+        cache_path = self._cache_directory / "osm_pedestrian.json"
+        temp_path: Path | None = None
+        try:
+            self._cache_directory.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix="osm_pedestrian.",
+                suffix=".tmp",
+                dir=self._cache_directory,
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(body)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, cache_path)
+        except OSError as error:
+            logging.warning("No se pudo persistir la caché peatonal: %s", error)
+        finally:
+            if temp_path is not None and temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError as error:
+                    logging.warning("No se pudo limpiar temporal %s: %s", temp_path, error)
+
+    def _request_overpass(self, endpoint: str) -> tuple[int, str, bytes]:
         request = urllib.request.Request(
-            OVERPASS_URL,
+            endpoint,
             data=OVERPASS_QUERY.encode("utf-8"),
             headers={
                 "Accept": "application/json",
@@ -242,9 +347,17 @@ class ApiProxy:
                 body = response.read(MAX_PEDESTRIAN_BYTES + 1)
                 if len(body) > MAX_PEDESTRIAN_BYTES:
                     raise ApiError(502, "Respuesta de la red peatonal demasiado grande.")
+                payload = json.loads(body)
+                if not isinstance(payload, dict) or not isinstance(
+                    payload.get("elements"), list
+                ):
+                    raise ApiError(
+                        502,
+                        "Respuesta de Overpass sin una lista de elementos válida.",
+                    )
                 result = (
                     response.status,
-                    response.headers.get("Content-Type", "application/json"),
+                    "application/json",
                     body,
                 )
         except urllib.error.HTTPError as error:
@@ -254,6 +367,8 @@ class ApiProxy:
             ) from None
         except (urllib.error.URLError, TimeoutError):
             raise ApiError(502, "No se pudo conectar al servicio de la red peatonal.") from None
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise ApiError(502, f"Overpass devolvió JSON inválido: {error}") from None
         return result
 
     def _validate_place_query(self, query: str) -> str:

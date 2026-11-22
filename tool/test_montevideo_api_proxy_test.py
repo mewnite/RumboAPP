@@ -1,3 +1,4 @@
+import json
 import tempfile
 import time
 import unittest
@@ -8,6 +9,7 @@ from unittest.mock import patch
 
 from tool.montevideo_api_proxy import ApiError, ApiProxy, Handler, load_env
 from tool.montevideo_api_proxy import geocoding_query
+from tool.fetch_seeds.fetch_seeds import feature_collection_to_overpass
 
 
 class ApiProxyTest(unittest.TestCase):
@@ -217,6 +219,73 @@ class ApiProxyTest(unittest.TestCase):
                 self.proxy._cached_reference("/buses/busstops"),
                 stale,
             )
+
+    def test_pedestrian_source_uses_mirror_and_persists_response(self):
+        body = b'{"elements":[]}'
+        self.proxy._overpass_urls = ("https://primary.test/api", "https://mirror.test/api")
+        with patch.object(
+            self.proxy,
+            "_request_overpass",
+            side_effect=[ApiError(502, "primary unavailable"), (200, "application/json", body)],
+        ) as request:
+            response = self.proxy.handle("/osm/pedestrian")
+        self.assertEqual(response, (200, "application/json", body, {"X-Rumbo-Cache": "miss"}))
+        self.assertEqual(
+            [call.args[0] for call in request.call_args_list],
+            ["https://primary.test/api", "https://mirror.test/api"],
+        )
+        self.assertEqual(
+            (Path(self.directory.name) / "osm_pedestrian.json").read_bytes(),
+            body,
+        )
+
+        restarted = ApiProxy({}, Path(self.directory.name))
+        with patch.object(restarted, "_request_overpass") as request:
+            cached = restarted.handle("/osm/pedestrian")
+        self.assertEqual(cached, (200, "application/json", body, {"X-Rumbo-Cache": "disk"}))
+        request.assert_not_called()
+
+    def test_pedestrian_source_serves_stale_disk_cache_if_all_upstreams_fail(self):
+        cache_path = Path(self.directory.name) / "osm_pedestrian.json"
+        cache_path.write_text('{"elements":[]}', encoding="utf-8")
+        old = time.time() - 2 * 24 * 60 * 60
+        os.utime(cache_path, (old, old))
+        self.proxy._overpass_urls = ("https://primary.test/api", "https://mirror.test/api")
+        with patch.object(
+            self.proxy,
+            "_request_overpass",
+            side_effect=ApiError(502, "unavailable"),
+        ) as request:
+            response = self.proxy.handle("/osm/pedestrian")
+        self.assertEqual(
+            response,
+            (200, "application/json", b'{"elements":[]}', {"X-Rumbo-Cache": "stale"}),
+        )
+        self.assertEqual(request.call_count, 2)
+
+    def test_pedestrian_filter_does_not_confuse_motor_vehicle_with_foot_access(self):
+        from tool.montevideo_api_proxy import OVERPASS_QUERY
+
+        self.assertNotIn("motor_vehicle", OVERPASS_QUERY)
+        self.assertNotIn('["access"!="agricultural"]', OVERPASS_QUERY)
+        self.assertIn('["access"!="private"]', OVERPASS_QUERY)
+        self.assertIn('["foot"="yes"]', OVERPASS_QUERY)
+
+    def test_osmium_geojson_adapter_clips_complete_ways_to_montevideo_bbox(self):
+        source = Path("test/fixtures/osm_seed_minimal.geojson")
+        destination = Path(self.directory.name) / "normalized.json"
+        exported, clipped = feature_collection_to_overpass(
+            source,
+            destination,
+            {"west": -1, "south": -1, "east": 1, "north": 1},
+        )
+        elements = json.loads(destination.read_text(encoding="utf-8"))["elements"]
+        self.assertEqual(exported, 2)
+        self.assertEqual(clipped, 1)
+        self.assertEqual(
+            elements[0]["geometry"],
+            [{"lat": 0.25, "lon": -1.0}, {"lat": 0.5, "lon": 0}, {"lat": 0.75, "lon": 1}],
+        )
 
     def test_gtfs_returns_last_valid_archive_when_upstream_is_offline(self):
         archive = Path(self.directory.name) / "google_transit.zip"

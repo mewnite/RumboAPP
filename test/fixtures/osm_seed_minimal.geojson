@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/100",
+      "properties": {"@id": "way/100", "highway": "footway"},
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-2, 0], [0, 0.5], [2, 1]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/101",
+      "properties": {"@id": "way/101", "highway": "motorway"},
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[4, 4], [5, 5]]
+      }
+    }
+  ]
+}
