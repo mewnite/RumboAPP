@@ -25,6 +25,7 @@ import '../../../features/stops_and_lines/presentation/line_details_sheet.dart';
 import '../../../features/stops_and_lines/presentation/stop_details_sheet.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
+import '../../../features/trip_planner/presentation/walk_graph_provider.dart';
 import '../../../features/trip_planner/presentation/trip_plan_details.dart';
 import '../../../features/trip_detail/presentation/active_trip_controller.dart';
 import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
@@ -631,7 +632,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final placeSource = transitConfig.placeSearchEndpoint.isEmpty
         ? null
         : OpenStreetMapPlaceSource(endpoint: transitConfig.placeSearchEndpoint);
-    final tripPlanner = TransitTripPlanner(ref.read(transitRepositoryProvider));
+    // Red peatonal real (OSM via proxy) — planifica walking con geometría real.
+    final walkGraph = await ref.read(walkGraphProvider.future);
+    if (!mounted) return;
+    final tripPlanner = TransitTripPlanner(
+      ref.read(transitRepositoryProvider),
+      walkGraph: walkGraph,
+    );
     var didSelectPlan = false;
     try {
       await showModalBottomSheet<void>(
@@ -1179,6 +1186,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final walkingPoints = <Feature<LineString>>[];
     final transitPoints = <Feature<LineString>>[];
     for (final leg in plan.legs) {
+      if (leg.kind == TripLegKind.waiting) continue;
+
+      if (leg.kind == TripLegKind.walking) {
+        // Tramo peatonal: dibuja la geometría real de la red peatonal
+        // (ajuste 3: solo geometrías reales; nunca líneas rectas).
+        final walkPoints = leg.shape?.points;
+        if (walkPoints == null || walkPoints.length < 2) continue;
+        walkingPoints.add(
+          Feature<LineString>(
+            geometry: LineString.from([
+              for (final point in walkPoints)
+                Geographic(lon: point.longitude, lat: point.latitude),
+            ]),
+          ),
+        );
+        continue;
+      }
+
       final fromLat = leg.fromLatitude ?? leg.fromStop?.latitude;
       final fromLon = leg.fromLongitude ?? leg.fromStop?.longitude;
       final toLat = leg.toLatitude ?? leg.toStop?.latitude;
@@ -1189,32 +1214,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
           toLon == null) {
         continue;
       }
-      final shape = leg.kind == TripLegKind.transit && leg.variant != null
-          ? _tripPlanShapes[leg.variant!.id]
-          : null;
-      if (leg.kind == TripLegKind.transit && shape == null) continue;
-      final points = shape == null
-          ? [
-              Geographic(lon: fromLon, lat: fromLat),
-              Geographic(lon: toLon, lat: toLat),
-            ]
-          : _shapeSegment(
-              shape,
-              fromLatitude: fromLat,
-              fromLongitude: fromLon,
-              toLatitude: toLat,
-              toLongitude: toLon,
-            );
+      final variant = leg.variant;
+      final shape = variant == null ? null : _tripPlanShapes[variant.id];
+      if (shape == null) continue;
+      final points = _shapeSegment(
+        shape,
+        fromLatitude: fromLat,
+        fromLongitude: fromLon,
+        toLatitude: toLat,
+        toLongitude: toLon,
+      );
       if (points.length < 2) continue;
-      final segment = Feature<LineString>(geometry: LineString.from(points));
-      switch (leg.kind) {
-        case TripLegKind.walking:
-          walkingPoints.add(segment);
-        case TripLegKind.transit:
-          transitPoints.add(segment);
-        case TripLegKind.waiting:
-          break;
-      }
+      transitPoints.add(Feature<LineString>(geometry: LineString.from(points)));
     }
 
     final layers = <Layer>[];

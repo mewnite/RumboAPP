@@ -3,6 +3,7 @@ import 'package:rumbo/features/stops_and_lines/data/fake_transit_repository.dart
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
 import 'package:rumbo/features/trip_planner/domain/trip_planner.dart';
+import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 
 void main() {
   final travelDay = DateTime(2026, 6, 2);
@@ -126,7 +127,17 @@ void main() {
     );
 
     final plans =
-        await TransitTripPlanner(repo, now: () => DateTime(2026, 6, 2, 9)).plan(
+        await TransitTripPlanner(
+          repo,
+          now: () => DateTime(2026, 6, 2, 9),
+          walkGraph: _graphThrough(const [
+            ShapePoint(0, 0, 0),
+            ShapePoint(0, .001, 1),
+            ShapePoint(0, .01, 2),
+            ShapePoint(0, .021, 3),
+            ShapePoint(0, .02, 4),
+          ]),
+        ).plan(
           TripRequest(
             originLatitude: 0,
             originLongitude: 0,
@@ -156,7 +167,7 @@ void main() {
           )
           .join(' | '),
     );
-    expect(plans.first.arrivalTime, DateTime(2026, 6, 2, 10, 41, 49));
+    expect(plans.first.arrivalTime, DateTime(2026, 6, 2, 10, 41, 24));
     expect(plans.first.transferCount, 1);
     expect(
       plans.first.legs.where((leg) => leg.kind == TripLegKind.transit),
@@ -720,7 +731,14 @@ void main() {
     );
 
     final plans =
-        await TransitTripPlanner(repo, now: () => DateTime(2026, 6, 2, 9)).plan(
+        await TransitTripPlanner(
+          repo,
+          now: () => DateTime(2026, 6, 2, 9),
+          walkGraph: _graphThrough(const [
+            ShapePoint(0, 0, 0),
+            ShapePoint(0, .005, 1),
+          ]),
+        ).plan(
           TripRequest(
             originLatitude: 0,
             originLongitude: 0,
@@ -745,9 +763,9 @@ void main() {
     expect(plans.single.legs.single.kind, TripLegKind.walking);
     expect(plans.single.legs.single.toLatitude, 0);
     expect(plans.single.legs.single.toLongitude, .005);
-    expect(plans.single.totalWalkingMeters, closeTo(722.8, 1));
+    expect(plans.single.totalWalkingMeters, closeTo(556, 1));
     expect(plans.single.transferCount, 0);
-    expect(plans.single.arrivalTime, DateTime(2026, 6, 2, 10, 9, 3));
+    expect(plans.single.arrivalTime, DateTime(2026, 6, 2, 10, 6, 57));
     expect(farPlans, isEmpty);
   });
 
@@ -757,19 +775,29 @@ void main() {
       calendars: [dailyCalendar],
     );
 
-    final plans = const TransitRouteSearch().findPlans(
-      request: TripRequest(
-        originLatitude: 0,
-        originLongitude: 0,
-        destinationLatitude: 0,
-        destinationLongitude: .022,
-        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
-      ),
-      data: data,
-      originStopIds: {'A'},
-      destinationStopIds: {'B'},
-      now: DateTime(2026, 6, 2, 9),
-    );
+    final plans =
+        TransitRouteSearch(
+          walkGraph: _graphThrough(const [
+            ShapePoint(0, 0, 0),
+            ShapePoint(0, .001, 1),
+            ShapePoint(0, .01, 2),
+            ShapePoint(0, .0109, 3),
+            ShapePoint(0, .021, 4),
+            ShapePoint(0, .022, 5),
+          ]),
+        ).findPlans(
+          request: TripRequest(
+            originLatitude: 0,
+            originLongitude: 0,
+            destinationLatitude: 0,
+            destinationLongitude: .022,
+            timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+          ),
+          data: data,
+          originStopIds: {'A'},
+          destinationStopIds: {'B'},
+          now: DateTime(2026, 6, 2, 9),
+        );
 
     expect(plans, hasLength(1));
     final transitLegs = plans.single.legs
@@ -783,8 +811,8 @@ void main() {
     final transferWalk = walkingLegs[1];
     expect(transferWalk.fromStop?.id, 'transfer');
     expect(transferWalk.toStop?.id, 'nearby');
-    expect(transferWalk.distanceMeters, closeTo(130, 1));
-    expect(plans.single.totalWalkingMeters, closeTo(419.2, 2));
+    expect(transferWalk.distanceMeters, closeTo(100, 1));
+    expect(plans.single.totalWalkingMeters, closeTo(322.5, 2));
   });
 
   test('rejects a 200 m walking transfer between different stops', () {
@@ -793,19 +821,29 @@ void main() {
       calendars: [dailyCalendar],
     );
 
-    final plans = const TransitRouteSearch().findPlans(
-      request: TripRequest(
-        originLatitude: 0,
-        originLongitude: 0,
-        destinationLatitude: 0,
-        destinationLongitude: .022,
-        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
-      ),
-      data: data,
-      originStopIds: {'A'},
-      destinationStopIds: {'B'},
-      now: DateTime(2026, 6, 2, 9),
-    );
+    final plans =
+        TransitRouteSearch(
+          walkGraph: _graphThrough(const [
+            ShapePoint(0, 0, 0),
+            ShapePoint(0, .001, 1),
+            ShapePoint(0, .01, 2),
+            ShapePoint(0, .0118, 3),
+            ShapePoint(0, .021, 4),
+            ShapePoint(0, .022, 5),
+          ]),
+        ).findPlans(
+          request: TripRequest(
+            originLatitude: 0,
+            originLongitude: 0,
+            destinationLatitude: 0,
+            destinationLongitude: .022,
+            timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+          ),
+          data: data,
+          originStopIds: {'A'},
+          destinationStopIds: {'B'},
+          now: DateTime(2026, 6, 2, 9),
+        );
 
     expect(plans, isEmpty);
   });
@@ -850,14 +888,20 @@ void main() {
       config: config,
     );
 
-    final limited = const TransitRouteSearch().findPlans(
+    final graph = _graphThrough(const [
+      ShapePoint(0, 0, 0),
+      ShapePoint(0, .004, 1),
+      ShapePoint(0, .008, 2),
+      ShapePoint(0, .012, 3),
+    ]);
+    final limited = TransitRouteSearch(walkGraph: graph).findPlans(
       request: request(const PlannerConfig()),
       data: data,
       originStopIds: {'A'},
       destinationStopIds: {'B'},
       now: DateTime(2026, 6, 2, 9),
     );
-    final extended = const TransitRouteSearch().findPlans(
+    final extended = TransitRouteSearch(walkGraph: graph).findPlans(
       request: request(const PlannerConfig(maximumWalkingMeters: 1200)),
       data: data,
       originStopIds: {'A'},
@@ -867,7 +911,7 @@ void main() {
 
     expect(limited, isEmpty);
     expect(extended, hasLength(1));
-    expect(extended.single.totalWalkingMeters, closeTo(1156.4, 2));
+    expect(extended.single.totalWalkingMeters, closeTo(889.6, 2));
   });
 
   test('rejects a transfer shorter than the minimum transfer time', () {
@@ -881,14 +925,21 @@ void main() {
       config: config,
     );
 
-    final limited = const TransitRouteSearch().findPlans(
+    final graph = _graphThrough(const [
+      ShapePoint(0, 0, 0),
+      ShapePoint(0, .001, 1),
+      ShapePoint(0, .01, 2),
+      ShapePoint(0, .021, 3),
+      ShapePoint(0, .022, 4),
+    ]);
+    final limited = TransitRouteSearch(walkGraph: graph).findPlans(
       request: request(const PlannerConfig()),
       data: data,
       originStopIds: {'A'},
       destinationStopIds: {'B'},
       now: DateTime(2026, 6, 2, 9),
     );
-    final extended = const TransitRouteSearch().findPlans(
+    final extended = TransitRouteSearch(walkGraph: graph).findPlans(
       request: request(
         const PlannerConfig(minimumTransferTime: Duration(minutes: 1)),
       ),
@@ -902,6 +953,9 @@ void main() {
     expect(extended, hasLength(1));
   });
 }
+
+WalkGraph _graphThrough(List<ShapePoint> points) =>
+    WalkGraph.fromWays([points]);
 
 TransitScheduleData _singleTripData({
   required int departureHour,

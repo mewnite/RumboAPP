@@ -5,6 +5,7 @@ import '../../stops_and_lines/domain/transit_models.dart';
 import '../../stops_and_lines/domain/transit_repository.dart';
 import 'plan_search_isolate.dart';
 import 'planner_config.dart';
+import 'walk_graph.dart';
 
 class TripEndpoint {
   const TripEndpoint({
@@ -179,10 +180,12 @@ class TripPlan {
 }
 
 class TransitTripPlanner {
-  TransitTripPlanner(this._repository, {this.now});
+  TransitTripPlanner(this._repository, {this.now, WalkGraph? walkGraph})
+    : _walkGraph = walkGraph;
 
   final TransitRepository _repository;
   final DateTime Function()? now;
+  final WalkGraph? _walkGraph;
   PlanSearchCancellation? _activeCancellation;
 
   void cancelPendingSearch() {
@@ -271,6 +274,7 @@ class TransitTripPlanner {
         originStopIds: origins.map((stop) => stop.id).toSet(),
         destinationStopIds: destinations.map((stop) => stop.id).toSet(),
         now: current,
+        walkGraph: _walkGraph,
       ),
       cancellation: cancellation,
     );
@@ -293,6 +297,7 @@ class PlanSearchPayload {
     required this.originStopIds,
     required this.destinationStopIds,
     required this.now,
+    this.walkGraph,
   });
 
   final TripRequest request;
@@ -300,11 +305,12 @@ class PlanSearchPayload {
   final Set<String> originStopIds;
   final Set<String> destinationStopIds;
   final DateTime now;
+  final WalkGraph? walkGraph;
 }
 
 /// Búsqueda pura y sincrónica. También se usa como entrada del isolate.
 List<TripPlan> searchPlansSync(PlanSearchPayload payload) =>
-    const TransitRouteSearch().findPlans(
+    TransitRouteSearch(walkGraph: payload.walkGraph).findPlans(
       request: payload.request,
       data: payload.data,
       originStopIds: payload.originStopIds,
@@ -317,7 +323,10 @@ const _arrivalSearchWindowMinutes = 180;
 const _maximumEndpointStopCandidates = 15;
 
 class TransitRouteSearch {
-  const TransitRouteSearch();
+  const TransitRouteSearch({this.walkGraph});
+
+  /// Red peatonal real para los tramos peatonales (null = sin caminatas).
+  final WalkGraph? walkGraph;
 
   List<TripPlan> findPlans({
     required TripRequest request,
@@ -437,6 +446,7 @@ class TransitRouteSearch {
         toLatitude: boardStop.latitude,
         toLongitude: boardStop.longitude,
       );
+      if (initialWalk == null) continue;
       final originConnections = index.connectionsBetween(
         originStopId,
         initialWalk.arrivalTime,
@@ -465,6 +475,7 @@ class TransitRouteSearch {
               toLatitude: request.destinationLatitude,
               toLongitude: request.destinationLongitude,
             );
+            if (finalWalk == null) continue;
             final walkingMeters =
                 initialWalk.distanceMeters + finalWalk.distanceMeters;
             if (walkingMeters <= config.maximumWalkingMeters) {
@@ -536,6 +547,7 @@ class TransitRouteSearch {
                   toLatitude: request.destinationLatitude,
                   toLongitude: request.destinationLongitude,
                 );
+                if (finalWalk == null) continue;
                 final walkingMeters =
                     initialWalk.distanceMeters +
                     finalWalk.distanceMeters +
@@ -614,6 +626,7 @@ class TransitRouteSearch {
       toLatitude: request.destinationLatitude,
       toLongitude: request.destinationLongitude,
     );
+    if (walk == null) return null;
     final DateTime departure;
     switch (request.timing.mode) {
       case TripTimingMode.departNow:
@@ -635,6 +648,54 @@ class TransitRouteSearch {
       legs: [walk.copyWithTimes(departure, arrival).toLeg()],
       totalWalkingMeters: walk.distanceMeters,
       transferCount: 0,
+    );
+  }
+
+  /// Camino peatonal: con el grafo cargado es la ruta real de la red (null
+  /// si no hay camino válido); sin grafo, el tramo mide en línea recta y no
+  /// tiene forma (no hay red disponible para dibujar).
+  _WalkingLeg? _walkingLeg(
+    double fromLatitude,
+    double fromLongitude,
+    DateTime departure,
+    PlannerConfig config, {
+    Stop? fromStop,
+    Stop? toStop,
+    required double toLatitude,
+    required double toLongitude,
+  }) {
+    final graph = walkGraph;
+    final path = graph?.shortestPath(
+      fromLatitude,
+      fromLongitude,
+      toLatitude,
+      toLongitude,
+    );
+    if (graph != null && (path == null || path.points.isEmpty)) return null;
+    final distanceMeters =
+        path?.lengthMeters ??
+        _distanceMeters(fromLatitude, fromLongitude, toLatitude, toLongitude);
+    final shape = path == null
+        ? null
+        : Shape(
+            id: "walk:${path.points.first.latitude},${path.points.first.longitude}",
+            points: path.points,
+          );
+    return _WalkingLeg(
+      fromStop: fromStop,
+      toStop: toStop,
+      fromLatitude: fromLatitude,
+      fromLongitude: fromLongitude,
+      toLatitude: toLatitude,
+      toLongitude: toLongitude,
+      distanceMeters: distanceMeters,
+      departureTime: departure,
+      arrivalTime: departure.add(
+        Duration(
+          seconds: (distanceMeters / config.walkingSpeedMetersPerSecond).ceil(),
+        ),
+      ),
+      shape: shape,
     );
   }
 }
@@ -938,38 +999,6 @@ TripLeg _transitLeg(
   headsign: instance.trip.headsign,
 );
 
-_WalkingLeg _walkingLeg(
-  double fromLatitude,
-  double fromLongitude,
-  DateTime departure,
-  PlannerConfig config, {
-  Stop? fromStop,
-  Stop? toStop,
-  required double toLatitude,
-  required double toLongitude,
-}) {
-  final straightMeters = _distanceMeters(
-    fromLatitude,
-    fromLongitude,
-    toLatitude,
-    toLongitude,
-  );
-  final meters = straightMeters * config.detourFactor;
-  return _WalkingLeg(
-    fromStop: fromStop,
-    toStop: toStop,
-    fromLatitude: fromLatitude,
-    fromLongitude: fromLongitude,
-    toLatitude: toLatitude,
-    toLongitude: toLongitude,
-    distanceMeters: meters,
-    departureTime: departure,
-    arrivalTime: departure.add(
-      Duration(seconds: (meters / config.walkingSpeedMetersPerSecond).ceil()),
-    ),
-  );
-}
-
 double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
   const radiusMeters = 6371000.0;
   final deltaLat = _radians(lat2 - lat1);
@@ -1054,10 +1083,14 @@ class _WalkingLeg {
     required this.distanceMeters,
     required this.departureTime,
     required this.arrivalTime,
+    this.shape,
   });
 
   final Stop? fromStop;
   final Stop? toStop;
+
+  /// Geometría real del camino peatonal desde el origen hasta el destino.
+  final Shape? shape;
   final double fromLatitude;
   final double fromLongitude;
   final double toLatitude;
@@ -1077,6 +1110,7 @@ class _WalkingLeg {
     fromLongitude: fromLongitude,
     toLatitude: toLatitude,
     toLongitude: toLongitude,
+    shape: shape,
   );
 
   _WalkingLeg copyWithTimes(DateTime departure, DateTime arrival) =>
@@ -1090,6 +1124,7 @@ class _WalkingLeg {
         distanceMeters: distanceMeters,
         departureTime: departure,
         arrivalTime: arrival,
+        shape: shape,
       );
 }
 
