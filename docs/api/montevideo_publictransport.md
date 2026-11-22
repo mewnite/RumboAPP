@@ -75,11 +75,29 @@ Notas:
 - El proxy aplica límites globales de frecuencia para evitar consultas masivas.
 - Los datos de flota se filtran localmente en el dispositivo por zona visible y líneas relevantes.
 
-La documentación oficial describe en cada bus `id`, `timestamp` UTC, ubicación, línea, variante, origen y destino, entre otros atributos. El parser Flutter debe conservar la hora reportada y no confundirla con una ETA.
+La documentación oficial describe en cada bus `id`, `timestamp` UTC, ubicación, línea, variante, origen y destino, entre otros atributos. El parser Flutter conserva la hora reportada y no la confunde con una ETA. En la captura real usada para el cruce, `properties.speed` fue `43`; el parser existente la trata como km/h y esa cifra no se usa como velocidad instantánea para calcular el ETA oficial.
 
 ### 4.3 Arribos estimados por parada
 
-La API oficial documenta `GET /buses/busstops/{busstopId}/upcomingbuses`; requiere informar las líneas a consultar (`lines` o `lineVariantIds`) y admite `amountperline` y `format`. La descripción oficial dice que retorna buses próximos a una parada y que la API calcula ETA. Sin embargo, el modelo de respuesta publicado para este recurso solo ejemplifica metadatos de línea/variante y no deja identificados los campos de segundos/minutos, hora estimada ni timestamp de cálculo. Por eso la app no interpreta todavía esa respuesta ni reemplaza el ETA local hasta obtener una respuesta oficial autorizada que cierre el contrato.
+La API oficial documenta `GET /buses/busstops/{busstopId}/upcomingbuses`; requiere informar las líneas a consultar (`lines` o `lineVariantIds`) y admite `amountperline` y `format`. La captura pública del proxy del 2026-11-22 quedó guardada en:
+
+- `test/fixtures/upcomingbuses_stop_3628_line_163_2026-11-22.json`
+- `test/fixtures/live_bus_584_linevariant_4309_2026-11-22.geojson` (feature filtrado de `/api/buses`)
+- `test/fixtures/stm_linevariants_2026-11-22.json`
+
+Contrato **observado en esas respuestas**, no garantía formal de la API:
+
+| Campo | Evidencia y uso |
+|---|---|
+| `busId`, `lineVariantId`, `line` | Enteros/texto; coinciden con la identidad del bus y variante de `/api/buses` (`584`, `4309`, `163`). Se usan para aceptar solo la línea y variante del primer tramo. |
+| `eta` | Número `1575`, interpretado empíricamente como segundos (26 min 15 s) y redondeado hacia arriba al minuto para mostrarlo. El esquema publicado no fija la unidad. |
+| `location` | GeoJSON `Point`; `coordinates` está en orden `[longitud, latitud]`. La ubicación de la respuesta difiere 328,5 m de la captura de flota, hecha unos cinco minutos antes; confirma la identidad/área, no una comparación simultánea. |
+| `distance` | Número `8714`. No se interpreta como distancia restante: proyectar la ubicación sobre el shape GTFS `4309` da 8.725,5 m desde el inicio del shape; el recorrido restante hasta la parada es aproximadamente 6.161 m. |
+| `position` | Número `26`; su significado no quedó confirmado y la app no lo usa. |
+
+La unidad de `eta` es consistente con segundos en esta muestra, pero no se ha contrastado contra la hora real en que el bus llegó a la parada ni contra un contrato oficial versionado. Por eso el parser es estricto; una respuesta vacía, inválida, fallida o con timeout baja a ETA GPS y luego a horario programado. La interfaz reserva “Oficial” para una fila válida que coincide con la variante; las líneas posteriores del recorrido siempre usan horario programado.
+
+El catálogo capturado contiene 2.148 `linevariants`. El cruce del GTFS empaquetado enlazó 1.086/1.086 variantes mediante `shape_id` numérico + línea normalizada (sin distinguir mayúsculas/minúsculas); 962 también coinciden en destino normalizado. El destino no se usa como llave primaria; el fallback por línea+destino solo acepta un candidato único. El generador de la seed y el refresco del feed guardan `external_variant_id`. Mientras tanto, el matcher puede usar el `shape_id` numérico validado contra línea para seeds antiguas sin ese campo.
 
 ### 4.4 Geocodificación / búsqueda de direcciones
 
@@ -139,7 +157,7 @@ El proyecto exige un comportamiento responsable con la fuente:
 - no consultas recurrentes sin límite,
 - desacopleo de credenciales del cliente móvil.
 
-Para la flota en vivo, el flujo del repositorio propone un máximo global de una consulta cada 10 segundos, como política de desarrollo, no como límite oficial de la Intendencia.
+Para la flota en vivo, el mapa consulta cada 10 segundos como máximo y el proxy limita globalmente las peticiones upstream al mismo intervalo. La tarjeta del primer tramo consulta solo su parada y línea cada 30 segundos, pide hasta cinco arribos para poder sugerir el siguiente ómnibus, y cancela el timer y el cliente HTTP al desmontarse. La caché corta del proxy es de 15 segundos. El mapa continúa mostrando la flota general antes de elegir un plan; tras obtener planes, filtra `/api/buses` por las líneas relevantes. Estos intervalos son política del proyecto, no un límite oficial publicado por la Intendencia.
 
 ## 6. Privacidad y límites de datos
 

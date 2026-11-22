@@ -25,12 +25,12 @@
 - Tests nuevos: `test/line_details_sheet_test.dart` (selector de variante, orden de paradas, favorito, estados, buses en vivo). Total: 144 tests en verde.
 - No probado: visualización en emulador y dispositivo físico.
 
-## Fase 3: variantes oficiales y arribos oficiales (diagnóstico completado)
-- El API/proxy documenta `lineVariantId` en buses y variantes, pero no un mapeo validado a `trip_id`/`shape_id` del GTFS.
-- No se genera `variant_map.csv` ni se emparejan variantes por texto; faltan fixtures oficiales para probar ese cruce.
-- La API oficial documenta `upcomingbuses` como buses próximos/ETA y los filtros de línea, pero el esquema visible no expone los campos ni unidad del ETA; se mantiene pendiente el parser hasta tener respuesta autorizada. Se corrigió la documentación local con el contrato público disponible.
-- Se mantiene ETA local aproximado por shape; dependencia pendiente de contrato documentado y datos de prueba autorizados.
-- Pruebas manuales con servicios reales: no realizadas.
+## Fase 3: variantes oficiales y arribos oficiales (integración empírica)
+- Fixture público del catálogo STM: 2.148 variantes; se enlazaron 1.086/1.086 variantes del GTFS por `shape_id` numérico + línea normalizada (962 también coinciden por destino). El generador de seed y el refresco del feed persisten `external_variant_id`; no se regeneró la seed versionada.
+- Se guardaron respuestas reales del proxy para el catálogo, `upcomingbuses` y el bus coincidente de `/buses`. La muestra respalda interpretar `eta=1575` como segundos, pero la unidad no está definida por el esquema publicado ni se contrastó con la hora de llegada real. Ver `docs/api/montevideo_publictransport.md`.
+- `TripPlanDetails` prioriza Oficial → Estimado con GPS → Horario programado solo para el primer tramo; muestra la fuente, compara el ETA con caminata planificada + 1 minuto y sugiere el siguiente arribo. Los tramos posteriores muestran horario programado. La consulta oficial es por parada/línea cada 30 s y se cancela al desmontar.
+- El mapa mantiene el máximo de 10 s; consulta la flota general antes de elegir un plan y filtra por líneas del plan luego. Conserva posiciones y aplica backoff; el banner requiere errores consecutivos.
+- La validación fue con fixtures y widget tests. Exactitud real, contrato formal y verificación visual/polling en teléfono quedan pendientes.
 
 ## Prioridad: mapa, paradas, buses y destinos (completa)
 - El mapa dibuja todas las posiciones aceptadas dentro del área visible; solo filtra por línea cuando la persona selecciona una línea y mantiene el tope de marcadores.
