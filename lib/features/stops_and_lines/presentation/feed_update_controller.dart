@@ -11,7 +11,9 @@ import 'package:sqflite/sqflite.dart';
 import '../../../core/config/transit_config.dart';
 import '../../../core/debug/performance_measurement.dart';
 import '../data/gtfs_parser.dart';
+import '../data/montevideo_linevariant_catalog_source.dart';
 import '../data/sqflite_transit_repository.dart';
+import '../data/stm_linevariant_catalog.dart';
 import '../data/transit_database.dart';
 import '../data/transit_feed_source.dart';
 import '../domain/transit_models.dart';
@@ -420,7 +422,7 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
         );
       }
 
-      final parsed = downloaded.filePath == null
+      var parsed = downloaded.filePath == null
           ? kIsWeb
                 ? await source.parseCompact(downloaded.bytes)
                 : await source.parse(
@@ -432,8 +434,58 @@ class FeedUpdateController extends AsyncNotifier<FeedUpdateState> {
               downloaded.filePath!,
               onProgress: reportProgress,
             );
+      final database = TransitDatabase();
+      final preservedVariantIds = <String, int>{
+        for (final variant in previous.feed?.variants ?? const <RouteVariant>[])
+          if (variant.externalVariantId != null)
+            variant.id: variant.externalVariantId!,
+      };
       if (!kIsWeb) {
-        await TransitDatabase().replaceFeed(
+        try {
+          preservedVariantIds.addAll(
+            await database.installedVariantExternalIds(),
+          );
+        } on Exception catch (error) {
+          debugPrint(
+            '[transit_feed] no se pudieron conservar los enlaces instalados: '
+            '$error',
+          );
+        }
+      }
+      final catalogSource = MontevideoLineVariantCatalogSource(
+        transitConfig.realtimeEndpoint,
+      );
+      try {
+        final catalog = await catalogSource.fetch();
+        final links = linkGtfsVariants(
+          parsed,
+          catalog,
+          preservedIds: preservedVariantIds,
+        );
+        parsed = links.feed;
+        debugPrint(
+          '[transit_feed] variantes enlazadas=${links.linkedCount}/'
+          '${parsed.variants.length}; shape_id=${links.shapeIdMatches}; '
+          'destino=${links.destinationMatches}; sin_enlace='
+          '${links.unmatchedCount}.',
+        );
+      } on Exception catch (error) {
+        final links = linkGtfsVariants(
+          parsed,
+          const StmLineVariantCatalog([]),
+          preservedIds: preservedVariantIds,
+        );
+        parsed = links.feed;
+        debugPrint(
+          '[transit_feed] catálogo STM no disponible; '
+          'enlaces conservados=${links.preservedMatches}; '
+          'sin_enlace=${links.unmatchedCount}; causa=$error',
+        );
+      } finally {
+        catalogSource.close();
+      }
+      if (!kIsWeb) {
+        await database.replaceFeed(
           parsed,
           sourceName: transitConfig.sourceName,
           etag: downloaded.etag,

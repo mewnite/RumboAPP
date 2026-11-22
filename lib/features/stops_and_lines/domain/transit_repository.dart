@@ -45,15 +45,37 @@ abstract interface class ArrivalsSource {
   });
 }
 
-/// Punto de integración futuro para `/buses/busstops/{id}/upcomingbuses`.
-/// El contrato oficial todavía no está confirmado: ninguna implementación
-/// debe inferir campos de ETA del payload hasta que se documente.
-abstract interface class OfficialUpcomingBusArrivalsSource {
-  Future<List<StopArrival>> arrivalsForStop(
-    String stopId,
-    DateTime now, {
-    int limit = 10,
+class OfficialBusArrival {
+  const OfficialBusArrival({
+    required this.busId,
+    required this.lineVariantId,
+    required this.line,
+    required this.etaSeconds,
+    this.destination = '',
+    this.latitude,
+    this.longitude,
   });
+
+  final int busId;
+  final int lineVariantId;
+  final String line;
+
+  /// The captured response is consistent with seconds; the public schema is
+  /// not explicit about the unit.
+  final int etaSeconds;
+  final String destination;
+  final double? latitude;
+  final double? longitude;
+}
+
+abstract interface class OfficialUpcomingBusArrivalsSource {
+  Future<List<OfficialBusArrival>> upcomingForStop({
+    required String stopId,
+    required Set<String> lines,
+    int amountPerLine = 1,
+  });
+
+  void close();
 }
 
 class RealtimeMatcher {
@@ -65,7 +87,15 @@ class RealtimeMatcher {
     RouteVariant variant, {
     Route? route,
   }) {
-    if (variant.externalVariantId != position.variantId) return null;
+    final externalVariantId =
+        variant.externalVariantId ?? int.tryParse(variant.shapeId ?? '');
+    if (externalVariantId != position.variantId) return null;
+    final routeLine = route?.shortName;
+    if (routeLine != null &&
+        routeLine.isNotEmpty &&
+        _normalizeLine(routeLine) != _normalizeLine(position.lineLabel)) {
+      return null;
+    }
     return MatchedBusPosition(position, variant: variant, route: route);
   }
 
@@ -86,3 +116,6 @@ class RealtimeMatcher {
     return matches;
   }
 }
+
+String _normalizeLine(String value) =>
+    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

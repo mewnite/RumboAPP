@@ -159,6 +159,22 @@ class TransitDatabase {
         (row['pattern_stops'] as int? ?? 0) > 0;
   }
 
+  Future<Map<String, int>> installedVariantExternalIds() async {
+    final db = await open();
+    try {
+      final rows = await db.rawQuery(
+        'SELECT id, external_variant_id FROM variants '
+        'WHERE external_variant_id IS NOT NULL',
+      );
+      return {
+        for (final row in rows)
+          row['id']! as String: row['external_variant_id']! as int,
+      };
+    } finally {
+      await db.close();
+    }
+  }
+
   /// Copies a bundled seed database into place atomically (write temp +
   /// rename). Returns `true` when the seed is usable; when `false`, the live
   /// database is left untouched. [onProgress] reports 0-1 while the seed is

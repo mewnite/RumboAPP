@@ -11,6 +11,8 @@ import "package:http/http.dart" as http;
 import "package:path/path.dart" as p;
 import "package:rumbo/core/config/transit_config.dart";
 import "package:rumbo/features/stops_and_lines/data/gtfs_parser.dart";
+import "package:rumbo/features/stops_and_lines/data/montevideo_linevariant_catalog_source.dart";
+import "package:rumbo/features/stops_and_lines/data/stm_linevariant_catalog.dart";
 import "package:sqlite3/sqlite3.dart";
 
 import "feed_seed_freshness.dart";
@@ -69,7 +71,7 @@ Future<void> main() async {
       "rumbo-build_seed_stop_times.jsonl",
     );
     await File(zipPath).writeAsBytes(response.bodyBytes, flush: true);
-    final parsed = parseGtfsZipFileToFile({
+    var parsed = parseGtfsZipFileToFile({
       "zipPath": zipPath,
       "stopTimesPath": spoolPath,
     });
@@ -89,6 +91,23 @@ Future<void> main() async {
     }
     stdout.writeln("seed_feed_version=${parsed.feedInfo.version}");
     stdout.writeln("seed_feed_end_date=${feedEndDate.toIso8601String()}");
+
+    final catalogSource = MontevideoLineVariantCatalogSource(
+      transitConfig.realtimeEndpoint,
+    );
+    try {
+      final catalog = await catalogSource.fetch();
+      final links = linkGtfsVariants(parsed, catalog);
+      parsed = links.feed;
+      stdout.writeln(
+        "seed_variant_links=${links.linkedCount}/${parsed.variants.length} "
+        "shape_id=${links.shapeIdMatches} "
+        "destination=${links.destinationMatches} "
+        "unmatched=${links.unmatchedCount}",
+      );
+    } finally {
+      catalogSource.close();
+    }
 
     final outDir = Directory("build/rumbo_transit_seed");
     if (outDir.existsSync()) outDir.deleteSync(recursive: true);
