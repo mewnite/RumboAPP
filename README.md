@@ -267,6 +267,9 @@ posiciones en vivo se dibujan aparte. Por eso el trazado no se puede prometer
 como 100 % confiable; depende de la cobertura y del cruce entre variante STM y
 GTFS.
 
+Los datos de OpenStreetMap se licencian bajo ODbL — se agradece a los
+contribuidores de OpenStreetMap.
+
 Para regenerar el ZIP pequeño y el fixture GeoJSON sintético, ejecuta
 `python tool/generate_sample_gtfs.py`. El archivo identifica el feed como prueba;
 ningún nombre de parada, recorrido, código de variante ni posición representa
