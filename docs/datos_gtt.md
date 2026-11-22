@@ -14,6 +14,39 @@ que los datos estáticos pueden usarse como fuente local de la app. Antes de
 usarlos como fuente oficial en producción (APK en Play Store), verificar
 licencia, condiciones de uso y atribución oficial.
 
+## Feed integrado en la seed
+
+La seed empaquetada `assets/transit_db/rumbo_transit_seed.db` contiene
+`feed_version=1.1`, `feed_start_date=20261116`,
+`feed_end_date=20261217` y publisher
+`Sistema de Transporte Metropolitano - MONTEVIDEO`. SQLite registra
+`downloaded_at=2026-11-21T21:16:09.235211`; corresponde a la versión 1.1
+observada en el feed `/gtfs/latest` del 22/11/2026.
+La seed no guarda el SHA-256 del ZIP de origen, así que los metadatos
+confirman versión, fechas y publisher, pero no permiten probar identidad
+byte por byte con una descarga histórica concreta.
+
+El vencimiento del campo GTFS `feed_end_date` es inclusivo hasta el final de
+esa fecha. La app muestra un aviso cuando el feed instalado está vencido o le
+quedan siete días o menos, y fuerza un chequeo de actualización prioritario.
+La descarga automática completa sigue restringida a Wi-Fi/Ethernet; la acción
+explícita «Actualizar ahora» puede iniciarla manualmente.
+
+El workflow [`feed_history.yml`](../.github/workflows/feed_history.yml)
+registra cada chequeo, aunque el hash no cambie, junto con SHA-256, bytes,
+versión, fechas, publisher, `Last-Modified` y `ETag`. En la respuesta
+consultada el 22/11/2026, el proxy no expuso los dos últimos encabezados.
+
+## Base del grafo peatonal y ODbL
+
+Una seed binaria derivada de la red vial de OpenStreetMap es una base derivada
+bajo ODbL 1.0. Si se publica o distribuye, debe conservar la atribución
+«© OpenStreetMap contributors» y cumplir las obligaciones aplicables de la
+licencia, incluida la puesta a disposición de la base derivada cuando
+corresponda. La atribución del mapa también identifica OpenMapTiles y
+OpenFreeMap; estos proveedores no sustituyen la atribución de los datos OSM.
+La seed del grafo aún no está precomputada ni se distribuye como binario.
+
 ## Esquema y tamaño de la BD
 
 - DB en SQLite: `assets/transit_db/rumbo_transit_seed.db` (semilla incluida en el bundle).

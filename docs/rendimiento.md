@@ -364,3 +364,28 @@ Antes de cambiar el motor, algoritmo o estructura GTFS:
 3. Medir resultados por consulta SQL con `EXPLAIN QUERY PLAN` y datos reales.
 4. Comparar RAPTOR solo si las mediciones muestran que el planificador puro ya
    consume una fracción relevante del presupuesto.
+
+## Decode y construcción de la red peatonal (2026-11-22)
+
+La medición en desktop sobre el fixture de test `test/fixtures/osm_pedestrian.json`
+(11.296 bytes, 12 vías, 57 vértices) dio:
+
+| Operación | Tiempo | Evidencia |
+|---|---:|---|
+| `jsonDecode` | 14 ms | `dart run tool/walk_graph_bench.dart` |
+| Construcción del grafo | 16 ms | misma ejecución |
+
+No es una medición del payload real de ~22,9 MB. El endpoint desplegado
+`https://rumboapp.onrender.com/osm/pedestrian` respondió HTTP 404 durante esta
+verificación; por eso el costo de `jsonDecode` y build con la red completa
+queda **pendiente**. La prueba de isolates usa `tester.runAsync` y pasó, pero
+solo valida que el fixture puede decodificarse y construirse fuera del
+FakeAsync del test.
+
+La implementación actual no evita copias: `Isolate.run` devuelve el mapa
+JSON y el `WalkGraph` al isolate principal, y `runPlanSearch` vuelve a enviar
+el `WalkGraph` en cada búsqueda. No hay un mecanismo actual para compartir
+sin copia los 108 mil vértices con Dijkstra. El arreglo correcto requiere un
+worker isolate persistente que retenga el grafo y reciba solo los datos de
+horarios por búsqueda, o un formato binario transferible más una interfaz
+asíncrona; queda **pendiente** y no se presenta como resuelto.

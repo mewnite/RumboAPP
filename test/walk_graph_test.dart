@@ -1,5 +1,6 @@
 import "dart:convert";
 import "dart:io";
+import "dart:isolate";
 import "dart:math" as math;
 
 import "package:flutter_test/flutter_test.dart";
@@ -38,6 +39,23 @@ WalkGraph blockAroundGraph() => WalkGraph.fromWays([
 ]);
 
 void main() {
+  testWidgets("decode and graph build isolates advance through runAsync", (
+    tester,
+  ) async {
+    WalkGraph? graph;
+    await tester.runAsync(() async {
+      final text = await File("test/fixtures/osm_pedestrian.json")
+          .readAsString();
+      final decoded = await Isolate.run<Object?>(() => jsonDecode(text));
+      final network = decoded as Map<String, dynamic>;
+      graph = await Isolate.run<WalkGraph?>(
+        () => WalkGraph.fromGeoJson(network),
+      );
+    });
+    expect(graph, isNotNull);
+    expect(graph!.vertexCount, greaterThan(0));
+  });
+
   test(
     "caminata entre dos puntos separados por una manzana - desvia el camino",
     () {

@@ -10,8 +10,12 @@ import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 Future<void> main(List<String> args) async {
   final path = args.isNotEmpty ? args[0] : 'test/fixtures/osm_pedestrian.json';
   stdout.writeln('file: $path');
-  final data =
-      jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
+  final json = await File(path).readAsString();
+  stdout.writeln('fileBytes: ${File(path).lengthSync()}');
+  final decodeWatch = Stopwatch()..start();
+  final data = jsonDecode(json) as Map<String, dynamic>;
+  decodeWatch.stop();
+  stdout.writeln('jsonDecodeMs: ${decodeWatch.elapsedMilliseconds}');
   final elements = data['elements'] as List;
   final ways = <List<ShapePoint>>[];
   for (final element in elements) {
