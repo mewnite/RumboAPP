@@ -4,6 +4,27 @@ App móvil de transporte público para Montevideo, Uruguay. La V1 prioriza una
 experiencia mobile-first, sin anuncios ni rastreadores, con ubicación procesada
 en el dispositivo.
 
+[![Build release APK](https://github.com/mewnite/RumboAPP/actions/workflows/build_release_apk.yml/badge.svg)](https://github.com/mewnite/RumboAPP/actions/workflows/build_release_apk.yml)
+
+## Descargar Rumbo para Android
+
+La forma más sencilla de probar Rumbo es instalar una versión publicada:
+
+- **[Abrir la última release](https://github.com/mewnite/RumboAPP/releases/latest)**
+- En la página de release, descargá el archivo cuyo nombre termine en
+  `-release.apk`.
+- Transferilo al teléfono si hace falta y abrilo desde Archivos/Descargas.
+- Android puede solicitar autorización para instalar aplicaciones de fuentes
+  desconocidas. Después abrí **Rumbo** y concedé solo los permisos que quieras
+  usar.
+
+Las APK no requieren ADB ni Android Studio. La primera apertura descarga el
+GTFS y busca el backend público configurado; puede demorar y consumir datos
+móviles. Verificá siempre el origen del archivo antes de instalarlo.
+
+> Las releases se generan automáticamente desde etiquetas `v*`. El APK actual
+> puede cambiar hasta que se configure una clave de firma de producción.
+
 ## Requisitos
 
 - Flutter SDK estable y Dart incluidos con Flutter.
@@ -96,6 +117,23 @@ flutter build apk --release --split-per-abi \
 R8 y la eliminación de recursos están activados para el tipo `release` de
 Android. El archivo `android/app/proguard-rules.pro` queda disponible para
 reglas específicas si una biblioteca nativa las requiere.
+
+### Publicar una release descargable
+
+El workflow [Build release APK](./.github/workflows/build_release_apk.yml)
+ejecuta análisis, pruebas y genera el APK universal al publicar una etiqueta:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions crea o actualiza una release y adjunta
+`Rumbo-v1.0.0-release.apk` en **Releases**. También puede iniciarse a mano desde
+**Actions → Build release APK → Run workflow**, indicando la etiqueta deseada.
+Hasta configurar una firma de producción, el APK usa el entorno de firma
+configurado actualmente por el proyecto; no es necesario editar credenciales
+en Flutter ni incorporar secretos al repositorio.
 
 ## Análisis y pruebas
 
