@@ -1,0 +1,31 @@
+name: Track GTFS feed history
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  track-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download feed metadata and append history
+        env:
+          RUMBO_API_BASE_URL: ${{ secrets.RUMBO_API_BASE_URL || 'https://rumboapp.onrender.com' }}
+        run: python tool/check_gtfs_feed_history.py
+      - name: Commit only the feed history CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- docs/feed_history.csv; then
+            git add docs/feed_history.csv
+            git commit -m "Data: registrar cambios diarios del feed GTFS"
+            git push
+          fi
