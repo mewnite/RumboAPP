@@ -375,10 +375,11 @@ La medición en desktop sobre el fixture de test `test/fixtures/osm_pedestrian.j
 | `jsonDecode` | 14 ms | `dart run tool/walk_graph_bench.dart` |
 | Construcción del grafo | 16 ms | misma ejecución |
 
-No es una medición del payload real de ~22,9 MB. El endpoint desplegado
-`https://rumboapp.onrender.com/osm/pedestrian` respondió HTTP 404 durante esta
-verificación; por eso el costo de `jsonDecode` y build con la red completa
-queda **pendiente**. La prueba de isolates usa `tester.runAsync` y pasó, pero
+No es una medición del payload real de ~22,9 MB. El 22/11/2026, el endpoint
+desplegado `https://rumboapp.onrender.com/osm/pedestrian` respondió HTTP 502
+con `No se pudo conectar al servicio de la red peatonal`; por eso el costo de
+`jsonDecode` y build con la red completa queda **pendiente**. La prueba de
+isolates usa `tester.runAsync` y pasó, pero
 solo valida que el fixture puede decodificarse y construirse fuera del
 FakeAsync del test.
 
@@ -389,3 +390,27 @@ sin copia los 108 mil vértices con Dijkstra. El arreglo correcto requiere un
 worker isolate persistente que retenga el grafo y reciba solo los datos de
 horarios por búsqueda, o un formato binario transferible más una interfaz
 asíncrona; queda **pendiente** y no se presenta como resuelto.
+
+## APK arm64 con seed y plugins nativos (2026-11-22)
+
+`flutter build apk --release --target-platform android-arm64` generó
+`app-release.apk` con 76.248.671 bytes: **76,25 MB decimales = 72,72 MiB**
+(1 MiB = 1.048.576 bytes). Entradas más pesadas por tamaño comprimido dentro
+del APK:
+
+| Entrada | Bytes comprimidos | MiB |
+|---|---:|---:|
+| `assets/flutter_assets/assets/transit_db/rumbo_transit_seed.db` | 22.255.691 | 21,22 |
+| `lib/arm64-v8a/libflutter.so` | 11.763.360 | 11,22 |
+| `lib/x86_64/libmaplibre.so` | 11.208.016 | 10,69 |
+| `lib/arm64-v8a/libmaplibre.so` | 10.847.024 | 10,35 |
+| `lib/arm64-v8a/libapp.so` | 8.848.264 | 8,44 |
+| `lib/armeabi-v7a/libmaplibre.so` | 7.916.144 | 7,55 |
+
+Aunque se pidió plataforma arm64, el APK también contiene `libmaplibre.so` y
+`libdartjni.so` para x86_64 y armeabi-v7a. Esas cuatro bibliotecas extra suman
+19.322.552 bytes (18,43 MiB), casi todo el aumento informado desde 54,2 MiB
+(+18,52 MiB). La seed ocupa 63.467.520 bytes al descomprimirse y 22.255.691
+bytes en el APK. El APK anterior no está disponible en este checkout, por lo
+que la atribución del cambio es una comparación de tamaños y entradas actuales,
+no una comparación binaria entre ambos artefactos.
