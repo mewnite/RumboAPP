@@ -74,8 +74,8 @@ void main() {
       expect(find.text('Código: 123'), findsOneWidget);
       expect(find.text('Líneas que pasan'), findsOneWidget);
       expect(find.text('Próximos ómnibus'), findsOneWidget);
-      expect(find.textContaining('en vivo, estimado'), findsOneWidget);
-      expect(find.textContaining('estimado'), findsNWidgets(2));
+      expect(find.textContaining('Estimado con GPS'), findsOneWidget);
+      expect(find.textContaining('Horario programado'), findsOneWidget);
       expect(find.text('A'), findsNWidgets(3));
 
       final favorite = tester.widget<OutlinedButton>(

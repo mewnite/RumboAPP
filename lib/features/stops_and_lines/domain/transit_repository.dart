@@ -45,6 +45,17 @@ abstract interface class ArrivalsSource {
   });
 }
 
+/// Punto de integración futuro para `/buses/busstops/{id}/upcomingbuses`.
+/// El contrato oficial todavía no está confirmado: ninguna implementación
+/// debe inferir campos de ETA del payload hasta que se documente.
+abstract interface class OfficialUpcomingBusArrivalsSource {
+  Future<List<StopArrival>> arrivalsForStop(
+    String stopId,
+    DateTime now, {
+    int limit = 10,
+  });
+}
+
 class RealtimeMatcher {
   const RealtimeMatcher(this.repository);
   final TransitRepository repository;

@@ -167,6 +167,9 @@ class StopArrival {
     this.variantId,
     this.isLive = false,
     this.liveSourceId,
+    this.isOfficial = false,
+    this.etaMinMinutes,
+    this.etaMaxMinutes,
   });
 
   final String stopId;
@@ -176,7 +179,10 @@ class StopArrival {
   final DateTime departureTime;
   final String? variantId;
   final bool isLive;
+  final bool isOfficial;
   final String? liveSourceId;
+  final int? etaMinMinutes;
+  final int? etaMaxMinutes;
 
   Duration get timeUntil => departureTime.difference(DateTime.now());
 }

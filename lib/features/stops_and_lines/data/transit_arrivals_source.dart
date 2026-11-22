@@ -91,6 +91,11 @@ class TransitArrivalsSource implements ArrivalsSource {
           shape: shape,
         );
         if (minutes == null) continue;
+        final range = estimateBusArrivalMinuteRange(
+          position: position,
+          stop: stop,
+          shape: shape,
+        );
 
         final key = '${route.id}|${variant.id}';
         final candidate = StopArrival(
@@ -104,6 +109,8 @@ class TransitArrivalsSource implements ArrivalsSource {
           variantId: variant.id,
           isLive: true,
           liveSourceId: position.sourceId.toString(),
+          etaMinMinutes: range?.$1,
+          etaMaxMinutes: range?.$2,
         );
         final previous = liveByVariant[key];
         if (previous == null ||
@@ -159,6 +166,26 @@ int? estimateBusArrivalMinutes({
   final seconds =
       (stopProjection.distanceAlong - bus.distanceAlong) / (speedKmh / 3.6);
   return (seconds / 60).ceil();
+}
+
+(int, int)? estimateBusArrivalMinuteRange({
+  required BusPosition position,
+  required Stop stop,
+  required Shape shape,
+}) {
+  final base = estimateBusArrivalMinutes(
+    position: position,
+    stop: stop,
+    shape: shape,
+  );
+  if (base == null) return null;
+  final usedFixedFallback = position.speedKmh < 8;
+  if (usedFixedFallback) {
+    return (base, base + 2);
+  }
+  final low = math.max(0, base - 1);
+  final high = base + 2;
+  return (low, high);
 }
 
 class _ShapeProjection {
