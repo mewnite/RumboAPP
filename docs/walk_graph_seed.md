@@ -104,14 +104,42 @@ worker esa reconstrucción ocurre una sola vez al inicio. Falta medir todo en
 un teléfono con `flutter run --profile` y revisar los logs `[performance]`.
 
 Comparación determinística de 25 pares distintos de paradas GTFS de Montevideo
-con el grafo mutable histórico (`bf50fa1`) y el grafo actual sobre el mismo
-extracto OSM. Se creó una instancia histórica fresca para cada par, evitando
-que el grafo mutable altere la siguiente consulta. Con tolerancia
+con el grafo mutable histórico (`bf50fa1`) y el actual, alimentados con la misma
+entrada peatonal normalizada: 27.328 vías, SHA-256
+`c5a78c84a070a2468e4617afd6bfac64a709471fab9439593b752bb143a3f10a`.
+Ambos construyeron 107.885 vértices y 128.666 aristas. Se creó una instancia
+histórica fresca para cada par. Con tolerancia
 `max(15 m, 2% de la distancia histórica)`, 12/25 quedaron dentro; diferencia
-absoluta media 30,71 m, mediana 30,24 m y máxima 75,85 m. No es equivalencia
-confirmada: las diferencias restantes requieren investigar el tratamiento de
-snaps, geometría y conectividad; tampoco es una validación en teléfono o una
-comparación con recorridos reales observados.
+absoluta media 30,71 m, mediana 30,24 m y máxima 75,85 m. La equivalencia sigue
+sin resolverse.
+
+El diagnóstico apunta al snapping, no a una diferencia de datos: el algoritmo
+histórico aceptaba un vértice cercano antes de comparar la proyección sobre una
+arista; además, su proyección de respaldo dividía diferencias en grados por
+una distancia en metros al cuadrado. El algoritmo actual compara los vértices
+y las proyecciones. Por ejemplo, en `3477→3233`, las distancias de snap
+históricas suman 45,10 m y las proyecciones actuales 12,37 m; esto explica unos
+32,73 m de los 75,85 m de diferencia, por lo que el snap por sí solo no explica
+el resto.
+
+Como referencia algorítmica independiente, un script Python hizo un barrido
+completo para encontrar snaps y ejecutó Dijkstra con `heapq` sobre la CSR de la
+seed. Coincidió con el grafo actual a menos de 0,01 m en estos cuatro pares:
+
+| Par | Histórico (m) | Actual (m) | Python independiente (m) |
+|---|---:|---:|---:|
+| 3477→3233 | 1.262,49 | 1.186,63 | 1.186,63 |
+| 3866→3944 | 1.447,49 | 1.519,32 | 1.519,32 |
+| 1482→3724 | 906,95 | 966,80 | 966,80 |
+| 3121→3452 | 707,82 | 734,99 | 734,99 |
+
+Esta comprobación comparte la red CSR de la seed; valida independientemente
+el snapping y Dijkstra actuales, pero no es una segunda fuente de calles ni
+una comparación con navegación externa o recorridos reales. La diferencia
+máxima de 75,85 m supera ligeramente la tolerancia de snap de 75 m y no queda
+explicada solo por ella. Se agregó una regresión que verifica que una proyección
+cercana se prefiera a vértices distantes. La equivalencia global y la validación
+en teléfono siguen pendientes.
 
 ## Licencia y atribución
 

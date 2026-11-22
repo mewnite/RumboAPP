@@ -163,6 +163,17 @@ void main() {
     expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
   });
 
+  test('snap chooses the closest segment projection over distant vertices', () {
+    final graph = WalkGraph.fromWays([
+      [ShapePoint(0, 0, 0), ShapePoint(0, .0012, 1)],
+    ]);
+
+    final path = graph.shortestPath(.00002, .0006, 0, .0012);
+
+    expect(path, isNotNull);
+    expect(path!.lengthMeters, closeTo(68.9, 1));
+  });
+
   test('per-query snap overlay does not mutate the immutable base graph', () {
     final graph = blockAroundGraph();
     final before = graph.toSeedBytes();

@@ -137,3 +137,9 @@ Opciones descartadas/opcionales:
 | First install: planificar ruta (`findPlans`) | bloqueado ~40-55 s est. | ~1-2 s (DB usable) | -40-53 s |
 | Segundo arranque: feed disponible | ~1.0 s (emulador) | ~0.3 s (est.) | -0.7 s |
 | APK arm64 | 32.9 MB (docs, pre-R8 del usuario) | 54.1 MB | +21.2 MB |
+
+La cifra de 54,1 MB es histórica. La medición posterior del APK arm64-only es
+59.686.223 bytes (59,69 MB decimales = 56,91 MiB); el APK multiplataforma de
+76.248.671 bytes (76,25 MB = 72,72 MiB) incluye además bibliotecas x86_64 y
+armeabi-v7a. Ver los detalles y entradas pesadas en
+[`rendimiento.md`](rendimiento.md).

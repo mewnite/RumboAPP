@@ -396,21 +396,27 @@ objetivo de cinco segundos siguen pendientes de validar en un teléfono con
 `flutter run --profile` y logs `[performance]`.
 
 La equivalencia con el grafo mutable histórico se evaluó con 25 pares
-determinísticos de paradas GTFS, usando una instancia histórica fresca por par
-para evitar contaminación entre consultas. Tolerancia:
+determinísticos de paradas GTFS, con la misma entrada normalizada para ambos:
+27.328 vías, SHA-256
+`c5a78c84a070a2468e4617afd6bfac64a709471fab9439593b752bb143a3f10a`. Ambos
+construyeron 107.885 vértices y 128.666 aristas. Tolerancia:
 `max(15 m, 2% de la distancia histórica)`. 12/25 pares quedaron dentro;
-diferencia absoluta media 30,71 m, mediana 30,24 m, máximo 75,85 m. No es
-equivalencia confirmada; los casos restantes y las diferencias de geometría
-deben investigarse antes de declarar los grafos equivalentes. La semilla y el
-resultado de referencia están descritos en
-[`walk_graph_seed.md`](walk_graph_seed.md).
+diferencia absoluta media 30,71 m, mediana 30,24 m, máximo 75,85 m. La
+equivalencia sigue sin resolverse. El diagnóstico encontró diferencias de
+snapping: el histórico priorizaba un vértice cercano sobre una proyección más
+cercana y su proyección de respaldo mezclaba grados con metros al cuadrado.
+Una referencia independiente en Python coincidió con el grafo actual a menos
+de 0,01 m en cuatro pares, pero usa la misma CSR de la seed; no valida una
+fuente externa ni rutas reales. Los pares, resultados y límites de esta
+verificación están en [`walk_graph_seed.md`](walk_graph_seed.md).
 
-## APK arm64 con seed y plugins nativos (2026-11-22)
+## APK multiplataforma generado al solicitar arm64 (2026-11-22)
 
 `flutter build apk --release --target-platform android-arm64` generó
 `app-release.apk` con 76.248.671 bytes: **76,25 MB decimales = 72,72 MiB**
-(1 MiB = 1.048.576 bytes). Entradas más pesadas por tamaño comprimido dentro
-del APK:
+(1 MiB = 1.048.576 bytes). Aunque se solicitó arm64, este APK no era
+arm64-only: plugins incluyeron también bibliotecas x86_64 y armeabi-v7a.
+Entradas más pesadas por tamaño comprimido dentro del APK:
 
 | Entrada | Bytes comprimidos | MiB |
 |---|---:|---:|
@@ -429,15 +435,16 @@ bytes en el APK. El APK anterior no está disponible en este checkout, por lo
 que la atribución del cambio es una comparación de tamaños y entradas actuales,
 no una comparación binaria entre ambos artefactos.
 
-## Comparación APK universal y arm64 split
+## APK arm64 split
 
 En una compilación limpia de validación, `flutter build apk --release
 --split-per-abi --target-platform=android-arm64` produjo
-`app-arm64-v8a-release.apk` de 59.686.227 bytes (**59,69 MB decimales =
-56,92 MiB**). El APK contiene únicamente `arm64-v8a`; las bibliotecas
-`armeabi-v7a` y `x86_64` del APK universal ya no se empaquetan en este
-artefacto. El APK universal medido en la misma estación tenía 79.085.894 bytes
-(79,09 MB = 75,42 MiB), una diferencia de 19.399.667 bytes (18,50 MiB).
+`app-arm64-v8a-release.apk` de 59.686.223 bytes (**59,69 MB decimales =
+56,91 MiB**). El APK contiene únicamente `arm64-v8a`. En otra medición, el APK
+multiplataforma de comparación, construido junto al split, midió 79.085.894
+bytes (79,09 MB = 75,42 MiB), una diferencia de 19.399.671 bytes (18,50 MiB).
+Ese APK de comparación no es el build anterior de 76.248.671 bytes descrito
+arriba; son mediciones de builds distintos.
 
 Entradas comprimidas más pesadas del split arm64:
 
@@ -453,14 +460,15 @@ El tamaño informado por Flutter como MB está expresado en MiB en estos logs;
 se muestran ambas unidades para evitar confusión. Son resultados de build en
 Windows, no una medición de descarga o instalación en un teléfono.
 
-## Filtro explícito de ABI para build arm64 (2026-11-23)
+## Filtro explícito de ABI para build arm64 (2026-11-22)
 
 Se verificó `flutter build apk --release --target-platform android-arm64
 --android-project-arg=rumboAndroidAbis=arm64-v8a` con ambos seeds instalados
 temporalmente en `assets/`. El artefacto resultante fue 59.686.223 bytes:
-**59,69 MB decimales = 56,91 MiB**. El ZIP contiene únicamente bibliotecas
-`arm64-v8a`. Sin el filtro, el mismo APK incluyó también `x86_64` y
-`armeabi-v7a` y midió 79.085.894 bytes (75,42 MiB), una reducción medida de
-19.399.671 bytes (18,50 MiB). La compilación de distribución continúa usando
+**59,69 MB decimales = 56,91 MiB**. Esta es la medición arm64-only reportada
+para el proyecto. El ZIP contiene únicamente bibliotecas `arm64-v8a`. Sin el
+filtro, el APK multiplataforma medido incluyó también `x86_64` y `armeabi-v7a`
+y midió 79.085.894 bytes (75,42 MiB), una reducción medida de 19.399.671 bytes
+(18,50 MiB). La compilación de distribución continúa usando
 `--split-per-abi` para publicar un APK por arquitectura; el binario usado para
 medir no se dejó en el árbol de trabajo.
