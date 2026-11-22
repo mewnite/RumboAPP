@@ -406,7 +406,7 @@ abstract class AppLocalizations {
   /// No description provided for @mapAttributionShort.
   ///
   /// In es_UY, this message translates to:
-  /// **'© OSM'**
+  /// **'© OSM — ODbL'**
   String get mapAttributionShort;
 
   /// No description provided for @mapAttributionTitle.

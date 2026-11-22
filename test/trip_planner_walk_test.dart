@@ -64,36 +64,40 @@ void main() {
     expect(leg.approximate, isFalse);
   });
 
-  test('without a graph, the walking leg is approximate with detour factor', () async {
-    final repo = FakeTransitRepository(
-      stops: const [],
-      routes: const [],
-      variants: const [],
-      trips: const [],
-      times: const [],
-      calendars: const [],
-    );
-    final plans = await TransitTripPlanner(
-      repo,
-      now: () => DateTime(2026, 6, 2, 9),
-    ).plan(
-      TripRequest(
-        originLatitude: 0,
-        originLongitude: 0,
-        destinationLatitude: 0,
-        destinationLongitude: .005,
-        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
-        config: const PlannerConfig(maximumWalkingMeters: 800),
-      ),
-    );
+  test(
+    'without a graph, the walking leg is approximate with detour factor',
+    () async {
+      final repo = FakeTransitRepository(
+        stops: const [],
+        routes: const [],
+        variants: const [],
+        trips: const [],
+        times: const [],
+        calendars: const [],
+      );
+      final plans =
+          await TransitTripPlanner(
+            repo,
+            now: () => DateTime(2026, 6, 2, 9),
+          ).plan(
+            TripRequest(
+              originLatitude: 0,
+              originLongitude: 0,
+              destinationLatitude: 0,
+              destinationLongitude: .005,
+              timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
+              config: const PlannerConfig(maximumWalkingMeters: 800),
+            ),
+          );
 
-    expect(plans, hasLength(1));
-    final leg = plans.single.legs.single;
-    expect(leg.kind, TripLegKind.walking);
-    expect(leg.approximate, isTrue);
-    // Distancia estimada: línea recta × factor de desvío (1.3 por defecto).
-    expect(leg.distanceMeters, closeTo(555.97 * 1.3, 1));
-  });
+      expect(plans, hasLength(1));
+      final leg = plans.single.legs.single;
+      expect(leg.kind, TripLegKind.walking);
+      expect(leg.approximate, isTrue);
+      // Distancia estimada: línea recta × factor de desvío (1.3 por defecto).
+      expect(leg.distanceMeters, closeTo(555.97 * 1.3, 1));
+    },
+  );
 
   test('multimodal plan carries the real shapes: initial walk, transit, final walk', () async {
     final repo = FakeTransitRepository(
