@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:developer' as developer;
 
 import 'trip_planner.dart';
 import 'plan_search_cancellation.dart';
@@ -14,15 +15,29 @@ Future<List<TripPlan>> runPlanSearch(
   if (cancellation?.isCancelled ?? false) return const [];
 
   final resultPort = ReceivePort();
+  final totalWatch = Stopwatch()..start();
+  final spawnWatch = Stopwatch()..start();
   late final Isolate isolate;
   try {
     isolate = await Isolate.spawn<_PlanSearchMessage>(_runPlanSearch, (
       payload,
       resultPort.sendPort,
     ), onExit: resultPort.sendPort);
+    spawnWatch.stop();
+    developer.log(
+      '[performance] plan_search_isolate_spawn='
+      '${spawnWatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
+    );
     cancellation?.attach(() => isolate.kill(priority: Isolate.immediate));
 
     final message = await resultPort.first;
+    totalWatch.stop();
+    developer.log(
+      '[performance] plan_search_isolate_total='
+      '${totalWatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
+    );
     if (message == null) {
       if (cancellation?.isCancelled ?? false) return const [];
       throw StateError('La búsqueda de viajes terminó sin resultados.');

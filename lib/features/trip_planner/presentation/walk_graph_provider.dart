@@ -1,62 +1,40 @@
-import "dart:async";
-import "dart:isolate";
-import "dart:developer" as developer;
+import 'dart:async';
+import 'dart:isolate';
+import 'dart:typed_data';
 
-import "package:flutter_riverpod/flutter_riverpod.dart";
+import 'dart:developer' as developer;
 
-import "../../../core/config/transit_config.dart";
-import "../data/walk_network_source.dart";
-import "../domain/walk_graph.dart";
+import 'package:flutter/foundation.dart' show FlutterError;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Red peatonal real — cargada al inicio; no se bloquea la planificación si
-/// existe una red válida en caché (descarga en segundo plano).
-final walkGraphProvider = FutureProvider<WalkGraph?>((ref) async {
-  final source = WalkNetworkSource(endpoint: transitConfig.walkNetworkEndpoint);
-  final cached = await source.readCached();
-  if (cached != null) {
-    final stopwatch = Stopwatch()..start();
-    final graph = await Isolate.run<WalkGraph?>(
-      () => WalkNetworkSource.buildGraph(cached),
-    );
-    stopwatch.stop();
-    developer.log(
-      '[performance] walk_network_cached_graph_build=${stopwatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
-    );
-    if (graph != null) {
-      unawaited(_refresh(source));
-      return graph;
-    }
-  }
-  // Fetch + jsonDecode del JSON grande (el build del grafo mide ~0.7s —
-  // razonable para el hilo de UI; la búsqueda Dijkstra ya corre en un
-  // isolate — `runPlanSearch`).
-  final data = await source.fetch();
-  if (data != null) {
-    final stopwatch = Stopwatch()..start();
-    final graph = await Isolate.run<WalkGraph?>(
-      () => WalkNetworkSource.buildGraph(data),
-    );
-    stopwatch.stop();
-    developer.log(
-      '[performance] walk_network_fetch_graph_build=${stopwatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
-    );
-    if (graph != null) {
-      unawaited(source.writeCached(data));
-      return graph;
-    }
-  }
-  return null;
-});
+import '../data/walk_graph_seed_source.dart';
+import '../domain/walk_graph_worker.dart';
 
-Future<void> _refresh(WalkNetworkSource source) async {
+final walkGraphProvider = FutureProvider<WalkGraphWorker?>((ref) async {
+  Uint8List? seedBytes;
   try {
-    final fetched = await source.fetch();
-    if (fetched != null) {
-      await source.writeCached(fetched);
-    }
-  } on Exception {
-    // Conservar la última red válida.
+    seedBytes = await WalkGraphSeedSource().loadSeedBytes();
+  } on FlutterError catch (error, stackTrace) {
+    developer.log(
+      'No se encontró la seed peatonal empaquetada.',
+      name: 'Rumbo',
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
-}
+  try {
+    final worker = await createWalkGraphWorker(seedBytes);
+    ref.onDispose(() => unawaited(worker.dispose()));
+    return worker;
+  } on RemoteError catch (error, stackTrace) {
+    developer.log(
+      'La seed peatonal empaquetada no es válida.',
+      name: 'Rumbo',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    final worker = await createWalkGraphWorker(null);
+    ref.onDispose(() => unawaited(worker.dispose()));
+    return worker;
+  }
+});

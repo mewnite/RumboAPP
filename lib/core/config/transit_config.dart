@@ -25,7 +25,6 @@ class TransitConfig {
     this.minimumCheckInterval = const Duration(hours: 24),
     this.realtimeEndpoint = '',
     this.placeSearchEndpoint = '',
-    this.walkNetworkEndpoint = '',
     this.minimumLatitude = transitMinimumLatitude,
     this.maximumLatitude = transitMaximumLatitude,
     this.minimumLongitude = transitMinimumLongitude,
@@ -43,8 +42,6 @@ class TransitConfig {
   final String realtimeEndpoint;
   final String placeSearchEndpoint;
 
-  /// Endpoint of the pedestrian network (proxy `/osm/pedestrian`).
-  final String walkNetworkEndpoint;
   final double minimumLatitude,
       maximumLatitude,
       minimumLongitude,
@@ -70,7 +67,4 @@ final transitConfig = TransitConfig(
   placeSearchEndpoint: _effectiveApiBaseUrl == ''
       ? ''
       : '$_effectiveApiBaseUrl/geocode',
-  walkNetworkEndpoint: _effectiveApiBaseUrl == ''
-      ? ''
-      : '$_effectiveApiBaseUrl/osm/pedestrian',
 );

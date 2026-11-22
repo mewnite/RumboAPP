@@ -5,6 +5,8 @@ import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
 import 'package:rumbo/features/trip_planner/domain/trip_planner.dart';
 import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 
+import 'support/fake_walk_graph_worker.dart';
+
 void main() {
   final travelDay = DateTime(2026, 6, 2);
   final dailyCalendar = ServiceCalendar(
@@ -130,13 +132,15 @@ void main() {
         await TransitTripPlanner(
           repo,
           now: () => DateTime(2026, 6, 2, 9),
-          walkGraph: _graphThrough(const [
-            ShapePoint(0, 0, 0),
-            ShapePoint(0, .001, 1),
-            ShapePoint(0, .01, 2),
-            ShapePoint(0, .021, 3),
-            ShapePoint(0, .02, 4),
-          ]),
+          walkGraphWorker: FakeWalkGraphWorker(
+            _graphThrough(const [
+              ShapePoint(0, 0, 0),
+              ShapePoint(0, .001, 1),
+              ShapePoint(0, .01, 2),
+              ShapePoint(0, .021, 3),
+              ShapePoint(0, .02, 4),
+            ]),
+          ),
         ).plan(
           TripRequest(
             originLatitude: 0,
@@ -734,10 +738,9 @@ void main() {
         await TransitTripPlanner(
           repo,
           now: () => DateTime(2026, 6, 2, 9),
-          walkGraph: _graphThrough(const [
-            ShapePoint(0, 0, 0),
-            ShapePoint(0, .005, 1),
-          ]),
+          walkGraphWorker: FakeWalkGraphWorker(
+            _graphThrough(const [ShapePoint(0, 0, 0), ShapePoint(0, .005, 1)]),
+          ),
         ).plan(
           TripRequest(
             originLatitude: 0,

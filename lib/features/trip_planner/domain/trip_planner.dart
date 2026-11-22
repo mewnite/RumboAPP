@@ -7,6 +7,7 @@ import '../../stops_and_lines/domain/transit_repository.dart';
 import 'plan_search_isolate.dart';
 import 'planner_config.dart';
 import 'walk_graph.dart';
+import 'walk_graph_worker.dart';
 
 class TripEndpoint {
   const TripEndpoint({
@@ -214,63 +215,19 @@ class TripPlan {
 }
 
 class TransitTripPlanner {
-  TransitTripPlanner(this._repository, {this.now, this.walkGraph});
+  TransitTripPlanner(this._repository, {this.now, this.walkGraphWorker});
 
   final TransitRepository _repository;
   final DateTime Function()? now;
 
-  /// Red peatonal actual — null si no hay red disponible (tramos
-  /// peatonales aproximados).
-  WalkGraph? walkGraph;
+  WalkGraphWorker? walkGraphWorker;
   PlanSearchCancellation? _activeCancellation;
 
-  /// Recalcula los tramos peatonales de [plan] con la red actual
-  /// ([walkGraph]). Devuelve [plan] sin cambios si no hay red o si los
-  /// tramos ya coinciden con la red.
-  TripPlan refreshWalkingSegments(TripPlan plan) {
-    final search = TransitRouteSearch(walkGraph: walkGraph);
-    var changed = false;
-    final legs = <TripLeg>[];
-    for (final leg in plan.legs) {
-      final refreshed = search.refreshWalkingLeg(leg);
-      if (leg.kind == TripLegKind.walking &&
-          !identical(refreshed, leg) &&
-          !_sameWalkingShape(leg, refreshed)) {
-        changed = true;
-      }
-      legs.add(refreshed);
-    }
-    if (!changed) return plan;
-    return TripPlan(
-      requestedDeparture: plan.requestedDeparture,
-      arrivalTime: legs.isEmpty ? plan.arrivalTime : legs.last.arrivalTime,
-      legs: legs,
-      totalWalkingMeters: legs
-          .where((leg) => leg.kind == TripLegKind.walking)
-          .fold<double>(0, (total, leg) => total + leg.distanceMeters),
-      transferCount: plan.transferCount,
-      timeAccuracy: plan.timeAccuracy,
-    );
-  }
-
-  bool _sameWalkingShape(TripLeg a, TripLeg b) {
-    final pointsA = a.shape?.points;
-    final pointsB = b.shape?.points;
-    if (a.approximate != b.approximate ||
-        a.gapMeters != b.gapMeters ||
-        a.distanceMeters != b.distanceMeters ||
-        a.arrivalTime != b.arrivalTime) {
-      return false;
-    }
-    if (pointsA == null || pointsB == null) return identical(pointsA, pointsB);
-    if (pointsA.length != pointsB.length) return false;
-    for (var i = 0; i < pointsA.length; i++) {
-      if (pointsA[i].latitude != pointsB[i].latitude ||
-          pointsA[i].longitude != pointsB[i].longitude) {
-        return false;
-      }
-    }
-    return true;
+  /// Recalcula los tramos peatonales enviando el plan al worker residente.
+  Future<TripPlan> refreshWalkingSegments(TripPlan plan) async {
+    final worker = walkGraphWorker;
+    if (worker != null) return worker.refreshWalkingSegments(plan);
+    return refreshWalkingSegmentsSync(plan);
   }
 
   void cancelPendingSearch() {
@@ -352,17 +309,17 @@ class TransitTripPlanner {
       return const [];
     }
 
-    final plans = await runPlanSearch(
-      PlanSearchPayload(
-        request: request,
-        data: data,
-        originStopIds: origins.map((stop) => stop.id).toSet(),
-        destinationStopIds: destinations.map((stop) => stop.id).toSet(),
-        now: current,
-        walkGraph: walkGraph,
-      ),
-      cancellation: cancellation,
+    final worker = walkGraphWorker;
+    final payload = PlanSearchPayload(
+      request: request,
+      data: data,
+      originStopIds: origins.map((stop) => stop.id).toSet(),
+      destinationStopIds: destinations.map((stop) => stop.id).toSet(),
+      now: current,
     );
+    final plans = worker == null
+        ? await runPlanSearch(payload, cancellation: cancellation)
+        : await worker.searchPlans(payload, cancellation: cancellation);
     measurement.finish(
       details: cancellation.isCancelled
           ? 'cancelled=true'
@@ -382,7 +339,6 @@ class PlanSearchPayload {
     required this.originStopIds,
     required this.destinationStopIds,
     required this.now,
-    this.walkGraph,
   });
 
   final TripRequest request;
@@ -390,18 +346,67 @@ class PlanSearchPayload {
   final Set<String> originStopIds;
   final Set<String> destinationStopIds;
   final DateTime now;
-  final WalkGraph? walkGraph;
 }
 
 /// Búsqueda pura y sincrónica. También se usa como entrada del isolate.
-List<TripPlan> searchPlansSync(PlanSearchPayload payload) =>
-    TransitRouteSearch(walkGraph: payload.walkGraph).findPlans(
-      request: payload.request,
-      data: payload.data,
-      originStopIds: payload.originStopIds,
-      destinationStopIds: payload.destinationStopIds,
-      now: payload.now,
-    );
+List<TripPlan> searchPlansSync(
+  PlanSearchPayload payload, {
+  WalkGraph? walkGraph,
+}) {
+  return TransitRouteSearch(walkGraph: walkGraph).findPlans(
+    request: payload.request,
+    data: payload.data,
+    originStopIds: payload.originStopIds,
+    destinationStopIds: payload.destinationStopIds,
+    now: payload.now,
+  );
+}
+
+TripPlan refreshWalkingSegmentsSync(TripPlan plan, {WalkGraph? walkGraph}) {
+  final search = TransitRouteSearch(walkGraph: walkGraph);
+  var changed = false;
+  final legs = <TripLeg>[];
+  for (final leg in plan.legs) {
+    final refreshed = search.refreshWalkingLeg(leg);
+    if (leg.kind == TripLegKind.walking &&
+        !identical(refreshed, leg) &&
+        !_sameWalkingShape(leg, refreshed)) {
+      changed = true;
+    }
+    legs.add(refreshed);
+  }
+  if (!changed) return plan;
+  return TripPlan(
+    requestedDeparture: plan.requestedDeparture,
+    arrivalTime: legs.isEmpty ? plan.arrivalTime : legs.last.arrivalTime,
+    legs: legs,
+    totalWalkingMeters: legs
+        .where((leg) => leg.kind == TripLegKind.walking)
+        .fold<double>(0, (total, leg) => total + leg.distanceMeters),
+    transferCount: plan.transferCount,
+    timeAccuracy: plan.timeAccuracy,
+  );
+}
+
+bool _sameWalkingShape(TripLeg a, TripLeg b) {
+  final pointsA = a.shape?.points;
+  final pointsB = b.shape?.points;
+  if (a.approximate != b.approximate ||
+      a.gapMeters != b.gapMeters ||
+      a.distanceMeters != b.distanceMeters ||
+      a.arrivalTime != b.arrivalTime) {
+    return false;
+  }
+  if (pointsA == null || pointsB == null) return identical(pointsA, pointsB);
+  if (pointsA.length != pointsB.length) return false;
+  for (var i = 0; i < pointsA.length; i++) {
+    if (pointsA[i].latitude != pointsB[i].latitude ||
+        pointsA[i].longitude != pointsB[i].longitude) {
+      return false;
+    }
+  }
+  return true;
+}
 
 const _arrivalSearchStepMinutes = 10;
 const _arrivalSearchWindowMinutes = 180;

@@ -26,7 +26,7 @@ import '../../../features/stops_and_lines/presentation/line_details_sheet.dart';
 import '../../../features/stops_and_lines/presentation/stop_details_sheet.dart';
 import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
-import '../../../features/trip_planner/domain/walk_graph.dart';
+import '../../../features/trip_planner/domain/walk_graph_worker.dart';
 import '../../../features/trip_planner/presentation/walk_graph_provider.dart';
 import '../../../features/trip_planner/presentation/trip_plan_details.dart';
 import '../../../features/trip_detail/presentation/active_trip_controller.dart';
@@ -635,13 +635,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final placeSource = transitConfig.placeSearchEndpoint.isEmpty
         ? null
         : OpenStreetMapPlaceSource(endpoint: transitConfig.placeSearchEndpoint);
-    // Red peatonal real (OSM via proxy). Planifica con la red disponible
-    // ahora; si carga más tarde, los tramos peatonales de los planes
-    // mostrados se recalculan al terminar de cargar.
-    final walkGraphFuture = ref.read(walkGraphProvider.future);
+    // El worker carga la seed fuera del hilo de UI. Si todavía no está listo,
+    // planifica de forma aproximada y refina el recorrido cuando termine.
+    final walkGraphWorkerFuture = ref.read(walkGraphProvider.future);
     final tripPlanner = TransitTripPlanner(
       ref.read(transitRepositoryProvider),
-      walkGraph: ref.read(walkGraphProvider).value,
+      walkGraphWorker: ref.read(walkGraphProvider).value,
     );
     if (!mounted) return;
     var didSelectPlan = false;
@@ -786,7 +785,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         }
         final plan = await _refreshSelectedTripPlanAfterGraphLoad(
           tripPlanner,
-          walkGraphFuture,
+          walkGraphWorkerFuture,
         );
         if (plan != null) await _focusOnTripPlan(plan);
       }
@@ -801,13 +800,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
   /// plan actualizado — o el original cuando no hay cambios.
   Future<TripPlan?> _refreshSelectedTripPlanAfterGraphLoad(
     TransitTripPlanner planner,
-    Future<WalkGraph?> graphFuture,
+    Future<WalkGraphWorker?> workerFuture,
   ) async {
-    final graph = ref.read(walkGraphProvider).value ?? await graphFuture;
+    final worker = ref.read(walkGraphProvider).value ?? await workerFuture;
     final selected = _selectedTripPlan;
     if (selected == null) return null;
-    if (graph != null) planner.walkGraph = graph;
-    final refreshed = planner.refreshWalkingSegments(selected);
+    if (worker == null) return selected;
+    planner.walkGraphWorker = worker;
+    final refreshed = await planner.refreshWalkingSegments(selected);
     if (identical(refreshed, selected) || !mounted) return selected;
     setState(() => _selectedTripPlan = refreshed);
     return refreshed;

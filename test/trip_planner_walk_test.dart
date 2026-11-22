@@ -5,6 +5,8 @@ import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
 import 'package:rumbo/features/trip_planner/domain/trip_planner.dart';
 import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 
+import 'support/fake_walk_graph_worker.dart';
+
 /// Vía que pasa por los puntos dados (simulación de la red de OSM).
 WalkGraph _graphThrough(List<ShapePoint> points) =>
     WalkGraph.fromWays([points]);
@@ -37,7 +39,7 @@ void main() {
         await TransitTripPlanner(
           repo,
           now: () => DateTime(2026, 6, 2, 9),
-          walkGraph: graph,
+          walkGraphWorker: FakeWalkGraphWorker(graph),
         ).plan(
           TripRequest(
             originLatitude: 0,
@@ -146,7 +148,7 @@ void main() {
         await TransitTripPlanner(
           repo,
           now: () => DateTime(2026, 6, 2, 9),
-          walkGraph: graph,
+          walkGraphWorker: FakeWalkGraphWorker(graph),
         ).plan(
           TripRequest(
             originLatitude: 0,
@@ -189,61 +191,6 @@ void main() {
     expect(finalWalk.shape!.points.last.longitude, closeTo(.012, .001));
     expect(finalWalk.distanceMeters, greaterThan(0));
     expect(finalWalk.approximate, isFalse);
-  });
-
-  test('integración: tramas peatonales se recalculan cuando el grafo carga después de planificar', () async {
-    final repo = FakeTransitRepository(
-      stops: const [],
-      routes: const [],
-      variants: const [],
-      trips: const [],
-      times: const [],
-      calendars: const [],
-    );
-    final planner = TransitTripPlanner(
-      repo,
-      now: () => DateTime(2026, 6, 2, 9),
-    );
-
-    // 1. Planificar sin grafo: los tramos peatonales no se omiten.
-    final plans = await planner.plan(
-      TripRequest(
-        originLatitude: 0,
-        originLongitude: 0,
-        destinationLatitude: 0,
-        destinationLongitude: .005,
-        timing: TripTiming.departAt(DateTime(2026, 6, 2, 10)),
-        config: const PlannerConfig(maximumWalkingMeters: 800),
-      ),
-    );
-    final walking = plans.single.legs
-        .where((leg) => leg.kind == TripLegKind.walking)
-        .toList(growable: false);
-    expect(walking, isNotEmpty);
-    for (final leg in walking) {
-      expect(leg.shape, isNotNull);
-      expect(leg.approximate, isTrue);
-    }
-
-    // 2. El grafo termina de cargando después de planificar.
-    planner.walkGraph = WalkGraph.fromWays([
-      [ShapePoint(0, 0, 0), ShapePoint(0, .005, 1)],
-    ]);
-
-    // 3. Los tramos peatonales se recalculan con la red real.
-    final refreshed = planner.refreshWalkingSegments(plans.single);
-    expect(refreshed, isNot(same(plans.single)));
-    final refreshedWalking = refreshed.legs
-        .where((leg) => leg.kind == TripLegKind.walking)
-        .toList(growable: false);
-    expect(refreshedWalking, isNotEmpty);
-    for (final leg in refreshedWalking) {
-      expect(leg.approximate, isFalse);
-      expect(leg.shape!.points.first.latitude, closeTo(0, .001));
-      expect(leg.shape!.points.first.longitude, closeTo(0, .001));
-      expect(leg.shape!.points.last.latitude, closeTo(0, .001));
-      expect(leg.shape!.points.last.longitude, closeTo(.005, .001));
-    }
   });
 
   test('snap de un punto a ~50 m de la vértice principal usa la tolerancia de la componente principal', () {
