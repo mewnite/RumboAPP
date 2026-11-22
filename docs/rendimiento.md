@@ -403,7 +403,7 @@ del APK:
 | `assets/flutter_assets/assets/transit_db/rumbo_transit_seed.db` | 22.255.691 | 21,22 |
 | `lib/arm64-v8a/libflutter.so` | 11.763.360 | 11,22 |
 | `lib/x86_64/libmaplibre.so` | 11.208.016 | 10,69 |
-| `lib/arm64-v8a/libmaplibre.so` | 10.847.024 | 10,35 |
+| `lib/arm64-v8a/libmaplibre.so` | 10.847.024 | 10,34 |
 | `lib/arm64-v8a/libapp.so` | 8.848.264 | 8,44 |
 | `lib/armeabi-v7a/libmaplibre.so` | 7.916.144 | 7,55 |
 
