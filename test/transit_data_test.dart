@@ -116,8 +116,12 @@ void main() {
     expect(isFeedExpired(DateTime(2026, 1, 3), DateTime(2026, 1, 2)), isFalse);
     expect(isFeedExpired(DateTime(2026, 1, 2), DateTime(2026, 1, 2)), isFalse);
     expect(
-      isFeedExpiringSoon(DateTime(2026, 1, 9), DateTime(2026, 1, 2)),
+      isFeedExpiringSoon(DateTime(2026, 1, 8), DateTime(2026, 1, 2)),
       isTrue,
+    );
+    expect(
+      isFeedExpiringSoon(DateTime(2026, 1, 9), DateTime(2026, 1, 2)),
+      isFalse,
     );
     expect(
       isTransitUpdateDue(
@@ -132,7 +136,7 @@ void main() {
       isTransitUpdateDue(
         currentStatus: FeedStatus(
           stopCount: 100,
-          validUntil: DateTime(2026, 1, 9),
+          validUntil: DateTime(2026, 1, 8),
         ),
         lastCheckMilliseconds: DateTime(2026, 1, 2).millisecondsSinceEpoch,
         now: DateTime(2026, 1, 2),

@@ -246,8 +246,7 @@ bool isFeedExpiringSoon(
   if (validUntil == null) return false;
   final expiryDay = DateTime(validUntil.year, validUntil.month, validUntil.day);
   final today = DateTime(now.year, now.month, now.day);
-  return !expiryDay.isBefore(today) &&
-      !expiryDay.isAfter(today.add(Duration(days: threshold.inDays)));
+  return !expiryDay.isBefore(today) && expiryDay.isBefore(today.add(threshold));
 }
 
 DateTime _endOfFeedValidityDate(DateTime validUntil) =>

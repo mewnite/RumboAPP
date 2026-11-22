@@ -27,8 +27,8 @@ confirman versión, fechas y publisher, pero no permiten probar identidad
 byte por byte con una descarga histórica concreta.
 
 El vencimiento del campo GTFS `feed_end_date` es inclusivo hasta el final de
-esa fecha. La app muestra un aviso cuando el feed instalado está vencido o le
-quedan siete días o menos, y fuerza un chequeo de actualización prioritario.
+esa fecha. La app muestra un aviso cuando el feed instalado está vencido o
+vence en menos de siete días, y fuerza un chequeo de actualización prioritario.
 La descarga automática completa sigue restringida a Wi-Fi/Ethernet; la acción
 explícita «Actualizar ahora» puede iniciarla manualmente.
 
