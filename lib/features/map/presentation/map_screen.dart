@@ -42,6 +42,7 @@ import 'live_bus_chip.dart';
 typedef MapBuilder = Widget Function(BuildContext context);
 
 const _locationRationaleAcceptedKey = 'location_rationale_accepted';
+const double tripPlanSheetMinimumExtent = 0.42;
 
 final mapBuilderOverrideProvider = Provider<MapBuilder?>((ref) => null);
 
@@ -778,7 +779,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       if (didSelectPlan && mounted) {
         if (_sheetController.isAttached) {
           await _sheetController.animateTo(
-            .65,
+            tripPlanSheetMinimumExtent,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
           );
@@ -1847,7 +1848,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         icon: Symbols.wifi_off_rounded,
                         label: l10n.mapOffline,
                       ),
-                    if (liveBuses.error != null &&
+                    if (liveBuses.shouldShowError &&
                         networkState.asData?.value != false)
                       _InfoBanner(
                         icon: Symbols.cloud_off_rounded,
@@ -1945,13 +1946,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
             ),
             DraggableScrollableSheet(
               controller: _sheetController,
-              initialChildSize: 0.23,
-              minChildSize: 0.18,
+              initialChildSize: _selectedTripPlan == null
+                  ? 0.23
+                  : tripPlanSheetMinimumExtent,
+              minChildSize: _selectedTripPlan == null
+                  ? 0.18
+                  : tripPlanSheetMinimumExtent,
               maxChildSize: _selectedTripPlan == null ? 0.46 : 0.68,
               snap: true,
               snapSizes: _selectedTripPlan == null
                   ? const [0.23, 0.46]
-                  : const [0.46, 0.68],
+                  : const [tripPlanSheetMinimumExtent, 0.68],
               builder: (context, scrollController) => Semantics(
                 container: true,
                 label: _selectedTripPlan == null
@@ -2259,7 +2264,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           Text(l10n.mapRoutesError(stopRoutes.error.toString()))
                         else if (liveBuses.selectedLines.isEmpty)
                           Text(l10n.mapLiveNeedsTrip)
-                        else if (liveBuses.error != null)
+                        else if (liveBuses.shouldShowError)
                           Text(l10n.mapLiveError(liveBuses.error!))
                         else if (liveBuses.lastUpdatedAt == null)
                           Row(
@@ -2283,12 +2288,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
                           Text(l10n.mapLiveNeedsTrip),
                         if (stops.isEmpty &&
                             liveBuses.selectedLines.isNotEmpty &&
-                            liveBuses.error != null)
+                            liveBuses.shouldShowError)
                           Text(l10n.mapLiveError(liveBuses.error!)),
                         if (stops.isEmpty &&
                             liveBuses.selectedLines.isNotEmpty &&
                             liveBuses.lastUpdatedAt == null &&
-                            liveBuses.error == null)
+                            !liveBuses.shouldShowError)
                           Text(l10n.mapLiveLoading),
                         if (stops.isEmpty && liveBuses.lastUpdatedAt != null)
                           Text(l10n.mapLiveBusCount(busesInVisibleArea.length)),

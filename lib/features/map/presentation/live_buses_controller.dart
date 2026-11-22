@@ -36,6 +36,7 @@ class LiveBusesState {
     this.isLoading = false,
     this.isPolling = false,
     this.error,
+    this.consecutiveFailures = 0,
     this.retryDelay = const Duration(seconds: 15),
     this.lastUpdatedAt,
   });
@@ -48,12 +49,14 @@ class LiveBusesState {
   final bool isLoading;
   final bool isPolling;
   final String? error;
+  final int consecutiveFailures;
   final Duration retryDelay;
   final DateTime? lastUpdatedAt;
 
   bool get isStale =>
       lastUpdatedAt != null &&
       DateTime.now().difference(lastUpdatedAt!) > const Duration(seconds: 60);
+  bool get shouldShowError => error != null && consecutiveFailures >= 2;
 
   LiveBusesState copyWith({
     List<BusPosition>? positions,
@@ -64,6 +67,7 @@ class LiveBusesState {
     bool? isLoading,
     bool? isPolling,
     String? error,
+    int? consecutiveFailures,
     bool clearError = false,
     Duration? retryDelay,
     DateTime? lastUpdatedAt,
@@ -77,6 +81,7 @@ class LiveBusesState {
       isLoading: isLoading ?? this.isLoading,
       isPolling: isPolling ?? this.isPolling,
       error: clearError ? null : (error ?? this.error),
+      consecutiveFailures: consecutiveFailures ?? this.consecutiveFailures,
       retryDelay: retryDelay ?? this.retryDelay,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
     );
@@ -216,6 +221,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
         isLoading: false,
         clearError: true,
         isPolling: shouldContinuePolling,
+        consecutiveFailures: 0,
         retryDelay: _baseDelay,
         lastUpdatedAt: _clock(),
       );
@@ -228,9 +234,17 @@ class LiveBusesController extends Notifier<LiveBusesState> {
       }
       final shouldContinuePolling = state.isPolling;
       final nextDelay = _nextBackoffDelay();
+      final failures = state.consecutiveFailures + 1;
+      if (kDebugMode) {
+        debugPrint(
+          '[live_buses] refresh failed; consecutive=$failures; '
+          'retry_in=${nextDelay.inSeconds}s; cause=$error',
+        );
+      }
       state = state.copyWith(
         isLoading: false,
         error: error.toString(),
+        consecutiveFailures: failures,
         isPolling: shouldContinuePolling,
         retryDelay: nextDelay,
       );

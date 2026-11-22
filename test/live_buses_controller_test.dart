@@ -30,6 +30,20 @@ class _PendingBusSource implements RealtimeBusSource {
   Future<RealtimeSnapshot> fetch({Set<String>? lines}) => completer.future;
 }
 
+class _FailAfterSnapshotSource implements RealtimeBusSource {
+  _FailAfterSnapshotSource(this.snapshot);
+
+  final RealtimeSnapshot snapshot;
+  var calls = 0;
+
+  @override
+  Future<RealtimeSnapshot> fetch({Set<String>? lines}) async {
+    calls++;
+    if (calls > 1) throw const FormatException('upstream unavailable');
+    return snapshot;
+  }
+}
+
 void main() {
   test(
     'never returns more than 60 buses even if the configured limit is higher',
@@ -278,5 +292,52 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 1));
     expect(container.read(liveBusesControllerProvider).positions, hasLength(1));
     expect(container.read(liveBusesControllerProvider).error, isNull);
+  });
+
+  test('retains buses and hides the banner until repeated failures', () async {
+    final snapshot = RealtimeSnapshot(
+      positions: [
+        BusPosition(
+          sourceId: 'bus1',
+          companyCode: 1,
+          busCode: 1,
+          variantId: 1,
+          lineLabel: 'A',
+          sublineDescription: 'A',
+          destinationCode: 'N',
+          destinationName: 'Norte',
+          lineTypeCode: 1,
+          lineTypeName: 'Regular',
+          subsystemCode: 1,
+          subsystemName: 'STM',
+          latitude: -34.9,
+          longitude: -56.1,
+          speedKmh: 20,
+          receivedAt: DateTime(2026, 6, 1, 8),
+        ),
+      ],
+      discardedCount: 0,
+      discardReasons: const {},
+    );
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(liveBusesControllerProvider.notifier);
+    final source = _FailAfterSnapshotSource(snapshot);
+    notifier.attachSource(source, pollInterval: const Duration(hours: 1));
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(liveBusesControllerProvider).positions, hasLength(1));
+
+    await notifier.refreshNow();
+    var state = container.read(liveBusesControllerProvider);
+    expect(state.positions, hasLength(1));
+    expect(state.consecutiveFailures, 1);
+    expect(state.error, contains('upstream unavailable'));
+    expect(state.shouldShowError, isFalse);
+
+    await notifier.refreshNow();
+    state = container.read(liveBusesControllerProvider);
+    expect(state.positions, hasLength(1));
+    expect(state.consecutiveFailures, 2);
+    expect(state.shouldShowError, isTrue);
   });
 }
