@@ -252,10 +252,14 @@ Cada resultado resume salida, llegada, duración, líneas, caminata y transbordo
 con horarios programados. Al elegir una alternativa, el mapa conserva el
 recorrido y muestra una línea de tiempo de salida, caminata, abordaje, bajada y
 llegada, con las horas estimadas rotuladas. En el mapa, los tramos de ómnibus
-usan la geometría GTFS y los peatonales son líneas punteadas. Si una variante
-no tiene shape válido, Rumbo omite su línea y muestra un aviso; no inventa un
-trazado entre los extremos. Las distancias a pie son aproximaciones en línea
-recta; los horarios son programados, no posiciones ni ETA en vivo. Cada
+usan la geometría GTFS y los peatonales se dibujan con la geometría real de la
+red peatonal de OpenStreetMap, obtenida vía el proxy /osm/pedestrian (caché de
+24 h y persistencia local de la última versión válida). La planificación a pie
+corre Dijkstra puro sobre el grafo peatonal real: el origen y el destino se
+snappean al segmento más cercano y la ruta respeta la topología real del OSM.
+Si no hay red disponible, los tramos peatonales se omiten; no hay trazados
+rectos como alternativa ni distancias a pie inventadas. Los horarios son
+programados, no posiciones ni ETA en vivo. Cada
 tramo peatonal indica desde dónde caminar, hacia qué parada o dirección y la
 distancia aproximada; no ofrece giros por calles. La API pública STM no publica
 un endpoint de geometría ni planificación A→B: el trazo usa shapes GTFS y las
