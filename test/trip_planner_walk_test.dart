@@ -258,6 +258,24 @@ void main() {
     expect(vertex, lessThan(graph.vertexCount));
   });
 
+  test('tramo peatonal conserva gapMeters al recalcular con grafo', () {
+    final graph = WalkGraph.fromWays([
+      [ShapePoint(0, 0, 0), ShapePoint(0, 0.2, 1)],
+    ]);
+    final leg = TransitRouteSearch(walkGraph: graph).refreshWalkingLeg(
+      TripLeg(
+        kind: TripLegKind.walking,
+        departureTime: DateTime(2026, 6, 2, 10),
+        arrivalTime: DateTime(2026, 6, 2, 10, 5),
+        fromLatitude: 0.0003,
+        fromLongitude: 0.0003,
+        toLatitude: 0.0003,
+        toLongitude: 0.0004,
+      ),
+    );
+    expect(leg.gapMeters, greaterThan(30));
+  });
+
   test('snap fallido (punto lejos de la red) no omite el tramo: línea recta punteada marcada como aproximada', () {
     final graph = WalkGraph.fromWays([
       [ShapePoint(0, 0, 0), ShapePoint(0, 1, 1)],

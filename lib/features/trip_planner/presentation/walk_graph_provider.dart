@@ -1,4 +1,6 @@
 import "dart:async";
+import "dart:isolate";
+import "dart:developer" as developer;
 
 import "package:flutter_riverpod/flutter_riverpod.dart";
 
@@ -12,7 +14,15 @@ final walkGraphProvider = FutureProvider<WalkGraph?>((ref) async {
   final source = WalkNetworkSource(endpoint: transitConfig.walkNetworkEndpoint);
   final cached = await source.readCached();
   if (cached != null) {
-    final graph = WalkNetworkSource.buildGraph(cached);
+    final stopwatch = Stopwatch()..start();
+    final graph = await Isolate.run<WalkGraph?>(
+      () => WalkNetworkSource.buildGraph(cached),
+    );
+    stopwatch.stop();
+    developer.log(
+      '[performance] walk_network_cached_graph_build=${stopwatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
+    );
     if (graph != null) {
       unawaited(_refresh(source));
       return graph;
@@ -23,7 +33,15 @@ final walkGraphProvider = FutureProvider<WalkGraph?>((ref) async {
   // isolate — `runPlanSearch`).
   final data = await source.fetch();
   if (data != null) {
-    final graph = WalkNetworkSource.buildGraph(data);
+    final stopwatch = Stopwatch()..start();
+    final graph = await Isolate.run<WalkGraph?>(
+      () => WalkNetworkSource.buildGraph(data),
+    );
+    stopwatch.stop();
+    developer.log(
+      '[performance] walk_network_fetch_graph_build=${stopwatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
+    );
     if (graph != null) {
       unawaited(source.writeCached(data));
       return graph;

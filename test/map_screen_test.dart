@@ -65,9 +65,14 @@ void main() {
       find.textContaining('No se pudieron cargar los datos oficiales:'),
       findsOneWidget,
     );
-    expect(find.text('© OSM — ODbL'), findsOneWidget);
+    expect(
+      find.text('© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap'),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.text('© OSM — ODbL'));
+    await tester.tap(
+      find.text('© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap'),
+    );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Datos del mapa'), findsOneWidget);
     expect(find.textContaining('zona aproximada'), findsOneWidget);

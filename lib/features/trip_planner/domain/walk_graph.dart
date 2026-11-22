@@ -22,7 +22,7 @@ import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 
 /// Resultado de una búsqueda de caminata sobre la red peatonal real.
 class WalkPath {
-  const WalkPath(this.points, this.lengthMeters);
+  const WalkPath(this.points, this.lengthMeters, {this.gapMeters = 0});
 
   /// Puntos reales del camino, desde el origen hasta el destino. El primer
   /// punto es el origen y el último el destino (withectores de "ramp").
@@ -30,6 +30,12 @@ class WalkPath {
 
   /// Longitud real del camino en metros (suma de distancias de la polilínea).
   final double lengthMeters;
+
+  /// Distancia del punto real del usuario al punto proyectado donde empieza
+  /// la red peatonal real — solo es > 0 cuando el snap no fue exacto (más de
+  /// [snapGapDashedThresholdMeters]) y el camino dibuja un segmento punteado
+  /// desde el punto real. Incluida en [lengthMeters].
+  final double gapMeters;
 }
 
 /// Una arista de la red peatonal: una vía real de OSM con su geometría.
@@ -128,6 +134,12 @@ class WalkGraph {
   /// principal del grafo (50-100 m — origen y destino del usuario, que
   /// están fuera de la red y pueden estar a más de 5 m de una arista).
   final double mainSnapToleranceMeters;
+
+  /// Si el snap de un punto externo cae a más de esta distancia sobre el
+  /// camino real (vértice o proyección), el tramo peatonal dibuja el
+  /// segmento user→proyectado punteado (vía [WalkPath.gapMeters] para
+  /// sumar la distancia al camino).
+  static const double snapGapDashedThresholdMeters = 5;
 
   /// Componente principal del grafo (la conectada más grande). El snapping
   /// solo se permite sobre ella — snappear a una componente descartada
@@ -306,6 +318,24 @@ class WalkGraph {
 
     final points = <ShapePoint>[ShapePoint(lat, lon, 0)];
     var seq = 0;
+    // Segmento punteado user→proyectado: cuando el snap no es exacto (más
+    // de unos metros), el camino real empieza a varios metros del punto del
+    // usuario. Incluimos el punto proyectado justo después del punto real
+    // y sumamos la distancia en [WalkPath.gapMeters].
+    double gapMeters = 0;
+    if (sequence.isNotEmpty) {
+      final snapped = _vertices[sequence[0]];
+      final gap = _distanceMeters(
+        lat,
+        lon,
+        snapped.latitude,
+        snapped.longitude,
+      );
+      if (gap > snapGapDashedThresholdMeters) {
+        points.add(ShapePoint(snapped.latitude, snapped.longitude, ++seq));
+        gapMeters = gap;
+      }
+    }
     for (var i = 0; i + 1 < sequence.length; i++) {
       final edge = _edgeBetween(sequence[i], sequence[i + 1]);
       if (edge == null) {
@@ -322,12 +352,35 @@ class WalkGraph {
         points.add(edge.points[j]);
       }
     }
-    if (points.isEmpty ||
+    if (sequence.isNotEmpty) {
+      final snappedDestination = _vertices[sequence.last];
+      final destinationGap = _distanceMeters(
+        snappedDestination.latitude,
+        snappedDestination.longitude,
+        toLat,
+        toLon,
+      );
+      if (destinationGap > snapGapDashedThresholdMeters) {
+        points.add(
+          ShapePoint(
+            snappedDestination.latitude,
+            snappedDestination.longitude,
+            ++seq,
+          ),
+        );
+        points.add(ShapePoint(toLat, toLon, ++seq));
+        gapMeters += destinationGap;
+      } else if (points.isEmpty ||
+          points.last.latitude != toLat ||
+          points.last.longitude != toLon) {
+        points.add(ShapePoint(toLat, toLon, ++seq));
+      }
+    } else if (points.isEmpty ||
         points.last.latitude != toLat ||
         points.last.longitude != toLon) {
       points.add(ShapePoint(toLat, toLon, ++seq));
     }
-    return WalkPath(points, _pathLength(points));
+    return WalkPath(points, _pathLength(points), gapMeters: gapMeters);
   }
 
   // --- snappeado (ajuste 2: proyección sobre el segmento peatonal) ---

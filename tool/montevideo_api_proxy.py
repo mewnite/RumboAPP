@@ -44,15 +44,11 @@ OVERPASS_QUERY = (
     '|secondary_link|tertiary_link"]'
     '["foot"!="no"]["access"!="private"]["access"!="agricultural"]'
     '["access"!="forestry"]["access"!="destination"]'
-    '["motor_vehicle"!="private"]["motor_vehicle"!="agricultural"]'
-    '["motor_vehicle"!="forestry"]["motor_vehicle"!="destination"]'
     '["barrier"!="wall"]["barrier"!="fence"]'
     "(-34.9771,-56.4548,-34.6667,-55.9455);"
     'way["highway"="steps"]'
     '["foot"!="no"]["access"!="private"]["access"!="agricultural"]'
     '["access"!="forestry"]["access"!="destination"]'
-    '["motor_vehicle"!="private"]["motor_vehicle"!="agricultural"]'
-    '["motor_vehicle"!="forestry"]["motor_vehicle"!="destination"]'
     '["barrier"!="wall"]["barrier"!="fence"]'
     "(-34.9771,-56.4548,-34.6667,-55.9455);"
     ");out geom;"

@@ -52,7 +52,7 @@
   "mapErrorBody": "Revisá tu conexión e intentá de nuevo.",
   "mapOffline": "Sin conexión. Se usarán las teselas disponibles en caché.",
   "mapAttributionButton": "Información y atribución del mapa",
-  "mapAttributionShort": "© OSM — ODbL",
+  "mapAttributionShort": "© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap",
   "mapAttributionTitle": "Datos del mapa",
   "mapAttributionDetails": "Mapa de OpenFreeMap con datos de OpenStreetMap y OpenMapTiles. La búsqueda de lugares usa OpenStreetMap/Nominatim. Las solicitudes de teselas muestran al proveedor el área aproximada que se está viendo.",
   "mapLocationPrivacy": "La ubicación precisa se procesa en este dispositivo y Rumbo no la guarda ni la envía a un servidor. Al recentrar, el proveedor puede inferir la zona aproximada por las teselas solicitadas.",

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/map_config.dart';
 import '../../../core/config/transit_config.dart';
@@ -925,6 +926,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
               ),
               const SizedBox(height: 12),
               Text(MapConfig.attribution),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => launchUrl(
+                  Uri.parse('https://www.openstreetmap.org/copyright'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: const Text(
+                  '© OpenStreetMap contributors',
+                  style: TextStyle(decoration: TextDecoration.underline),
+                ),
+              ),
               const SizedBox(height: 16),
               Text(l10n.mapAttributionDetails),
               const SizedBox(height: 16),
@@ -1217,16 +1229,67 @@ class _MapScreenState extends ConsumerState<MapScreen>
         // snap válido, línea recta punteada marcada como aproximada.
         final walkPoints = leg.shape?.points;
         if (walkPoints == null || walkPoints.length < 2) continue;
-        final feature = Feature<LineString>(
-          geometry: LineString.from([
-            for (final point in walkPoints)
-              Geographic(lon: point.longitude, lat: point.latitude),
-          ]),
-        );
-        if (leg.approximate) {
-          approxWalkingPoints.add(feature);
+        if (leg.gapMeters > 0) {
+          // Segmento punteado user→proyectado: los primeros dos puntos del
+          // camino real son el punto real del usuario y el vértice proyectado
+          // donde empieza la red; lo demás es camino real sólido.
+          approxWalkingPoints.add(
+            Feature<LineString>(
+              geometry: LineString.from([
+                Geographic(
+                  lon: walkPoints[0].longitude,
+                  lat: walkPoints[0].latitude,
+                ),
+                Geographic(
+                  lon: walkPoints[1].longitude,
+                  lat: walkPoints[1].latitude,
+                ),
+              ]),
+            ),
+          );
+          if (walkPoints.sublist(1).length >= 2) {
+            realWalkingPoints.add(
+              Feature<LineString>(
+                geometry: LineString.from([
+                  for (final point in walkPoints.sublist(1))
+                    Geographic(lon: point.longitude, lat: point.latitude),
+                ]),
+              ),
+            );
+          }
+          if (walkPoints.length >= 2) {
+            final penultimate = walkPoints[walkPoints.length - 2];
+            final destination = walkPoints.last;
+            if (penultimate.latitude != destination.latitude ||
+                penultimate.longitude != destination.longitude) {
+              approxWalkingPoints.add(
+                Feature<LineString>(
+                  geometry: LineString.from([
+                    Geographic(
+                      lon: penultimate.longitude,
+                      lat: penultimate.latitude,
+                    ),
+                    Geographic(
+                      lon: destination.longitude,
+                      lat: destination.latitude,
+                    ),
+                  ]),
+                ),
+              );
+            }
+          }
         } else {
-          realWalkingPoints.add(feature);
+          final feature = Feature<LineString>(
+            geometry: LineString.from([
+              for (final point in walkPoints)
+                Geographic(lon: point.longitude, lat: point.latitude),
+            ]),
+          );
+          if (leg.approximate) {
+            approxWalkingPoints.add(feature);
+          } else {
+            realWalkingPoints.add(feature);
+          }
         }
         continue;
       }

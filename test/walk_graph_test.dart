@@ -131,6 +131,34 @@ void main() {
     );
   });
 
+  test("snap con gap: el camino incluye el segmento punteado user→vértice y suma la distancia", () {
+    // Vía larga en lon=0..0.2; el usuario está a ~47 m del camino.
+    final graph = WalkGraph.fromWays([
+      [ShapePoint(0, 0, 0), ShapePoint(0, 0.2, 1)],
+    ]);
+    final origin = (0.0003, 0.0003);
+    final dest = (0.0003, 0.0004);
+
+    final path = graph.shortestPath(origin.$1, origin.$2, dest.$1, dest.$2);
+    expect(path, isNotNull);
+    expect(path!.gapMeters, greaterThan(30));
+    // El primer punto es el punto real del usuario y el segundo el
+    // punto proyectado donde empieza el camino real.
+    expect(path.points.first.latitude, closeTo(origin.$1, .001));
+    expect(path.points.first.longitude, closeTo(origin.$2, .001));
+    expect(path.points[1].latitude, closeTo(0, .001));
+    expect(path.points[1].longitude, closeTo(0, .001));
+    expect(path.points.last.latitude, closeTo(dest.$1, .001));
+    expect(path.points.last.longitude, closeTo(dest.$2, .001));
+    expect(path.points[path.points.length - 2].latitude, closeTo(0, .001));
+    expect(
+      path.points[path.points.length - 2].longitude,
+      closeTo(dest.$2, .001),
+    );
+    // La distancia incluye el gap punteado.
+    expect(path.lengthMeters, greaterThan(30));
+  });
+
   test("no existen saltos arbitrarios entre puntos del camino", () {
     final graph = blockAroundGraph();
     final origin = (x0 - .006, y0);

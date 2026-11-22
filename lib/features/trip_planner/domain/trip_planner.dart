@@ -143,6 +143,7 @@ class TripLeg {
     this.shape,
     this.headsign = '',
     this.approximate = false,
+    this.gapMeters = 0,
   });
 
   final TripLegKind kind;
@@ -164,25 +165,32 @@ class TripLeg {
   /// representa una ruta real.
   final bool approximate;
 
+  /// Distancia del punto real del usuario al punto proyectado donde empieza
+  /// el camino real peatonal — 0 si no hay gap punteado. Usado para dibujar
+  /// el segmento punteado user→proyectado.
+  final double gapMeters;
+
   /// Devuelve una copia del tramo con la geometría (y el estado de
   /// aproximado) reemplazados — usado al recalcular tramos peatonales.
-  TripLeg copyWithShape({Shape? shape, bool? approximate}) => TripLeg(
-    kind: kind,
-    departureTime: departureTime,
-    arrivalTime: arrivalTime,
-    distanceMeters: distanceMeters,
-    fromStop: fromStop,
-    toStop: toStop,
-    fromLatitude: fromLatitude,
-    fromLongitude: fromLongitude,
-    toLatitude: toLatitude,
-    toLongitude: toLongitude,
-    route: route,
-    variant: variant,
-    shape: shape ?? this.shape,
-    headsign: headsign,
-    approximate: approximate ?? this.approximate,
-  );
+  TripLeg copyWithShape({Shape? shape, bool? approximate, double? gapMeters}) =>
+      TripLeg(
+        kind: kind,
+        departureTime: departureTime,
+        arrivalTime: arrivalTime,
+        distanceMeters: distanceMeters,
+        fromStop: fromStop,
+        toStop: toStop,
+        fromLatitude: fromLatitude,
+        fromLongitude: fromLongitude,
+        toLatitude: toLatitude,
+        toLongitude: toLongitude,
+        route: route,
+        variant: variant,
+        shape: shape ?? this.shape,
+        headsign: headsign,
+        approximate: approximate ?? this.approximate,
+        gapMeters: gapMeters ?? this.gapMeters,
+      );
 }
 
 class TripPlan {
@@ -744,7 +752,11 @@ class TransitRouteSearch {
       toLatitude: toLatitude,
       toLongitude: toLongitude,
     );
-    return leg.copyWithShape(shape: walk.shape, approximate: walk.approximate);
+    return leg.copyWithShape(
+      shape: walk.shape,
+      approximate: walk.approximate,
+      gapMeters: walk.gapMeters,
+    );
   }
 
   /// Camino peatonal: con el grafo cargado es la ruta real de la red; sin
@@ -810,6 +822,7 @@ class TransitRouteSearch {
       ),
       shape: shape,
       approximate: approximate,
+      gapMeters: path?.gapMeters ?? 0,
     );
   }
 }
@@ -1199,6 +1212,7 @@ class _WalkingLeg {
     required this.arrivalTime,
     this.shape,
     this.approximate = false,
+    this.gapMeters = 0,
   });
 
   final Stop? fromStop;
@@ -1209,6 +1223,10 @@ class _WalkingLeg {
 
   /// true si el tramo es estimado sin grafo peatonal (factor de desvío).
   final bool approximate;
+
+  /// Distancia del punto real del usuario al punto proyectado donde empieza
+  /// el camino real — 0 si no hay gap punteado.
+  final double gapMeters;
   final double fromLatitude;
   final double fromLongitude;
   final double toLatitude;
@@ -1230,6 +1248,7 @@ class _WalkingLeg {
     toLongitude: toLongitude,
     shape: shape,
     approximate: approximate,
+    gapMeters: gapMeters,
   );
 
   _WalkingLeg copyWithTimes(DateTime departure, DateTime arrival) =>
@@ -1245,6 +1264,7 @@ class _WalkingLeg {
         arrivalTime: arrival,
         shape: shape,
         approximate: approximate,
+        gapMeters: gapMeters,
       );
 }
 

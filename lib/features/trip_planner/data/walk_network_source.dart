@@ -1,9 +1,12 @@
 import "dart:convert";
 import "dart:io";
+import "dart:isolate";
 
 import "package:http/http.dart" as http;
 import "package:path/path.dart" as p;
 import "package:path_provider/path_provider.dart";
+
+import "dart:developer" as developer;
 
 import "../domain/walk_graph.dart";
 
@@ -26,7 +29,15 @@ class WalkNetworkSource {
     try {
       final response = await _client.get(Uri.parse(endpoint));
       if (response.statusCode < 200 || response.statusCode >= 300) return null;
-      final decoded = jsonDecode(response.body);
+      final stopwatch = Stopwatch()..start();
+      final decoded = await Isolate.run<Object?>(
+        () => jsonDecode(response.body),
+      );
+      stopwatch.stop();
+      developer.log(
+        '[performance] walk_network jsonDecode=${stopwatch.elapsedMilliseconds}ms',
+        name: 'Rumbo',
+      );
       if (decoded is! Map<String, dynamic>) return null;
       return decoded;
     } on Exception {
@@ -56,7 +67,14 @@ class WalkNetworkSource {
     try {
       final file = File(p.join(dir.path, _cacheFileName));
       if (!await file.exists()) return null;
-      final decoded = jsonDecode(await file.readAsString());
+      final text = await file.readAsString();
+      final stopwatch = Stopwatch()..start();
+      final decoded = await Isolate.run<Object?>(() => jsonDecode(text));
+      stopwatch.stop();
+      developer.log(
+        '[performance] walk_network_cache jsonDecode=${stopwatch.elapsedMilliseconds}ms',
+        name: 'Rumbo',
+      );
       if (decoded is Map<String, dynamic>) return decoded;
     } catch (_) {
       // Corrupto — se trata como "no hay caché" (se vuelve a descargar).

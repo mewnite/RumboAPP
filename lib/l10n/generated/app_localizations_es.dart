@@ -178,7 +178,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get mapAttributionButton => 'Información y atribución del mapa';
 
   @override
-  String get mapAttributionShort => '© OSM — ODbL';
+  String get mapAttributionShort =>
+      '© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap';
 
   @override
   String get mapAttributionTitle => 'Datos del mapa';
@@ -1326,7 +1327,8 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get mapAttributionButton => 'Información y atribución del mapa';
 
   @override
-  String get mapAttributionShort => '© OSM — ODbL';
+  String get mapAttributionShort =>
+      '© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap';
 
   @override
   String get mapAttributionTitle => 'Datos del mapa';
