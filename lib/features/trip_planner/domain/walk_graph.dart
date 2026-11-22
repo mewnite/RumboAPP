@@ -106,6 +106,19 @@ class WalkGraph {
   /// Tolerancia de snapping al camino peatonal más cercano (metros).
   final double snapToleranceMeters;
 
+  /// Componente principal del grafo (la conectada más grande). El snapping
+  /// solo se permite sobre ella — snappear a una componente descartada
+  /// equivaldría a inventar una ruta.
+  List<int> _mainComponent = const [];
+  int _mainRoot = -1;
+
+  bool _isMainComponent(int vertex) {
+    if (vertex < 0) return false;
+    // Vértices de split (añadidos tras el build) están en la principal.
+    if (vertex >= _mainComponent.length) return true;
+    return _mainComponent[vertex] == _mainRoot;
+  }
+
   static const double _cellSize = 0.0002;
 
   int get vertexCount => _vertices.length;
@@ -183,6 +196,39 @@ class WalkGraph {
     while (_adj.length < _vertices.length) {
       _adj.add(<int>[]);
     }
+    _computeMainComponent();
+  }
+
+  /// Calcula las componentes conectadas del grafo y marca la principal
+  /// (la conectada más grande).
+  void _computeMainComponent() {
+    final component = List<int>.filled(_vertices.length, -1);
+    var mainRoot = -1;
+    var mainSize = -1;
+    for (var start = 0; start < _vertices.length; start++) {
+      if (component[start] != -1) continue;
+      component[start] = start;
+      final stack = <int>[start];
+      var size = 0;
+      while (stack.isNotEmpty) {
+        final v = stack.removeLast();
+        size++;
+        for (final edgeId in _adj[v]) {
+          final edge = _edges[edgeId];
+          final other = edge.a == v ? edge.b : edge.a;
+          if (component[other] == -1) {
+            component[other] = start;
+            stack.add(other);
+          }
+        }
+      }
+      if (size > mainSize) {
+        mainSize = size;
+        mainRoot = start;
+      }
+    }
+    _mainComponent = component;
+    _mainRoot = mainRoot;
   }
 
   /// Encuentra el vértice peatonal más cercano a (lat, lon) — proyecta el
@@ -193,9 +239,12 @@ class WalkGraph {
   /// [snapToleranceMeters] — no hay ruta válida desde el punto.
   int? snapToGraph(double lat, double lon) {
     final vertex = _nearestVertexWithin(lat, lon, snapToleranceMeters);
-    if (vertex != null) return vertex;
+    if (vertex != null && _isMainComponent(vertex)) return vertex;
     final projection = _nearestProjectionWithin(lat, lon, snapToleranceMeters);
     if (projection == null) return null;
+    // Solo snapping sobre la componente principal (no dividir la red).
+    final edge = _edges[projection.edgeId];
+    if (!_isMainComponent(edge.a) && !_isMainComponent(edge.b)) return null;
     return _splitEdge(
       projection.edgeId,
       projection.segmentIndex,
