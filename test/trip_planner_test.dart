@@ -763,7 +763,7 @@ void main() {
     expect(plans.single.legs.single.kind, TripLegKind.walking);
     expect(plans.single.legs.single.toLatitude, 0);
     expect(plans.single.legs.single.toLongitude, .005);
-    expect(plans.single.totalWalkingMeters, closeTo(556, 1));
+    expect(plans.single.totalWalkingMeters, closeTo(555.97, 1));
     expect(plans.single.transferCount, 0);
     expect(plans.single.arrivalTime, DateTime(2026, 6, 2, 10, 6, 57));
     expect(farPlans, isEmpty);

@@ -141,6 +141,7 @@ class TripLeg {
     this.variant,
     this.shape,
     this.headsign = '',
+    this.approximate = false,
   });
 
   final TripLegKind kind;
@@ -157,6 +158,10 @@ class TripLeg {
   final RouteVariant? variant;
   final Shape? shape;
   final String headsign;
+
+  /// true si la geometría del tramo es estimada (sin grafo peatonal) — no
+  /// representa una ruta real.
+  final bool approximate;
 }
 
 class TripPlan {
@@ -672,9 +677,17 @@ class TransitRouteSearch {
       toLongitude,
     );
     if (graph != null && (path == null || path.points.isEmpty)) return null;
+    // Con grafo: tiempo real sobre la ruta de OSM. Sin grafo: línea recta
+    // con factor de desvío ([PlannerConfig.detourFactor]).
     final distanceMeters =
         path?.lengthMeters ??
-        _distanceMeters(fromLatitude, fromLongitude, toLatitude, toLongitude);
+        (_distanceMeters(
+              fromLatitude,
+              fromLongitude,
+              toLatitude,
+              toLongitude,
+            ) *
+            config.detourFactor);
     final shape = path == null
         ? null
         : Shape(
@@ -696,8 +709,10 @@ class TransitRouteSearch {
         ),
       ),
       shape: shape,
+      approximate: path == null,
     );
   }
+
 }
 
 List<TripPlan> _finalizePlans(List<TripPlan> plans, TripRequest request) {
@@ -1084,6 +1099,7 @@ class _WalkingLeg {
     required this.departureTime,
     required this.arrivalTime,
     this.shape,
+    this.approximate = false,
   });
 
   final Stop? fromStop;
@@ -1091,6 +1107,9 @@ class _WalkingLeg {
 
   /// Geometría real del camino peatonal desde el origen hasta el destino.
   final Shape? shape;
+
+  /// true si el tramo es estimado sin grafo peatonal (factor de desvío).
+  final bool approximate;
   final double fromLatitude;
   final double fromLongitude;
   final double toLatitude;
@@ -1111,6 +1130,7 @@ class _WalkingLeg {
     toLatitude: toLatitude,
     toLongitude: toLongitude,
     shape: shape,
+    approximate: approximate,
   );
 
   _WalkingLeg copyWithTimes(DateTime departure, DateTime arrival) =>
@@ -1125,6 +1145,7 @@ class _WalkingLeg {
         departureTime: departure,
         arrivalTime: arrival,
         shape: shape,
+        approximate: approximate,
       );
 }
 
