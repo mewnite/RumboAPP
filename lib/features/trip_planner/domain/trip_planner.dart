@@ -681,12 +681,7 @@ class TransitRouteSearch {
     // con factor de desvío ([PlannerConfig.detourFactor]).
     final distanceMeters =
         path?.lengthMeters ??
-        (_distanceMeters(
-              fromLatitude,
-              fromLongitude,
-              toLatitude,
-              toLongitude,
-            ) *
+        (_distanceMeters(fromLatitude, fromLongitude, toLatitude, toLongitude) *
             config.detourFactor);
     final shape = path == null
         ? null
@@ -712,7 +707,6 @@ class TransitRouteSearch {
       approximate: path == null,
     );
   }
-
 }
 
 List<TripPlan> _finalizePlans(List<TripPlan> plans, TripRequest request) {
