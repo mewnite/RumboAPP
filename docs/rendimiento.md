@@ -365,31 +365,45 @@ Antes de cambiar el motor, algoritmo o estructura GTFS:
 4. Comparar RAPTOR solo si las mediciones muestran que el planificador puro ya
    consume una fracción relevante del presupuesto.
 
-## Decode y construcción de la red peatonal (2026-11-22)
+## Red peatonal: generación, carga y consulta (2026-11-22)
 
-La medición en desktop sobre el fixture de test `test/fixtures/osm_pedestrian.json`
-(11.296 bytes, 12 vías, 57 vértices) dio:
+La seed binaria se genera fuera de la app desde el extracto OSM recortado y
+fechado; la app no depende de que Render/Overpass responda. En escritorio
+Windows, para 13.595.566 bytes de JSON normalizado:
 
-| Operación | Tiempo | Evidencia |
-|---|---:|---|
-| `jsonDecode` | 14 ms | `dart run tool/walk_graph_bench.dart` |
-| Construcción del grafo | 16 ms | misma ejecución |
+| Operación | Tiempo medido |
+|---|---:|
+| `jsonDecode` | 395 ms |
+| Construcción del grafo | 1.252 ms |
+| Codificación binaria | 188 ms |
+| Tamaño de seed `RWB1` | 6.441.436 bytes (6,14 MiB) |
+| Arranque del worker persistente, incluyendo carga/índice | 485–702 ms |
+| Ruta directa (923,88 m, 17 puntos), 5 iteraciones | 2,98–18,01 ms |
+| Misma ruta, roundtrip del worker, 5 iteraciones | 3,35–7,77 ms |
 
-No es una medición del payload real de ~22,9 MB. El 22/11/2026, el endpoint
-desplegado `https://rumboapp.onrender.com/osm/pedestrian` respondió HTTP 502
-con `No se pudo conectar al servicio de la red peatonal`; por eso el costo de
-`jsonDecode` y build con la red completa queda **pendiente**. La prueba de
-isolates usa `tester.runAsync` y pasó, pero
-solo valida que el fixture puede decodificarse y construirse fuera del
-FakeAsync del test.
+El worker recibe el binario una vez con `TransferableTypedData`, retiene el
+grafo CSR inmutable y sus índices de componente y espaciales, y recibe por
+mensajes cada búsqueda/refinamiento. No copia los 108 mil vértices ni
+reconstruye el índice por consulta. La prueba de integración ejecuta estos
+mensajes con `tester.runAsync`.
 
-La implementación actual no evita copias: `Isolate.run` devuelve el mapa
-JSON y el `WalkGraph` al isolate principal, y `runPlanSearch` vuelve a enviar
-el `WalkGraph` en cada búsqueda. No hay un mecanismo actual para compartir
-sin copia los 108 mil vértices con Dijkstra. El arreglo correcto requiere un
-worker isolate persistente que retenga el grafo y reciba solo los datos de
-horarios por búsqueda, o un formato binario transferible más una interfaz
-asíncrona; queda **pendiente** y no se presenta como resuelto.
+La consulta había tardado 6,1–7,9 s por un error en la escala de longitud: se
+clampaba el producto de metros por grado, en vez del coseno. Eso generaba una
+ventana de 75° y 6.000.008 celdas por snap. Corregido el orden del `clamp`, el
+mismo punto inspecciona 72 celdas y la ruta volvió a decenas de milisegundos.
+Las cifras anteriores son de escritorio; el rendimiento en Android y el
+objetivo de cinco segundos siguen pendientes de validar en un teléfono con
+`flutter run --profile` y logs `[performance]`.
+
+La equivalencia con el grafo mutable histórico se evaluó con 25 pares
+determinísticos de paradas GTFS, usando una instancia histórica fresca por par
+para evitar contaminación entre consultas. Tolerancia:
+`max(15 m, 2% de la distancia histórica)`. 12/25 pares quedaron dentro;
+diferencia absoluta media 30,71 m, mediana 30,24 m, máximo 75,85 m. No es
+equivalencia confirmada; los casos restantes y las diferencias de geometría
+deben investigarse antes de declarar los grafos equivalentes. La semilla y el
+resultado de referencia están descritos en
+[`walk_graph_seed.md`](walk_graph_seed.md).
 
 ## APK arm64 con seed y plugins nativos (2026-11-22)
 
@@ -414,3 +428,39 @@ Aunque se pidió plataforma arm64, el APK también contiene `libmaplibre.so` y
 bytes en el APK. El APK anterior no está disponible en este checkout, por lo
 que la atribución del cambio es una comparación de tamaños y entradas actuales,
 no una comparación binaria entre ambos artefactos.
+
+## Comparación APK universal y arm64 split
+
+En una compilación limpia de validación, `flutter build apk --release
+--split-per-abi --target-platform=android-arm64` produjo
+`app-arm64-v8a-release.apk` de 59.686.227 bytes (**59,69 MB decimales =
+56,92 MiB**). El APK contiene únicamente `arm64-v8a`; las bibliotecas
+`armeabi-v7a` y `x86_64` del APK universal ya no se empaquetan en este
+artefacto. El APK universal medido en la misma estación tenía 79.085.894 bytes
+(79,09 MB = 75,42 MiB), una diferencia de 19.399.667 bytes (18,50 MiB).
+
+Entradas comprimidas más pesadas del split arm64:
+
+| Entrada | Bytes comprimidos |
+|---|---:|
+| `assets/flutter_assets/assets/transit_db/rumbo_transit_seed.db` | 22.255.691 |
+| `lib/arm64-v8a/libflutter.so` | 11.763.360 |
+| `lib/arm64-v8a/libmaplibre.so` | 10.847.024 |
+| `lib/arm64-v8a/libapp.so` | 8.848.264 |
+| `assets/flutter_assets/assets/walk_graph/walk_graph_seed.bin` | 2.836.686 |
+
+El tamaño informado por Flutter como MB está expresado en MiB en estos logs;
+se muestran ambas unidades para evitar confusión. Son resultados de build en
+Windows, no una medición de descarga o instalación en un teléfono.
+
+## Filtro explícito de ABI para build arm64 (2026-11-23)
+
+Se verificó `flutter build apk --release --target-platform android-arm64
+--android-project-arg=rumboAndroidAbis=arm64-v8a` con ambos seeds instalados
+temporalmente en `assets/`. El artefacto resultante fue 59.686.223 bytes:
+**59,69 MB decimales = 56,91 MiB**. El ZIP contiene únicamente bibliotecas
+`arm64-v8a`. Sin el filtro, el mismo APK incluyó también `x86_64` y
+`armeabi-v7a` y midió 79.085.894 bytes (75,42 MiB), una reducción medida de
+19.399.671 bytes (18,50 MiB). La compilación de distribución continúa usando
+`--split-per-abi` para publicar un APK por arquitectura; el binario usado para
+medir no se dejó en el árbol de trabajo.

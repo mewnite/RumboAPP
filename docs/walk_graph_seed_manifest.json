@@ -1,0 +1,32 @@
+{
+  "format": "RWB1",
+  "format_version": 1,
+  "source": "Geofabrik Uruguay extract",
+  "source_url": "https://github.com/mewnite/RumboAPP/releases/download/v1.0.0/montevideo-261121.osm.pbf",
+  "source_date": "261121",
+  "source_bytes": 14358148,
+  "source_sha256": "a9fa9f6368ab79708ae2640672ebe4799a5569b291d2f253ec81c7a1af3266b2",
+  "upstream_source_url": "https://download.geofabrik.de/south-america/uruguay/uruguay-261121.osm.pbf",
+  "upstream_source_sha256": "3f123c0872aaa1b463738ec645d64d55a61fd209dd54ce04cc2e140448eb2b28",
+  "osmium_tool_version": "1.16.0",
+  "bbox": {
+    "west": -56.4548,
+    "south": -34.9771,
+    "east": -55.9455,
+    "north": -34.6667
+  },
+  "graph_bounds": {
+    "south": -34.937623,
+    "west": -56.4548,
+    "north": -34.6667,
+    "east": -55.9455
+  },
+  "exported_way_count": 31618,
+  "clipped_way_count": 31621,
+  "included_way_count": 27328,
+  "vertex_count": 107885,
+  "edge_count": 128666,
+  "geometry_point_count": 257332,
+  "seed_bytes": 6441436,
+  "seed_sha256": "0e083436c633da3f64900500bcf4609b5efc4d397bf43f552ea8b6c2a6362557"
+}

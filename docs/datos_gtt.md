@@ -31,6 +31,9 @@ esa fecha. La app muestra un aviso cuando el feed instalado está vencido o
 vence en menos de siete días, y fuerza un chequeo de actualización prioritario.
 La descarga automática completa sigue restringida a Wi-Fi/Ethernet; la acción
 explícita «Actualizar ahora» puede iniciarla manualmente.
+La seed versionada actualmente tiene límite `20261217`: debe regenerarse antes
+del 17/12/2026. El workflow de release rechaza feeds con menos de siete días
+completos de vigencia.
 
 El workflow [`feed_history.yml`](../.github/workflows/feed_history.yml)
 registra cada chequeo, aunque el hash no cambie, junto con SHA-256, bytes,
@@ -39,13 +42,17 @@ consultada el 22/11/2026, el proxy no expuso los dos últimos encabezados.
 
 ## Base del grafo peatonal y ODbL
 
-Una seed binaria derivada de la red vial de OpenStreetMap es una base derivada
-bajo ODbL 1.0. Si se publica o distribuye, debe conservar la atribución
-«© OpenStreetMap contributors» y cumplir las obligaciones aplicables de la
-licencia, incluida la puesta a disposición de la base derivada cuando
-corresponda. La atribución del mapa también identifica OpenMapTiles y
-OpenFreeMap; estos proveedores no sustituyen la atribución de los datos OSM.
-La seed del grafo aún no está precomputada ni se distribuye como binario.
+La seed binaria del grafo peatonal deriva de OpenStreetMap y es una base
+derivada bajo ODbL 1.0. Su fuente, hash SHA-256, bbox y conteos se registran en
+[`walk_graph_seed_manifest.json`](./walk_graph_seed_manifest.json); el formato
+y el flujo reproducible están en
+[`walk_graph_seed.md`](./walk_graph_seed.md). El PBF y el binario se generan en
+CI y no se commitean. Si se publica o distribuye la seed, conservar la
+atribución «© OpenStreetMap contributors» y cumplir las obligaciones
+aplicables de la licencia, incluida la puesta a disposición de la base
+derivada cuando corresponda. La atribución del mapa también identifica
+OpenMapTiles y OpenFreeMap; estos proveedores no sustituyen la atribución de
+los datos OSM.
 
 ## Esquema y tamaño de la BD
 
@@ -88,8 +95,13 @@ Opciones descartadas/opcionales:
 - Builder: `dart run tool/build_seed_db.dart` — builder puro en Dart
   (`gtfs_parser` + `sqlite3` — sin Flutter), replicando `TransitDatabase.replaceFeed()`
   con el esquema surrogate.
-- CI: `.github/workflows/build_seed_db.yml` — build diario + artifact; el
-  workflow sale con error si el feed no parsea.
+- CI: `.github/workflows/build_release_apk.yml` descarga y genera la seed
+  dentro del mismo workflow de release; falla si no existe `feed_end_date` o
+  quedan menos de siete días completos de vigencia. El artifact de seeds se
+  retiene 7 días para transferirlo entre jobs del mismo run. El APK publicado
+  como asset de GitHub Release no depende de la retención del artifact.
+- `.github/workflows/build_seed_db.yml` sigue siendo el chequeo diario
+  independiente para observar el feed.
 - Instalación: `FeedUpdateController._loadData()` → si la DB está vacía o
   insusable: `TransitDatabase.installSeed()` (copia atómica temp+rename,
   progreso visible) → `open()` → `hasUsableFeed` → marca

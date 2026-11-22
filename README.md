@@ -13,15 +13,19 @@ La forma más sencilla de probar Rumbo es instalar una versión publicada:
 - **[Abrir la última release](https://github.com/mewnite/RumboAPP/releases/latest)**
 - **[Descargar Rumbo v1.0.0 APK](https://github.com/mewnite/RumboAPP/releases/download/v1.0.0/Rumbo-v1.0.0-release.apk)**
 - En la página de release, descargá el archivo cuyo nombre termine en
-  `-release.apk`.
+  `-arm64-v8a-release.apk` para teléfonos Android actuales; elegí
+  `-armeabi-v7a-release.apk` o `-x86_64-release.apk` solo si tu dispositivo lo
+  requiere.
 - Transferilo al teléfono si hace falta y abrilo desde Archivos/Descargas.
 - Android puede solicitar autorización para instalar aplicaciones de fuentes
   desconocidas. Después abrí **Rumbo** y concedé solo los permisos que quieras
   usar.
 
-Las APK no requieren ADB ni Android Studio. La primera apertura descarga el
-GTFS y busca el backend público configurado; puede demorar y consumir datos
-móviles. Verificá siempre el origen del archivo antes de instalarlo.
+Las APK no requieren ADB ni Android Studio. El release incluye una seed GTFS y
+una seed binaria peatonal generadas en CI, por lo que la planificación inicial
+no depende de descargar ni parsear esos datasets. Las búsquedas remotas y los
+datos en vivo sí requieren conexión. Verificá siempre el origen del archivo
+antes de instalarlo.
 
 > Las releases se generan automáticamente desde etiquetas `v*`. El APK actual
 > puede cambiar hasta que se configure una clave de firma de producción.
@@ -122,19 +126,40 @@ reglas específicas si una biblioteca nativa las requiere.
 ### Publicar una release descargable
 
 El workflow [Build release APK](./.github/workflows/build_release_apk.yml)
-ejecuta análisis, pruebas y genera el APK universal al publicar una etiqueta:
+genera y valida seeds GTFS/peatonal, ejecuta análisis y pruebas y publica APK
+separados por ABI al publicar una etiqueta:
 
 ```powershell
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-GitHub Actions crea o actualiza una release y adjunta
-`Rumbo-v1.0.0-release.apk` en **Releases**. También puede iniciarse a mano desde
-**Actions → Build release APK → Run workflow**, indicando la etiqueta deseada.
+GitHub Actions crea o actualiza una release y adjunta, por ejemplo,
+`Rumbo-v1.0.0-arm64-v8a-release.apk` en **Releases**. El job exige que el
+`feed_end_date` del GTFS deje al menos siete días completos de vigencia. Las
+seeds se comparten solo entre jobs del mismo workflow run (retención del
+artifact: 7 días); no se dependen de artifacts de ejecuciones anteriores.
+También puede iniciarse a mano desde **Actions → Build release APK → Run
+workflow**, indicando la etiqueta deseada.
 Hasta configurar una firma de producción, el APK usa el entorno de firma
 configurado actualmente por el proyecto; no es necesario editar credenciales
 en Flutter ni incorporar secretos al repositorio.
+
+### Obtener las seeds en local
+
+La seed peatonal no está versionada. Para generarla desde el extracto de OSM
+fijado en el manifiesto (requiere Python y `osmium-tool` 1.16):
+
+```powershell
+python tool/fetch_seeds/fetch_seeds.py
+Copy-Item build/seeds/walk_graph_seed.bin assets/walk_graph/walk_graph_seed.bin -Force
+```
+
+El comando verifica el SHA-256 del extracto y deja el binario y su manifiesto
+en `build/seeds/`. Para generar también la seed GTFS hace falta que
+`transitConfig.url` apunte al proxy/feed autorizado; luego se ejecuta
+`dart run tool/build_seed_db.dart`. El generador rechaza feeds vencidos o con
+menos de siete días de vigencia. No se deben commitear los binarios generados.
 
 ## Análisis y pruebas
 
@@ -237,13 +262,11 @@ se ejecuta en segundo plano. La búsqueda y el planificador reutilizan la misma
 conexión SQLite durante la sesión para evitar reaperturas y consultas de
 inicialización innecesarias; el cálculo de rutas se ejecuta fuera del hilo de UI.
 
-Esto permite que los arranques posteriores y las búsquedas con caché local sean
-inmediatos. En una instalación sin una base oficial previa, la primera descarga e
-importación depende del tamaño del ZIP y no puede garantizar menos de 10 segundos.
-Para garantizar ese objetivo también en el primer arranque, el pipeline de release
-debe generar y distribuir un snapshot SQLite oficial versionado junto con la
-aplicación, sustituyéndolo mediante actualización en segundo plano cuando cambie
-el feed. No se incluye un snapshot inventado ni una URL oficial no confirmada.
+El workflow de release genera una seed SQLite desde el feed configurado y la
+empaqueta con la app. El job falla si falta `feed_end_date` o quedan menos de
+siete días de vigencia. Así el primer plan no espera la descarga ni el parseo
+del GTFS; actualizaciones posteriores siguen según la política de conexión de la
+app.
 
 Al elegir cualquier lugar/dirección el planificador usa sus coordenadas para
 encontrar paradas de acceso y propone alternativas con hasta un transbordo. La
@@ -251,15 +274,13 @@ muestra incluida es sintética y no debe usarse para orientar viajes reales.
 Cada resultado resume salida, llegada, duración, líneas, caminata y transbordos
 con horarios programados. Al elegir una alternativa, el mapa conserva el
 recorrido y muestra una línea de tiempo de salida, caminata, abordaje, bajada y
-llegada, con las horas estimadas rotuladas. En el mapa, los tramos de ómnibus
-usan la geometría GTFS y los peatonales se dibujan con la geometría real de la
-red peatonal de OpenStreetMap, obtenida vía el proxy /osm/pedestrian (caché de
-24 h y persistencia local de la última versión válida). La planificación a pie
-corre Dijkstra puro sobre el grafo peatonal real: el origen y el destino se
-snappean al segmento más cercano y la ruta respeta la topología real del OSM.
-Si no hay red disponible, los tramos peatonales se omiten; no hay trazados
-rectos como alternativa ni distancias a pie inventadas. Los horarios son
-programados, no posiciones ni ETA en vivo. Cada
+llegada, con las horas estimadas rotuladas. En los releases, la red peatonal se
+empaqueta como seed binaria derivada de un extracto Geofabrik fechado; la app
+no depende de Overpass ni descarga un JSON vial al planificar. Dijkstra consulta
+una base CSR inmutable y usa un overlay por consulta. Si la seed falta o un snap
+no encuentra una conexión, se muestra un tramo recto punteado marcado como
+aproximado y se estima su distancia con un factor de desvío 1,3. Los horarios
+son programados, no posiciones ni ETA en vivo. Cada
 tramo peatonal indica desde dónde caminar, hacia qué parada o dirección y la
 distancia aproximada; no ofrece giros por calles. La API pública STM no publica
 un endpoint de geometría ni planificación A→B: el trazo usa shapes GTFS y las
@@ -267,8 +288,13 @@ posiciones en vivo se dibujan aparte. Por eso el trazado no se puede prometer
 como 100 % confiable; depende de la cobertura y del cruce entre variante STM y
 GTFS.
 
-Los datos de OpenStreetMap se licencian bajo ODbL — se agradece a los
-contribuidores de OpenStreetMap.
+La seed derivada de OpenStreetMap está bajo ODbL 1.0. El mapa muestra
+«© OpenStreetMap contributors» con enlace a
+https://www.openstreetmap.org/copyright y también atribuye a OpenFreeMap y
+OpenMapTiles. El extracto y su hash se registran en
+[docs/walk_graph_seed_manifest.json](./docs/walk_graph_seed_manifest.json).
+La generación reproducible está documentada en
+[docs/walk_graph_seed.md](./docs/walk_graph_seed.md).
 
 Para regenerar el ZIP pequeño y el fixture GeoJSON sintético, ejecuta
 `python tool/generate_sample_gtfs.py`. El archivo identifica el feed como prueba;
