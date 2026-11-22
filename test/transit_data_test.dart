@@ -114,6 +114,32 @@ void main() {
   test('feed expiry and offline errors preserve explicit states', () {
     expect(isFeedExpired(DateTime(2026, 1, 1), DateTime(2026, 1, 2)), isTrue);
     expect(isFeedExpired(DateTime(2026, 1, 3), DateTime(2026, 1, 2)), isFalse);
+    expect(isFeedExpired(DateTime(2026, 1, 2), DateTime(2026, 1, 2)), isFalse);
+    expect(
+      isFeedExpiringSoon(DateTime(2026, 1, 9), DateTime(2026, 1, 2)),
+      isTrue,
+    );
+    expect(
+      isTransitUpdateDue(
+        currentStatus: FeedStatus(stopCount: 100, validUntil: null),
+        lastCheckMilliseconds: DateTime(2026, 1, 2).millisecondsSinceEpoch,
+        now: DateTime(2026, 1, 2),
+        minimumInterval: const Duration(days: 1),
+      ),
+      isFalse,
+    );
+    expect(
+      isTransitUpdateDue(
+        currentStatus: FeedStatus(
+          stopCount: 100,
+          validUntil: DateTime(2026, 1, 9),
+        ),
+        lastCheckMilliseconds: DateTime(2026, 1, 2).millisecondsSinceEpoch,
+        now: DateTime(2026, 1, 2),
+        minimumInterval: const Duration(days: 1),
+      ),
+      isTrue,
+    );
     expect(
       phaseForFeedError(const TransitFeedNetworkException('offline')),
       FeedUpdatePhase.offline,

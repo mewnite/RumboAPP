@@ -1189,6 +1189,12 @@ abstract class AppLocalizations {
   /// **'Todavía no actualizado'**
   String get transitUpdatedAtNone;
 
+  /// No description provided for @transitValidityWarning.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Los datos vencen el {date} o ya vencieron. Priorizá una actualización antes de planificar.'**
+  String transitValidityWarning(String date);
+
   /// No description provided for @transitUpdateError.
   ///
   /// In es_UY, this message translates to:
@@ -1525,6 +1531,66 @@ abstract class AppLocalizations {
   /// **'{minutes} min de caminata'**
   String tripPlanWalkingMinutes(int minutes);
 
+  /// No description provided for @tripEtaBoardingStop.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Línea {line} · subida en {stop}'**
+  String tripEtaBoardingStop(String line, String stop);
+
+  /// No description provided for @tripEtaGpsMinutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{minutes} min · Estimado con GPS'**
+  String tripEtaGpsMinutes(int minutes);
+
+  /// No description provided for @tripEtaGpsRange.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{min}-{max} min · Estimado con GPS'**
+  String tripEtaGpsRange(int min, int max);
+
+  /// No description provided for @tripEtaScheduledMinutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'{minutes} min · Horario programado'**
+  String tripEtaScheduledMinutes(int minutes);
+
+  /// No description provided for @tripEtaFallback.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Aproximado con velocidad de referencia de 18 km/h.'**
+  String get tripEtaFallback;
+
+  /// No description provided for @tripEtaMissed.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No llegás a tiempo: la caminata real lleva {walkMinutes} min y el ómnibus llega en {etaMinutes} min (margen de 1 min).'**
+  String tripEtaMissed(int walkMinutes, int etaMinutes);
+
+  /// No description provided for @tripEtaNextScheduled.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Siguiente bus según horario: {time}'**
+  String tripEtaNextScheduled(String time);
+
+  /// No description provided for @tripEtaNoNextScheduled.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No hay otro horario programado para esta línea.'**
+  String get tripEtaNoNextScheduled;
+
+  /// No description provided for @tripEtaNextLoading.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Buscando el siguiente horario…'**
+  String get tripEtaNextLoading;
+
+  /// No description provided for @tripEtaNextError.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No se pudo consultar el siguiente horario: {message}'**
+  String tripEtaNextError(String message);
+
   /// No description provided for @tripPlanTransfers.
   ///
   /// In es_UY, this message translates to:
@@ -1775,7 +1841,7 @@ abstract class AppLocalizations {
   /// No description provided for @tripDetailScheduleNotice.
   ///
   /// In es_UY, this message translates to:
-  /// **'Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.'**
+  /// **'El horario es programado; el ETA GPS es aproximado y no oficial. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.'**
   String get tripDetailScheduleNotice;
 
   /// No description provided for @tripDetailChangeTrip.

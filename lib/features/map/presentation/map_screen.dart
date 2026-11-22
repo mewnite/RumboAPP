@@ -95,7 +95,7 @@ class MapScreen extends ConsumerStatefulWidget {
     this.mapBuilder,
     this.mapLoadTimeout,
     @visibleForTesting this.realtimeBusSource,
-    @visibleForTesting this.realtimePollInterval = const Duration(seconds: 8),
+    @visibleForTesting this.realtimePollInterval = const Duration(seconds: 10),
   });
 
   @visibleForTesting
@@ -108,6 +108,7 @@ class MapScreen extends ConsumerStatefulWidget {
   final RealtimeBusSource? realtimeBusSource;
 
   @visibleForTesting
+  /// Test override; production polling defaults to 10 seconds.
   final Duration realtimePollInterval;
 
   @override
@@ -1962,9 +1963,29 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     children: [
                       RumboSheetHandle(label: l10n.mapStopsAndBuses),
                       const SizedBox(height: AppTokens.space8),
+                      if (feedState != null &&
+                          !feedState.status.synthetic &&
+                          (isFeedExpired(
+                                feedState.status.validUntil,
+                                DateTime.now(),
+                              ) ||
+                              isFeedExpiringSoon(
+                                feedState.status.validUntil,
+                                DateTime.now(),
+                              )))
+                        _FeedValidityWarning(
+                          validUntil: feedState.status.validUntil!,
+                          onUpdate: () => unawaited(
+                            ref
+                                .read(feedUpdateControllerProvider.notifier)
+                                .updateNow(),
+                          ),
+                        ),
                       if (_selectedTripPlan != null) ...[
                         TripPlanDetails(
                           plan: _selectedTripPlan!,
+                          livePositions: liveBuses.positions,
+                          tripPlanShapes: _tripPlanShapes,
                           originName:
                               _selectedTripOriginName ??
                               l10n.tripOriginLocationHint,
@@ -2318,6 +2339,52 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ],
         );
       },
+    );
+  }
+}
+
+class _FeedValidityWarning extends StatelessWidget {
+  const _FeedValidityWarning({
+    required this.validUntil,
+    required this.onUpdate,
+  });
+
+  final DateTime validUntil;
+  final VoidCallback onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final date =
+        '${validUntil.year.toString().padLeft(4, '0')}-'
+        '${validUntil.month.toString().padLeft(2, '0')}-'
+        '${validUntil.day.toString().padLeft(2, '0')}';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Symbols.warning_amber_rounded),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.transitValidityWarning(date)),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: onUpdate,
+                      child: Text(l10n.transitUpdateNow),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

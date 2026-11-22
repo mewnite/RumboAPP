@@ -208,17 +208,14 @@ class StopDetailsSheet extends ConsumerWidget {
 String _arrivalLabel(AppLocalizations l10n, StopArrival arrival) {
   final seconds = arrival.departureTime.difference(DateTime.now()).inSeconds;
   final minutes = (seconds / 60).ceil().clamp(0, 999);
-  if (arrival.isOfficial) {
-    return '$minutes min · Oficial';
-  }
   if (arrival.isLive) {
     final low = arrival.etaMinMinutes ?? minutes;
     final high = arrival.etaMaxMinutes ?? minutes;
     return low == high
-        ? '$low min · Estimado con GPS'
-        : '$low-$high min · Estimado con GPS';
+        ? l10n.tripEtaGpsMinutes(low)
+        : l10n.tripEtaGpsRange(low, high);
   }
-  return '$minutes min · Horario programado';
+  return l10n.tripEtaScheduledMinutes(minutes);
 }
 
 Future<void> _toggleFavorite(

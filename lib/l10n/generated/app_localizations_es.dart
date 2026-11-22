@@ -635,6 +635,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get transitUpdatedAtNone => 'Todavía no actualizado';
 
   @override
+  String transitValidityWarning(String date) {
+    return 'Los datos vencen el $date o ya vencieron. Priorizá una actualización antes de planificar.';
+  }
+
+  @override
   String get transitUpdateError =>
       'No se pudo actualizar; se conservan los datos guardados.';
 
@@ -833,6 +838,52 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String tripEtaBoardingStop(String line, String stop) {
+    return 'Línea $line · subida en $stop';
+  }
+
+  @override
+  String tripEtaGpsMinutes(int minutes) {
+    return '$minutes min · Estimado con GPS';
+  }
+
+  @override
+  String tripEtaGpsRange(int min, int max) {
+    return '$min-$max min · Estimado con GPS';
+  }
+
+  @override
+  String tripEtaScheduledMinutes(int minutes) {
+    return '$minutes min · Horario programado';
+  }
+
+  @override
+  String get tripEtaFallback =>
+      'Aproximado con velocidad de referencia de 18 km/h.';
+
+  @override
+  String tripEtaMissed(int walkMinutes, int etaMinutes) {
+    return 'No llegás a tiempo: la caminata real lleva $walkMinutes min y el ómnibus llega en $etaMinutes min (margen de 1 min).';
+  }
+
+  @override
+  String tripEtaNextScheduled(String time) {
+    return 'Siguiente bus según horario: $time';
+  }
+
+  @override
+  String get tripEtaNoNextScheduled =>
+      'No hay otro horario programado para esta línea.';
+
+  @override
+  String get tripEtaNextLoading => 'Buscando el siguiente horario…';
+
+  @override
+  String tripEtaNextError(String message) {
+    return 'No se pudo consultar el siguiente horario: $message';
+  }
+
+  @override
   String tripPlanTransfers(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1015,7 +1066,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripDetailScheduleNotice =>
-      'Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.';
+      'El horario es programado; el ETA GPS es aproximado y no oficial. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.';
 
   @override
   String get tripDetailChangeTrip => 'Cambiar viaje';
@@ -1784,6 +1835,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get transitUpdatedAtNone => 'Todavía no actualizado';
 
   @override
+  String transitValidityWarning(String date) {
+    return 'Los datos vencen el $date o ya vencieron. Priorizá una actualización antes de planificar.';
+  }
+
+  @override
   String get transitUpdateError =>
       'No se pudo actualizar; se conservan los datos guardados.';
 
@@ -1982,6 +2038,52 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   }
 
   @override
+  String tripEtaBoardingStop(String line, String stop) {
+    return 'Línea $line · subida en $stop';
+  }
+
+  @override
+  String tripEtaGpsMinutes(int minutes) {
+    return '$minutes min · Estimado con GPS';
+  }
+
+  @override
+  String tripEtaGpsRange(int min, int max) {
+    return '$min-$max min · Estimado con GPS';
+  }
+
+  @override
+  String tripEtaScheduledMinutes(int minutes) {
+    return '$minutes min · Horario programado';
+  }
+
+  @override
+  String get tripEtaFallback =>
+      'Aproximado con velocidad de referencia de 18 km/h.';
+
+  @override
+  String tripEtaMissed(int walkMinutes, int etaMinutes) {
+    return 'No llegás a tiempo: la caminata real lleva $walkMinutes min y el ómnibus llega en $etaMinutes min (margen de 1 min).';
+  }
+
+  @override
+  String tripEtaNextScheduled(String time) {
+    return 'Siguiente bus según horario: $time';
+  }
+
+  @override
+  String get tripEtaNoNextScheduled =>
+      'No hay otro horario programado para esta línea.';
+
+  @override
+  String get tripEtaNextLoading => 'Buscando el siguiente horario…';
+
+  @override
+  String tripEtaNextError(String message) {
+    return 'No se pudo consultar el siguiente horario: $message';
+  }
+
+  @override
   String tripPlanTransfers(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2164,7 +2266,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripDetailScheduleNotice =>
-      'Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.';
+      'El horario es programado; el ETA GPS es aproximado y no oficial. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.';
 
   @override
   String get tripDetailChangeTrip => 'Cambiar viaje';

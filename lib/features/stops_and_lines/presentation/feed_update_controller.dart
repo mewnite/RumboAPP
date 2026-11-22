@@ -37,6 +37,10 @@ bool isTransitUpdateDue({
   required Duration minimumInterval,
 }) {
   if (currentStatus.synthetic || currentStatus.stopCount == 0) return true;
+  if (isFeedExpired(currentStatus.validUntil, now) ||
+      isFeedExpiringSoon(currentStatus.validUntil, now)) {
+    return true;
+  }
   if (lastCheckMilliseconds == null) return true;
   return now.difference(
         DateTime.fromMillisecondsSinceEpoch(lastCheckMilliseconds),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Route;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/trip_planner/domain/planner_config.dart';
@@ -414,72 +415,74 @@ void main() {
     var closedTrip = false;
 
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('es', 'UY'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: TripPlanDetails(
-              plan: TripPlan(
-                requestedDeparture: departure,
-                arrivalTime: departure.add(const Duration(minutes: 45)),
-                legs: [
-                  TripLeg(
-                    kind: TripLegKind.walking,
-                    departureTime: departure,
-                    arrivalTime: departure.add(const Duration(minutes: 3)),
-                    distanceMeters: 200,
-                    fromLatitude: -34.891,
-                    fromLongitude: -56.161,
-                    toStop: firstStop,
-                  ),
-                  TripLeg(
-                    kind: TripLegKind.waiting,
-                    departureTime: departure.add(const Duration(minutes: 3)),
-                    arrivalTime: departure.add(const Duration(minutes: 8)),
-                    toStop: firstStop,
-                  ),
-                  TripLeg(
-                    kind: TripLegKind.transit,
-                    departureTime: departure.add(const Duration(minutes: 8)),
-                    arrivalTime: departure.add(const Duration(minutes: 25)),
-                    route: const Route(id: 'r1', shortName: '522'),
-                    headsign: 'Ciudad Vieja',
-                    fromStop: firstStop,
-                    toStop: transferStop,
-                  ),
-                  TripLeg(
-                    kind: TripLegKind.waiting,
-                    departureTime: departure.add(const Duration(minutes: 25)),
-                    arrivalTime: departure.add(const Duration(minutes: 30)),
-                    fromStop: transferStop,
-                  ),
-                  TripLeg(
-                    kind: TripLegKind.transit,
-                    departureTime: departure.add(const Duration(minutes: 30)),
-                    arrivalTime: departure.add(const Duration(minutes: 40)),
-                    route: const Route(id: 'r2', shortName: '103'),
-                    fromStop: transferStop,
-                    toStop: finalStop,
-                  ),
-                  TripLeg(
-                    kind: TripLegKind.walking,
-                    departureTime: departure.add(const Duration(minutes: 40)),
-                    arrivalTime: departure.add(const Duration(minutes: 45)),
-                    distanceMeters: 350,
-                    fromStop: finalStop,
-                    toLatitude: -34.912,
-                    toLongitude: -56.201,
-                  ),
-                ],
-                totalWalkingMeters: 550,
-                transferCount: 1,
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('es', 'UY'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: TripPlanDetails(
+                plan: TripPlan(
+                  requestedDeparture: departure,
+                  arrivalTime: departure.add(const Duration(minutes: 45)),
+                  legs: [
+                    TripLeg(
+                      kind: TripLegKind.walking,
+                      departureTime: departure,
+                      arrivalTime: departure.add(const Duration(minutes: 3)),
+                      distanceMeters: 200,
+                      fromLatitude: -34.891,
+                      fromLongitude: -56.161,
+                      toStop: firstStop,
+                    ),
+                    TripLeg(
+                      kind: TripLegKind.waiting,
+                      departureTime: departure.add(const Duration(minutes: 3)),
+                      arrivalTime: departure.add(const Duration(minutes: 8)),
+                      toStop: firstStop,
+                    ),
+                    TripLeg(
+                      kind: TripLegKind.transit,
+                      departureTime: departure.add(const Duration(minutes: 8)),
+                      arrivalTime: departure.add(const Duration(minutes: 25)),
+                      route: const Route(id: 'r1', shortName: '522'),
+                      headsign: 'Ciudad Vieja',
+                      fromStop: firstStop,
+                      toStop: transferStop,
+                    ),
+                    TripLeg(
+                      kind: TripLegKind.waiting,
+                      departureTime: departure.add(const Duration(minutes: 25)),
+                      arrivalTime: departure.add(const Duration(minutes: 30)),
+                      fromStop: transferStop,
+                    ),
+                    TripLeg(
+                      kind: TripLegKind.transit,
+                      departureTime: departure.add(const Duration(minutes: 30)),
+                      arrivalTime: departure.add(const Duration(minutes: 40)),
+                      route: const Route(id: 'r2', shortName: '103'),
+                      fromStop: transferStop,
+                      toStop: finalStop,
+                    ),
+                    TripLeg(
+                      kind: TripLegKind.walking,
+                      departureTime: departure.add(const Duration(minutes: 40)),
+                      arrivalTime: departure.add(const Duration(minutes: 45)),
+                      distanceMeters: 350,
+                      fromStop: finalStop,
+                      toLatitude: -34.912,
+                      toLongitude: -56.201,
+                    ),
+                  ],
+                  totalWalkingMeters: 550,
+                  transferCount: 1,
+                ),
+                originName: 'Mi ubicación',
+                destinationName: 'Plaza Independencia',
+                onChangeTrip: () => changedTrip = true,
+                onCloseTrip: () => closedTrip = true,
               ),
-              originName: 'Mi ubicación',
-              destinationName: 'Plaza Independencia',
-              onChangeTrip: () => changedTrip = true,
-              onCloseTrip: () => closedTrip = true,
             ),
           ),
         ),
@@ -487,6 +490,8 @@ void main() {
     );
 
     expect(find.text('Tu recorrido'), findsOneWidget);
+    expect(find.text('Línea 522 · subida en Tres Cruces'), findsOneWidget);
+    expect(find.text('Línea 103 · subida en Centro'), findsOneWidget);
     expect(find.text('12:00–12:45'), findsOneWidget);
     expect(find.text('45 min'), findsOneWidget);
     expect(find.text('8 min de caminata'), findsOneWidget);
@@ -530,7 +535,7 @@ void main() {
     expect(find.text('Plaza Independencia'), findsOneWidget);
     expect(find.text('Caminata total: 550 m'), findsOneWidget);
     expect(find.text('Caminata aproximada, en línea recta.'), findsOneWidget);
-    expect(find.textContaining('sin ETA en vivo'), findsOneWidget);
+    expect(find.textContaining('El horario es programado'), findsOneWidget);
     expect(find.textContaining('no es navegación guiada'), findsOneWidget);
 
     expect(

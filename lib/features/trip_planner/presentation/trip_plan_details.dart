@@ -1,10 +1,17 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/rumbo_components.dart';
 import '../../../core/widgets/line_chip.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../stops_and_lines/data/transit_arrivals_source.dart';
+import '../../stops_and_lines/domain/transit_models.dart';
+import '../../stops_and_lines/domain/transit_repository.dart';
+import '../../stops_and_lines/presentation/transit_repository_provider.dart';
 import '../domain/trip_planner.dart';
 
 class TripPlanDetails extends StatelessWidget {
@@ -19,6 +26,8 @@ class TripPlanDetails extends StatelessWidget {
     this.activeTripStopsRemaining,
     this.onStartActiveTrip,
     this.onStopActiveTrip,
+    this.livePositions = const [],
+    this.tripPlanShapes = const {},
     super.key,
   });
 
@@ -32,6 +41,8 @@ class TripPlanDetails extends StatelessWidget {
   final int? activeTripStopsRemaining;
   final VoidCallback? onStartActiveTrip;
   final VoidCallback? onStopActiveTrip;
+  final List<BusPosition> livePositions;
+  final Map<String, Shape> tripPlanShapes;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +147,14 @@ class TripPlanDetails extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
+        for (var index = 0; index < plan.legs.length; index++)
+          if (plan.legs[index].kind == TripLegKind.transit)
+            _TripLegEtaCard(
+              plan: plan,
+              legIndex: index,
+              livePositions: livePositions,
+              shapes: tripPlanShapes,
+            ),
         for (var index = 0; index < steps.length; index++)
           _TimelineStepTile(
             step: steps[index],
@@ -274,6 +293,220 @@ class TripPlanDetails extends StatelessWidget {
     if (route == null) return l10n.tripDetailUnknownStop;
     return route.shortName.isNotEmpty ? route.shortName : route.id;
   }
+}
+
+final _scheduledDeparturesProvider =
+    FutureProvider.family<List<UpcomingDeparture>, String>((ref, stopId) {
+      return ref
+          .watch(transitRepositoryProvider)
+          .upcomingDepartures(stopId, DateTime.now(), limit: 60);
+    });
+
+class _TripLegEtaCard extends ConsumerWidget {
+  const _TripLegEtaCard({
+    required this.plan,
+    required this.legIndex,
+    required this.livePositions,
+    required this.shapes,
+  });
+
+  final TripPlan plan;
+  final int legIndex;
+  final List<BusPosition> livePositions;
+  final Map<String, Shape> shapes;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final leg = plan.legs[legIndex];
+    final stop = leg.fromStop;
+    final route = leg.route;
+    if (stop == null || route == null) return const SizedBox.shrink();
+
+    final l10n = AppLocalizations.of(context);
+    final line = route.shortName.isEmpty ? route.id : route.shortName;
+    final estimate = estimateTripLegEta(
+      plan: plan,
+      legIndex: legIndex,
+      livePositions: livePositions,
+      shapes: shapes,
+      now: DateTime.now(),
+    );
+    final theme = Theme.of(context);
+    final nextDepartures = estimate.missedBoarding
+        ? ref.watch(_scheduledDeparturesProvider(stop.id))
+        : null;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.tripEtaBoardingStop(line, stop.name),
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              estimate.fromGps
+                  ? estimate.minMinutes == estimate.maxMinutes
+                        ? l10n.tripEtaGpsMinutes(estimate.minMinutes)
+                        : l10n.tripEtaGpsRange(
+                            estimate.minMinutes,
+                            estimate.maxMinutes,
+                          )
+                  : l10n.tripEtaScheduledMinutes(estimate.minMinutes),
+            ),
+            if (estimate.fromGps && estimate.usesFallbackSpeed)
+              Text(
+                l10n.tripEtaFallback,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            if (estimate.missedBoarding) ...[
+              const SizedBox(height: 8),
+              Text(
+                l10n.tripEtaMissed(
+                  estimate.walkingMinutes,
+                  estimate.minMinutes,
+                ),
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+              nextDepartures!.when(
+                data: (departures) {
+                  final next = _nextScheduledDeparture(departures, leg);
+                  return Text(
+                    next == null
+                        ? l10n.tripEtaNoNextScheduled
+                        : l10n.tripEtaNextScheduled(_clock(next.departure)),
+                  );
+                },
+                loading: () => Text(l10n.tripEtaNextLoading),
+                error: (error, stackTrace) =>
+                    Text(l10n.tripEtaNextError(error.toString())),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  UpcomingDeparture? _nextScheduledDeparture(
+    List<UpcomingDeparture> departures,
+    TripLeg leg,
+  ) {
+    final variantId = leg.variant?.id;
+    final matching = departures.where(
+      (departure) =>
+          departure.trip.routeId == leg.route?.id &&
+          (variantId == null || departure.trip.variantId == variantId) &&
+          departure.departure.isAfter(leg.departureTime),
+    );
+    if (matching.isEmpty) return null;
+    return matching.reduce(
+      (first, second) =>
+          first.departure.isBefore(second.departure) ? first : second,
+    );
+  }
+}
+
+class TripLegEtaEstimate {
+  const TripLegEtaEstimate({
+    required this.minMinutes,
+    required this.maxMinutes,
+    required this.fromGps,
+    required this.usesFallbackSpeed,
+    required this.walkingMinutes,
+    required this.missedBoarding,
+  });
+
+  final int minMinutes;
+  final int maxMinutes;
+  final bool fromGps;
+  final bool usesFallbackSpeed;
+  final int walkingMinutes;
+  final bool missedBoarding;
+}
+
+TripLegEtaEstimate estimateTripLegEta({
+  required TripPlan plan,
+  required int legIndex,
+  required List<BusPosition> livePositions,
+  required Map<String, Shape> shapes,
+  required DateTime now,
+}) {
+  final leg = plan.legs[legIndex];
+  final stop = leg.fromStop;
+  final variant = leg.variant;
+  final shape = variant == null ? null : shapes[variant.id] ?? leg.shape;
+  ({int min, int max, bool fallback})? liveEstimate;
+  if (stop != null && variant?.externalVariantId != null && shape != null) {
+    for (final position in livePositions) {
+      final age = now.difference(position.receivedAt);
+      if (RealtimeMatcher.matchPositionToVariant(
+                position,
+                variant!,
+                route: leg.route,
+              ) ==
+              null ||
+          age.isNegative ||
+          age > const Duration(seconds: 60)) {
+        continue;
+      }
+      final range = estimateBusArrivalMinuteRange(
+        position: position,
+        stop: stop,
+        shape: shape,
+      );
+      if (range == null) continue;
+      final candidate = (
+        min: range.$1,
+        max: range.$2,
+        fallback: position.speedKmh < 8,
+      );
+      if (liveEstimate == null || candidate.min < liveEstimate.min) {
+        liveEstimate = candidate;
+      }
+    }
+  }
+
+  var walkingSeconds = 0;
+  var hasWalkingLeg = false;
+  var walkingIsReal = true;
+  for (var index = legIndex - 1; index >= 0; index--) {
+    final previous = plan.legs[index];
+    if (previous.kind == TripLegKind.transit) break;
+    if (previous.kind != TripLegKind.walking) continue;
+    hasWalkingLeg = true;
+    walkingIsReal &= !previous.approximate;
+    final seconds = previous.arrivalTime
+        .difference(previous.departureTime)
+        .inSeconds;
+    if (seconds > 0) walkingSeconds += seconds;
+  }
+  final walkingMinutes = (walkingSeconds / 60).ceil();
+  final minMinutes =
+      liveEstimate?.min ??
+      math
+          .max(0, (leg.departureTime.difference(now).inSeconds / 60).ceil())
+          .toInt();
+  final maxMinutes = liveEstimate?.max ?? minMinutes;
+  final missedBoarding =
+      hasWalkingLeg &&
+      walkingIsReal &&
+      !leg.departureTime.isBefore(now.subtract(const Duration(minutes: 1))) &&
+      minMinutes <= walkingMinutes + 1;
+  return TripLegEtaEstimate(
+    minMinutes: minMinutes,
+    maxMinutes: maxMinutes,
+    fromGps: liveEstimate != null,
+    usesFallbackSpeed: liveEstimate?.fallback ?? false,
+    walkingMinutes: walkingMinutes,
+    missedBoarding: missedBoarding,
+  );
 }
 
 class _TimelineStep {

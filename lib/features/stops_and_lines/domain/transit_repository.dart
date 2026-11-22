@@ -60,6 +60,15 @@ class RealtimeMatcher {
   const RealtimeMatcher(this.repository);
   final TransitRepository repository;
 
+  static MatchedBusPosition? matchPositionToVariant(
+    BusPosition position,
+    RouteVariant variant, {
+    Route? route,
+  }) {
+    if (variant.externalVariantId != position.variantId) return null;
+    return MatchedBusPosition(position, variant: variant, route: route);
+  }
+
   Future<List<MatchedBusPosition>> match(RealtimeSnapshot snapshot) async {
     final matches = <MatchedBusPosition>[];
     for (final position in snapshot.positions) {
@@ -67,7 +76,12 @@ class RealtimeMatcher {
       final route = variant == null
           ? null
           : await repository.routeById(variant.routeId);
-      matches.add(MatchedBusPosition(position, variant: variant, route: route));
+      matches.add(
+        variant == null
+            ? MatchedBusPosition(position)
+            : matchPositionToVariant(position, variant, route: route) ??
+                  MatchedBusPosition(position),
+      );
     }
     return matches;
   }

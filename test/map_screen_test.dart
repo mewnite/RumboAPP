@@ -28,6 +28,25 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  test('map realtime polling defaults to the ten-second API limit', () {
+    expect(const MapScreen().realtimePollInterval, const Duration(seconds: 10));
+  });
+
+  testWidgets('warns when the installed feed is near its end date', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _mapApp(
+        repository,
+        feedControllerOverride: _SoonExpiringFeedController.new,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.textContaining('Los datos vencen el'), findsOneWidget);
+    expect(find.text('Actualizar ahora'), findsOneWidget);
+  });
+
   testWidgets('location consent appears once and recenter uses the fix', (
     tester,
   ) async {
@@ -261,13 +280,16 @@ Widget _mapApp(
   RealtimeBusSource? realtimeBusSource,
   Duration realtimePollInterval = const Duration(seconds: 10),
   FavoritesRepository? favoritesRepository,
+  FeedUpdateController Function()? feedControllerOverride,
   List<Override> overrides = const [],
 }) {
   return ProviderScope(
     overrides: [
       locationRepositoryProvider.overrideWith((ref) => repository),
       networkAvailableProvider.overrideWith((ref) => Stream<bool>.value(true)),
-      feedUpdateControllerProvider.overrideWith(_OfflineFeedController.new),
+      feedUpdateControllerProvider.overrideWith(
+        feedControllerOverride ?? _OfflineFeedController.new,
+      ),
       favoritesRepositoryProvider.overrideWithValue(
         favoritesRepository ?? FakeFavoritesRepository(),
       ),
@@ -319,5 +341,18 @@ class _OfflineFeedController extends FeedUpdateController {
     phase: FeedUpdatePhase.offline,
     message: 'Prueba sin conexión',
     status: FeedStatus(),
+  );
+}
+
+class _SoonExpiringFeedController extends FeedUpdateController {
+  @override
+  Future<FeedUpdateState> build() async => FeedUpdateState(
+    phase: FeedUpdatePhase.updated,
+    status: FeedStatus(
+      source: 'GTFS',
+      validUntil: DateTime.now().add(const Duration(days: 3)),
+      stopCount: 1,
+      routeCount: 1,
+    ),
   );
 }

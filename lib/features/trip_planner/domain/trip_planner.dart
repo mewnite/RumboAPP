@@ -243,9 +243,11 @@ class TransitTripPlanner {
     if (!changed) return plan;
     return TripPlan(
       requestedDeparture: plan.requestedDeparture,
-      arrivalTime: plan.arrivalTime,
+      arrivalTime: legs.isEmpty ? plan.arrivalTime : legs.last.arrivalTime,
       legs: legs,
-      totalWalkingMeters: plan.totalWalkingMeters,
+      totalWalkingMeters: legs
+          .where((leg) => leg.kind == TripLegKind.walking)
+          .fold<double>(0, (total, leg) => total + leg.distanceMeters),
       transferCount: plan.transferCount,
       timeAccuracy: plan.timeAccuracy,
     );
@@ -254,7 +256,12 @@ class TransitTripPlanner {
   bool _sameWalkingShape(TripLeg a, TripLeg b) {
     final pointsA = a.shape?.points;
     final pointsB = b.shape?.points;
-    if (a.approximate != b.approximate) return false;
+    if (a.approximate != b.approximate ||
+        a.gapMeters != b.gapMeters ||
+        a.distanceMeters != b.distanceMeters ||
+        a.arrivalTime != b.arrivalTime) {
+      return false;
+    }
     if (pointsA == null || pointsB == null) return identical(pointsA, pointsB);
     if (pointsA.length != pointsB.length) return false;
     for (var i = 0; i < pointsA.length; i++) {
@@ -725,8 +732,8 @@ class TransitRouteSearch {
     );
   }
 
-  /// Recalcula la geometría de un tramo peatonal con la red actual
-  /// ([walkGraph]), conservando los tiempos del tramo original. El tramo
+  /// Recalcula la geometría, distancia y tiempo de un tramo peatonal con la
+  /// red actual ([walkGraph]). El tramo
   /// nunca se omite: con red y snap válido se usa el camino real; si no hay
   /// red ni camino válido, la geometría es la línea recta marcada como
   /// aproximada.
@@ -752,11 +759,7 @@ class TransitRouteSearch {
       toLatitude: toLatitude,
       toLongitude: toLongitude,
     );
-    return leg.copyWithShape(
-      shape: walk.shape,
-      approximate: walk.approximate,
-      gapMeters: walk.gapMeters,
-    );
+    return walk.toLeg();
   }
 
   /// Camino peatonal: con el grafo cargado es la ruta real de la red; sin

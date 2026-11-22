@@ -312,6 +312,14 @@
   "transitLicenseLabel": "Licencia",
   "transitNoData": "No hay datos disponibles.",
   "transitUpdatedAtNone": "Todavía no actualizado",
+  "transitValidityWarning": "Los datos vencen el {date} o ya vencieron. Priorizá una actualización antes de planificar.",
+  "@transitValidityWarning": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "transitUpdateError": "No se pudo actualizar; se conservan los datos guardados.",
   "transitUnknownValue": "—",
   "tripSearchTitle": "Planificá tu viaje",
@@ -437,6 +445,74 @@
     "placeholders": {
       "minutes": {
         "type": "int"
+      }
+    }
+  },
+  "tripEtaBoardingStop": "Línea {line} · subida en {stop}",
+  "@tripEtaBoardingStop": {
+    "placeholders": {
+      "line": {
+        "type": "String"
+      },
+      "stop": {
+        "type": "String"
+      }
+    }
+  },
+  "tripEtaGpsMinutes": "{minutes} min · Estimado con GPS",
+  "@tripEtaGpsMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripEtaGpsRange": "{min}-{max} min · Estimado con GPS",
+  "@tripEtaGpsRange": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "tripEtaScheduledMinutes": "{minutes} min · Horario programado",
+  "@tripEtaScheduledMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripEtaFallback": "Aproximado con velocidad de referencia de 18 km/h.",
+  "tripEtaMissed": "No llegás a tiempo: la caminata real lleva {walkMinutes} min y el ómnibus llega en {etaMinutes} min (margen de 1 min).",
+  "@tripEtaMissed": {
+    "placeholders": {
+      "walkMinutes": {
+        "type": "int"
+      },
+      "etaMinutes": {
+        "type": "int"
+      }
+    }
+  },
+  "tripEtaNextScheduled": "Siguiente bus según horario: {time}",
+  "@tripEtaNextScheduled": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tripEtaNoNextScheduled": "No hay otro horario programado para esta línea.",
+  "tripEtaNextLoading": "Buscando el siguiente horario…",
+  "tripEtaNextError": "No se pudo consultar el siguiente horario: {message}",
+  "@tripEtaNextError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
       }
     }
   },
@@ -588,7 +664,7 @@
     }
   },
   "tripDetailWalkingApproximate": "Caminata aproximada, en línea recta.",
-  "tripDetailScheduleNotice": "Horarios programados, sin ETA en vivo. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.",
+  "tripDetailScheduleNotice": "El horario es programado; el ETA GPS es aproximado y no oficial. El trazo del ómnibus une paradas de forma esquemática y no es navegación guiada.",
   "tripDetailChangeTrip": "Cambiar viaje",
   "tripDetailClose": "Cerrar recorrido",
   "searchHint": "Calle y número, cruce, parada o lugar…",

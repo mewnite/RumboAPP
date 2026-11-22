@@ -129,7 +129,7 @@ class LiveBusesController extends Notifier<LiveBusesState> {
 
   void attachSource(
     RealtimeBusSource source, {
-    Duration pollInterval = const Duration(seconds: 15),
+    Duration pollInterval = const Duration(seconds: 10),
     int maxMarkers = 20,
     DateTime Function()? clock,
   }) {

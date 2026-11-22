@@ -167,7 +167,6 @@ class StopArrival {
     this.variantId,
     this.isLive = false,
     this.liveSourceId,
-    this.isOfficial = false,
     this.etaMinMinutes,
     this.etaMaxMinutes,
   });
@@ -179,7 +178,6 @@ class StopArrival {
   final DateTime departureTime;
   final String? variantId;
   final bool isLive;
-  final bool isOfficial;
   final String? liveSourceId;
   final int? etaMinMinutes;
   final int? etaMaxMinutes;
@@ -236,8 +234,24 @@ class FeedStatus {
   final bool stale;
 }
 
-bool isFeedExpired(DateTime? validUntil, DateTime now) =>
-    validUntil?.isBefore(now) ?? false;
+bool isFeedExpired(DateTime? validUntil, DateTime now) => validUntil == null
+    ? false
+    : _endOfFeedValidityDate(validUntil).isBefore(now);
+
+bool isFeedExpiringSoon(
+  DateTime? validUntil,
+  DateTime now, {
+  Duration threshold = const Duration(days: 7),
+}) {
+  if (validUntil == null) return false;
+  final expiryDay = DateTime(validUntil.year, validUntil.month, validUntil.day);
+  final today = DateTime(now.year, now.month, now.day);
+  return !expiryDay.isBefore(today) &&
+      !expiryDay.isAfter(today.add(Duration(days: threshold.inDays)));
+}
+
+DateTime _endOfFeedValidityDate(DateTime validUntil) =>
+    DateTime(validUntil.year, validUntil.month, validUntil.day, 23, 59, 59);
 
 class BusPosition {
   const BusPosition({
