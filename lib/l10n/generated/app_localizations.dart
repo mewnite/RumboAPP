@@ -1561,6 +1561,12 @@ abstract class AppLocalizations {
   /// **'Llega en {minutes} min · Oficial'**
   String tripEtaOfficialMinutes(int minutes);
 
+  /// No description provided for @tripEtaOfficialVerifiedMinutes.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Llega en {minutes} min · medido'**
+  String tripEtaOfficialVerifiedMinutes(int minutes);
+
   /// No description provided for @tripEtaFutureScheduledTime.
   ///
   /// In es_UY, this message translates to:

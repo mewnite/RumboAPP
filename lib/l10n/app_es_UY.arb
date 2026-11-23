@@ -494,6 +494,14 @@
       }
     }
   },
+  "tripEtaOfficialVerifiedMinutes": "Llega en {minutes} min · medido",
+  "@tripEtaOfficialVerifiedMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "tripEtaFutureScheduledTime": "Tramo posterior · horario programado: {time}",
   "@tripEtaFutureScheduledTime": {
     "placeholders": {

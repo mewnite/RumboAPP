@@ -101,7 +101,7 @@ def fetch(stop_id: str, line: str, amount: int, base_url: str):
             body = None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
         print(f"ERROR: no se pudo consultar la API: {error}", file=sys.stderr)
-        return status=None, body=None, error=str(error)
+        return None, None, str(error)
     return status, body, None
 
 

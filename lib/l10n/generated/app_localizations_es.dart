@@ -863,6 +863,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String tripEtaOfficialVerifiedMinutes(int minutes) {
+    return 'Llega en $minutes min · medido';
+  }
+
+  @override
   String tripEtaFutureScheduledTime(String time) {
     return 'Tramo posterior · horario programado: $time';
   }
@@ -2075,6 +2080,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   @override
   String tripEtaOfficialMinutes(int minutes) {
     return 'Llega en $minutes min · Oficial';
+  }
+
+  @override
+  String tripEtaOfficialVerifiedMinutes(int minutes) {
+    return 'Llega en $minutes min · medido';
   }
 
   @override
