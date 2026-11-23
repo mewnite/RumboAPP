@@ -58,7 +58,7 @@ void main() {
 
     expect(catalog.variants, hasLength(2148));
     expect(variants, hasLength(1086));
-    expect(result.shapeIdMatches, 1086);
+    expect(result.explicitMatches, 1086);
     expect(result.destinationMatches, 0);
     expect(result.unmatchedCount, 0);
     expect(result.linkedCount, 1086);
