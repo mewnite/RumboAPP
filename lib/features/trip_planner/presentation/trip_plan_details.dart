@@ -319,21 +319,6 @@ final _scheduledDeparturesProvider =
           .upcomingDepartures(stopId, DateTime.now(), limit: 60);
     });
 
-/// Bandera para marcar el ETA oficial como verificado (contraste con llegadas
-/// reales — ver `tool/verify_official_eta.py` y `docs/api/montevideo_publictransport.md`).
-class OfficialEtaVerified extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  /// Marcado una vez el ETA oficial se contrastó con llegadas reales.
-  void verify() => state = true;
-}
-
-final officialEtaVerifiedProvider = NotifierProvider<
-  OfficialEtaVerified,
-  bool
->(OfficialEtaVerified.new);
-
 class _TripLegEtaCard extends ConsumerStatefulWidget {
   const _TripLegEtaCard({
     required this.plan,
@@ -499,11 +484,7 @@ class _TripLegEtaCardState extends ConsumerState<_TripLegEtaCard> {
               !widget.showLiveEta
                   ? l10n.tripEtaFutureScheduledTime(_clock(leg.departureTime))
                   : estimate.source == TripEtaSource.official
-                  ? ref.watch(officialEtaVerifiedProvider)
-                        ? l10n.tripEtaOfficialVerifiedMinutes(
-                            estimate.minMinutes,
-                          )
-                        : l10n.tripEtaOfficialMinutes(estimate.minMinutes)
+                  ? l10n.tripEtaOfficialMinutes(estimate.minMinutes)
                   : estimate.fromGps
                   ? estimate.minMinutes == estimate.maxMinutes
                         ? l10n.tripEtaGpsMinutes(estimate.minMinutes)
