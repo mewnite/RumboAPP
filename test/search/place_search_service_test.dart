@@ -160,7 +160,7 @@ void main() {
     );
 
     test(
-      'degrada con elegancia conservando resultados locales si la red falla',
+      'propaga errores del geocodificador para mostrarlos en la interfaz',
       () async {
         const localStop = SearchResult(
           id: 'stop-1',
@@ -179,12 +179,10 @@ void main() {
           historyRepo: FakeHistoryRepo(),
         );
 
-        final results = await service.search(
-          query: 'Nuevo Centro',
-          allowRemote: true,
+        await expectLater(
+          service.search(query: 'Nuevo Centro', allowRemote: true),
+          throwsA(isA<Exception>()),
         );
-        expect(results, hasLength(1));
-        expect(results.first.id, 'stop-1');
       },
     );
   });

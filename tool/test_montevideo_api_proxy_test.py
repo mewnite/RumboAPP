@@ -3,12 +3,14 @@ import tempfile
 import time
 import unittest
 import urllib.error
+import urllib.parse
 import os
 from pathlib import Path
 from unittest.mock import patch
 
 from tool.montevideo_api_proxy import (
     LIVE_STALE_SECONDS,
+    MONTEVIDEO_GEOCODING_VIEWBOX,
     ApiError,
     ApiProxy,
     Handler,
@@ -77,6 +79,11 @@ class ApiProxyTest(unittest.TestCase):
         request = upstream.call_args.args[0]
         self.assertIn("countrycodes=uy", request.full_url)
         self.assertIn("addressdetails=1", request.full_url)
+        self.assertIn("bounded=1", request.full_url)
+        self.assertIn(
+            "viewbox=" + urllib.parse.quote(MONTEVIDEO_GEOCODING_VIEWBOX),
+            request.full_url,
+        )
         self.assertEqual(request.get_header("User-agent"), "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)")
 
     def test_place_search_accepts_app_parameters_and_rejects_unknown_ones(self):
@@ -108,8 +115,20 @@ class ApiProxyTest(unittest.TestCase):
             "Shopping Punta Carretas, Montevideo, Uruguay",
         )
         self.assertEqual(
+            geocoding_query("faramiñán n° 801"),
+            "faraminan 801, Montevideo, Uruguay",
+        )
+        self.assertEqual(
+            geocoding_query("shopping nuevocentro"),
+            "shopping Nuevo Centro, Montevideo, Uruguay",
+        )
+        self.assertEqual(
+            geocoding_query("Av. Italia y Gral. Flores"),
+            "avenida Italia & general Flores, Montevideo, Uruguay",
+        )
+        self.assertEqual(
             geocoding_query("Faramiñán x Santa Lucía"),
-            "Faramiñán & Santa Lucía, Montevideo, Uruguay",
+            "Faraminan & Santa Lucia, Montevideo, Uruguay",
         )
         self.assertEqual(
             geocoding_query("18 de Julio y Ejido en Montevideo"),
@@ -117,7 +136,7 @@ class ApiProxyTest(unittest.TestCase):
         )
         self.assertEqual(
             geocoding_query("Av. Italia 2450, Uruguay"),
-            "Av. Italia 2450, Uruguay",
+            "avenida Italia 2450, Uruguay",
         )
 
     def test_geo_request_validates_bounds_and_normalizes_query(self):

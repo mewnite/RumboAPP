@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 
 import '../domain/place_search_service.dart';
@@ -11,10 +11,14 @@ import '../domain/search_models.dart';
 
 /// Fuente remota de geocodificación que interactúa con el gateway o proxy de Rumbo.
 class RemoteGeocodingSource implements GeocodingRepository {
-  RemoteGeocodingSource({required this.endpoint, http.Client? client})
-    : _client = client ?? http.Client();
+  RemoteGeocodingSource({
+    required this.endpoint,
+    http.Client? client,
+    this.requestTimeout = const Duration(seconds: 8),
+  }) : _client = client ?? http.Client();
 
   final String endpoint;
+  final Duration requestTimeout;
   final http.Client _client;
   final Map<String, List<SearchResult>> _cache = <String, List<SearchResult>>{};
   static const _queryParser = MontevideoQueryParser();
@@ -75,60 +79,65 @@ class RemoteGeocodingSource implements GeocodingRepository {
             'Accept': 'application/json',
             'User-Agent': 'RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)',
           });
-    late http.Response response;
     final stopwatch = Stopwatch()..start();
+    var status = 'network_error';
     try {
-      response = await _client
+      final response = await _client
           .send(request)
           .then(http.Response.fromStream)
           .timeout(
-            const Duration(seconds: 8),
+            requestTimeout,
             onTimeout: () {
               abort();
               throw TimeoutException('La búsqueda en línea demoró demasiado.');
             },
           );
+      status = response.statusCode.toString();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw HttpException(
+          'El servicio de lugares respondió HTTP ${response.statusCode}.',
+          uri: uri,
+        );
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! List) {
+        throw const FormatException(
+          'La respuesta del servicio de lugares no es una lista válida.',
+        );
+      }
+
+      final results = <SearchResult>[];
+      for (var i = 0; i < decoded.length; i++) {
+        final value = decoded[i];
+        if (value is! Map<String, dynamic>) continue;
+
+        final parsed = _parseItem(value, i, query: query);
+        if (parsed != null) {
+          results.add(parsed);
+        }
+      }
+
+      final immutable = List<SearchResult>.unmodifiable(results);
+      _cache[cacheKey] = immutable;
+      while (_cache.length > 20) {
+        _cache.remove(_cache.keys.first);
+      }
+      return immutable;
+    } on TimeoutException {
+      status = 'timeout';
+      rethrow;
+    } on http.RequestAbortedException {
+      status = 'aborted';
+      rethrow;
     } finally {
       abort();
-    }
-    stopwatch.stop();
-    developer.log(
-      '[performance] geocode_ms=${stopwatch.elapsedMilliseconds} '
-      'status=${response.statusCode}',
-      name: 'Rumbo',
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw HttpException(
-        'El servicio de lugares respondió HTTP ${response.statusCode}.',
-        uri: uri,
+      stopwatch.stop();
+      debugPrint(
+        '[performance] geocode_ms=${stopwatch.elapsedMilliseconds} '
+        'status=$status',
       );
     }
-
-    final decoded = jsonDecode(response.body);
-    if (decoded is! List) {
-      throw const FormatException(
-        'La respuesta del servicio de lugares no es una lista válida.',
-      );
-    }
-
-    final results = <SearchResult>[];
-    for (var i = 0; i < decoded.length; i++) {
-      final value = decoded[i];
-      if (value is! Map<String, dynamic>) continue;
-
-      final parsed = _parseItem(value, i, query: query);
-      if (parsed != null) {
-        results.add(parsed);
-      }
-    }
-
-    final immutable = List<SearchResult>.unmodifiable(results);
-    _cache[cacheKey] = immutable;
-    while (_cache.length > 20) {
-      _cache.remove(_cache.keys.first);
-    }
-    return immutable;
   }
 
   SearchResult? _parseItem(

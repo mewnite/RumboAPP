@@ -189,7 +189,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
 
-    expect(find.text('Buscar direcciones y lugares'), findsOneWidget);
+    expect(
+      find.text(
+        'Activá la búsqueda en línea para buscar direcciones y lugares.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Activar búsqueda en línea'), findsOneWidget);
     expect(searchService.remoteCalls, 0);
     await tester.tap(find.byKey(const ValueKey('search-online-places')));
     await tester.pumpAndSettle();
@@ -197,6 +203,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(searchService.remoteCalls, 1);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getBool('remote_place_search_enabled'), isTrue);
     expect(find.text('Av. Italia 2450'), findsOneWidget);
     expect(find.text('Buscar lugares o direcciones'), findsNothing);
   });

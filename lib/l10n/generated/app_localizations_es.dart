@@ -1142,11 +1142,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get searchHint => 'Calle y número, cruce, parada o lugar…';
 
   @override
-  String get searchOnlinePlacesAction => 'Buscar direcciones y lugares';
+  String get searchOnlinePlacesAction => 'Activar búsqueda en línea';
 
   @override
   String get searchOnlinePlacesHint =>
-      'Incluye cruces, direcciones con número, shoppings y otros lugares.';
+      'Activá la búsqueda en línea para buscar direcciones y lugares.';
 
   @override
   String get searchApproximateAddress =>
@@ -2406,11 +2406,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get searchHint => 'Calle y número, cruce, parada o lugar…';
 
   @override
-  String get searchOnlinePlacesAction => 'Buscar direcciones y lugares';
+  String get searchOnlinePlacesAction => 'Activar búsqueda en línea';
 
   @override
   String get searchOnlinePlacesHint =>
-      'Incluye cruces, direcciones con número, shoppings y otros lugares.';
+      'Activá la búsqueda en línea para buscar direcciones y lugares.';
 
   @override
   String get searchApproximateAddress =>

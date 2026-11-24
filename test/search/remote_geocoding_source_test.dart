@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -77,6 +78,52 @@ void main() {
         expect(requests, 1); // La segunda vino de caché
       },
     );
+
+    test('acepta una respuesta vacía como resultado vacío', () async {
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: MockClient((_) async => http.Response('[]', 200)),
+      );
+      addTearDown(source.close);
+
+      expect(await source.searchRemote(parser.parse('Faramiñán 801')), isEmpty);
+    });
+
+    test('propaga HTTP 429 del geocodificador', () async {
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: MockClient((_) async => http.Response('rate limited', 429)),
+      );
+      addTearDown(source.close);
+
+      await expectLater(
+        source.searchRemote(parser.parse('Shopping Nuevo Centro')),
+        throwsA(
+          isA<HttpException>().having(
+            (error) => error.message,
+            'message',
+            contains('HTTP 429'),
+          ),
+        ),
+      );
+    });
+
+    test('aborta y propaga timeout del geocodificador', () async {
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        requestTimeout: const Duration(milliseconds: 10),
+        client: MockClient((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 40));
+          return http.Response('[]', 200);
+        }),
+      );
+      addTearDown(source.close);
+
+      await expectLater(
+        source.searchRemote(parser.parse('Shopping Nuevo Centro')),
+        throwsA(isA<TimeoutException>()),
+      );
+    });
 
     test('soporta formato heredado de OpenStreetMap / Nominatim', () async {
       final client = MockClient((request) async {

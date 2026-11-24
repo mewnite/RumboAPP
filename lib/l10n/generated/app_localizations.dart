@@ -1979,13 +1979,13 @@ abstract class AppLocalizations {
   /// No description provided for @searchOnlinePlacesAction.
   ///
   /// In es_UY, this message translates to:
-  /// **'Buscar direcciones y lugares'**
+  /// **'Activar búsqueda en línea'**
   String get searchOnlinePlacesAction;
 
   /// No description provided for @searchOnlinePlacesHint.
   ///
   /// In es_UY, this message translates to:
-  /// **'Incluye cruces, direcciones con número, shoppings y otros lugares.'**
+  /// **'Activá la búsqueda en línea para buscar direcciones y lugares.'**
   String get searchOnlinePlacesHint;
 
   /// No description provided for @searchApproximateAddress.

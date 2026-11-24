@@ -1,6 +1,7 @@
 const STM_API = 'https://api.montevideo.gub.uy/api/transportepublico';
 const STM_TOKEN = 'https://mvdapi-auth.montevideo.gub.uy/auth/realms/pci/protocol/openid-connect/token';
 const GEOCODING_API = 'https://nominatim.openstreetmap.org/search';
+const MONTEVIDEO_GEOCODING_VIEWBOX = '-56.4048,-34.7167,-55.9955,-34.9271';
 const CACHE_SECONDS = 10;
 const STM_TIMEOUT_MS = 15_000;
 
@@ -31,12 +32,41 @@ function errorResponse(status, message) {
 }
 
 function geocodingQuery(text) {
-  const intersection = text.match(
+  const abbreviations = {
+    av: 'avenida',
+    avda: 'avenida',
+    bvar: 'bulevar',
+    bvr: 'bulevar',
+    bv: 'bulevar',
+    gral: 'general',
+    cno: 'camino',
+    tte: 'teniente',
+    dr: 'doctor',
+    sta: 'santa',
+    sto: 'santo',
+    pta: 'punta',
+    pto: 'puerto',
+    pje: 'pasaje',
+    pza: 'plaza',
+    rbla: 'rambla',
+  };
+  const normalized = text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\bn\s*\.?\s*(?:[º°]|ro?\.?|o\.?)\s*(?=\d)/gi, '')
+    .replace(
+      /\b(avda|av|bvar|bvr|bv|gral|cno|tte|dr|sta|sto|pta|pto|pje|pza|rbla)\b\.?/gi,
+      (match) => abbreviations[match.toLowerCase().replace(/\.$/, '')],
+    )
+    .replace(/\bnuevocentro\b/gi, 'Nuevo Centro')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const intersection = normalized.match(
     /^\s*(.+)\s+(?:y|x|esq\.?(?:\s+(?:de|con))?|esquina(?:\s+(?:de|con))?|con|\/|&)\s+(.+?)\s*$/i,
   );
   const scoped = intersection
     ? `${intersection[1].trim()} & ${intersection[2].trim()}`
-    : text.trim();
+    : normalized;
   return /\b(?:montevideo|uruguay)\b/i.test(scoped)
     ? scoped
     : `${scoped}, Montevideo, Uruguay`;
@@ -243,6 +273,8 @@ async function handle(request, env, ctx) {
       query.set('countrycodes', 'uy');
       query.set('addressdetails', '1');
       query.set('limit', '5');
+      query.set('viewbox', MONTEVIDEO_GEOCODING_VIEWBOX);
+      query.set('bounded', '1');
       const response = await fetch(`${GEOCODING_API}?${query}`, {
         headers: {
           Accept: 'application/json',

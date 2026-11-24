@@ -99,16 +99,12 @@ class DefaultPlaceSearchService implements PlaceSearchService {
     // 2. Consulta remota si está permitida y la consulta tiene suficiente longitud
     var allCandidates = List<SearchResult>.from(localCandidates);
     if (allowRemote && parsed.normalized.length >= 3) {
-      try {
-        final remoteCandidates = await geocodingRepo.searchRemote(
-          parsed,
-          limit: 10,
-          abortTrigger: remoteAbortTrigger,
-        );
-        allCandidates.addAll(remoteCandidates);
-      } catch (_) {
-        // En caso de falla de red, conservamos los resultados locales sin interrumpir la experiencia
-      }
+      final remoteCandidates = await geocodingRepo.searchRemote(
+        parsed,
+        limit: 10,
+        abortTrigger: remoteAbortTrigger,
+      );
+      allCandidates.addAll(remoteCandidates);
     }
 
     return rankingEngine.rankAndDeduplicate(

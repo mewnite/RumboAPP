@@ -10,6 +10,7 @@ import re
 import tempfile
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -63,6 +64,9 @@ OVERPASS_QUERY = (
 PEDESTRIAN_CACHE_SECONDS = 24 * 60 * 60
 MAX_PEDESTRIAN_BYTES = 32 * 1024 * 1024
 RUMBO_USER_AGENT = "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)"
+# Nominatim viewbox order is west,north,east,south; bounds follow the
+# Montevideo-area transit seed and are intentionally only an approximate bias.
+MONTEVIDEO_GEOCODING_VIEWBOX = "-56.4048,-34.7167,-55.9955,-34.9271"
 # Accepted from the app's place sources. The proxy builds its own upstream
 # query, so these only describe the client request and never reach Nominatim
 # verbatim.
@@ -81,12 +85,55 @@ MONTEVIDEO_CONTEXT = re.compile(r"\b(?:montevideo|uruguay)\b", re.IGNORECASE)
 
 
 def geocoding_query(search: str) -> str:
-    """Add local city context and turn common intersection syntax into a crossing."""
-    match = INTERSECTION_QUERY.match(search)
+    """Normalize local address syntax and add city context for Nominatim."""
+    normalized = unicodedata.normalize("NFKD", search)
+    normalized = "".join(
+        character
+        for character in normalized
+        if not unicodedata.combining(character)
+    )
+    normalized = re.sub(
+        r"\bn\s*\.?\s*(?:[º°]|ro?\.?|o\.?)\s*(?=\d)",
+        "",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    abbreviations = {
+        "av": "avenida",
+        "avda": "avenida",
+        "bvar": "bulevar",
+        "bvr": "bulevar",
+        "bv": "bulevar",
+        "gral": "general",
+        "cno": "camino",
+        "tte": "teniente",
+        "dr": "doctor",
+        "sta": "santa",
+        "sto": "santo",
+        "pta": "punta",
+        "pto": "puerto",
+        "pje": "pasaje",
+        "pza": "plaza",
+        "rbla": "rambla",
+    }
+    normalized = re.sub(
+        r"\b(avda|av|bvar|bvr|bv|gral|cno|tte|dr|sta|sto|pta|pto|pje|pza|rbla)\b\.?",
+        lambda match: abbreviations[match.group(1).lower()],
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bnuevocentro\b",
+        "Nuevo Centro",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    match = INTERSECTION_QUERY.match(normalized)
     scoped_search = (
         f"{match.group(1).strip()} & {match.group(2).strip()}"
         if match
-        else search.strip()
+        else normalized
     )
     if MONTEVIDEO_CONTEXT.search(scoped_search):
         return scoped_search
@@ -417,6 +464,8 @@ class ApiProxy:
                     "format": "jsonv2",
                     "addressdetails": "1",
                     "limit": "5",
+                    "viewbox": MONTEVIDEO_GEOCODING_VIEWBOX,
+                    "bounded": "1",
                 }
             )
             request = urllib.request.Request(
