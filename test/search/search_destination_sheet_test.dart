@@ -11,6 +11,9 @@ import 'package:rumbo/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TestSearchService implements PlaceSearchService {
+  TestSearchService({this.failRemote = false});
+
+  final bool failRemote;
   int remoteCalls = 0;
 
   @override
@@ -22,6 +25,16 @@ class TestSearchService implements PlaceSearchService {
     Future<void>? remoteAbortTrigger,
   }) async {
     remoteCalls++;
+    if (failRemote) {
+      throw RemotePlaceSearchFailure(
+        cause: Exception('Error remoto simulado'),
+        localResults: await searchLocal(
+          query: query,
+          userLatitude: userLatitude,
+          userLongitude: userLongitude,
+        ),
+      );
+    }
     return [
       SearchResult(
         id: 'stop-1',
@@ -155,6 +168,44 @@ void main() {
       expect(selectedResult, isNotNull);
       expect(selectedResult!.id, 'stop-1');
       expect(selectedResult!.title, 'Av. 18 de Julio y Ejido');
+    },
+  );
+
+  testWidgets(
+    'mantiene visibles los resultados locales si falla la búsqueda remota',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'remote_place_search_enabled': true,
+      });
+      final searchService = TestSearchService(failRemote: true);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            searchServiceProvider.overrideWithValue(searchService),
+            networkAvailableProvider.overrideWith(
+              (ref) => Stream<bool>.value(true),
+            ),
+          ],
+          child: MaterialApp(
+            locale: const Locale('es', 'UY'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: SearchDestinationSheet(onDestinationSelected: (_) {}),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Faramiñán 801');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Av. 18 de Julio y Ejido'), findsOneWidget);
+      expect(find.textContaining('Error remoto simulado'), findsOneWidget);
+      expect(searchService.remoteCalls, 1);
     },
   );
 

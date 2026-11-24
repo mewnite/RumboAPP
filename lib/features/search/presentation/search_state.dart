@@ -23,13 +23,16 @@ class SearchState {
     List<SearchResult>? results,
     bool? isLocalOnly,
     String? errorMessage,
+    bool clearErrorMessage = false,
   }) {
     return SearchState(
       query: query ?? this.query,
       status: status ?? this.status,
       results: results ?? this.results,
       isLocalOnly: isLocalOnly ?? this.isLocalOnly,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearErrorMessage
+          ? null
+          : errorMessage ?? this.errorMessage,
     );
   }
 }

@@ -329,19 +329,40 @@ class _SearchDestinationSheetState
       return const SizedBox.shrink();
     }
 
-    return ListView.separated(
-      itemCount: state.results.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 64),
-      itemBuilder: (context, index) {
-        final result = state.results[index];
-        return _SearchResultTile(
-          result: result,
-          onTap: () {
-            ref.read(searchControllerProvider.notifier).selectResult(result);
-            widget.onDestinationSelected(result);
-          },
-        );
-      },
+    return Column(
+      children: [
+        if (state.status == SearchStatus.error &&
+            state.results.isNotEmpty &&
+            state.errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                state.errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          ),
+        Expanded(
+          child: ListView.separated(
+            itemCount: state.results.length,
+            separatorBuilder: (_, _) => const Divider(height: 1, indent: 64),
+            itemBuilder: (context, index) {
+              final result = state.results[index];
+              return _SearchResultTile(
+                result: result,
+                onTap: () {
+                  ref
+                      .read(searchControllerProvider.notifier)
+                      .selectResult(result);
+                  widget.onDestinationSelected(result);
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

@@ -181,7 +181,13 @@ void main() {
 
         await expectLater(
           service.search(query: 'Nuevo Centro', allowRemote: true),
-          throwsA(isA<Exception>()),
+          throwsA(
+            isA<RemotePlaceSearchFailure>().having(
+              (error) => error.localResults,
+              'localResults',
+              hasLength(1),
+            ),
+          ),
         );
       },
     );

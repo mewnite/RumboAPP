@@ -166,6 +166,7 @@ class DestinationSearchController extends Notifier<SearchState> {
         query: '',
         status: SearchStatus.initial,
         results: const [],
+        clearErrorMessage: true,
       );
       loadRecentSearches();
       return;
@@ -177,6 +178,7 @@ class DestinationSearchController extends Notifier<SearchState> {
       status: trimmed.length >= 2 ? SearchStatus.loading : SearchStatus.initial,
       results: const [],
       isLocalOnly: isOffline,
+      clearErrorMessage: true,
     );
     if (trimmed.length < 2) return;
 
@@ -259,7 +261,7 @@ class DestinationSearchController extends Notifier<SearchState> {
               : SearchStatus.loading,
           results: localResults,
           isLocalOnly: isLocalOnly,
-          errorMessage: null,
+          clearErrorMessage: true,
         );
       }
       measurement.finish(details: 'results=${localResults.length}');
@@ -303,10 +305,20 @@ class DestinationSearchController extends Notifier<SearchState> {
               : SearchStatus.empty,
           results: results,
           isLocalOnly: false,
-          errorMessage: null,
+          clearErrorMessage: true,
         );
       }
       measurement.finish(details: 'results=${results.length}');
+    } on RemotePlaceSearchFailure catch (error) {
+      measurement.finish(details: 'error=${error.cause.runtimeType}');
+      if (_searchGeneration == generationId) {
+        state = state.copyWith(
+          status: SearchStatus.error,
+          results: error.localResults,
+          isLocalOnly: true,
+          errorMessage: error.toString(),
+        );
+      }
     } on Exception catch (error) {
       measurement.finish(details: 'error=${error.runtimeType}');
       if (_searchGeneration == generationId) {

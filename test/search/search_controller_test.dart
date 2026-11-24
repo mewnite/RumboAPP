@@ -12,10 +12,12 @@ class MockPlaceSearchService implements PlaceSearchService {
   MockPlaceSearchService({
     this.localDelay = Duration.zero,
     this.remoteDelay = Duration.zero,
+    this.remoteFailure = false,
   });
 
   final Duration localDelay;
   final Duration remoteDelay;
+  final bool remoteFailure;
   int searchCalls = 0;
   int localCalls = 0;
   int remoteAbortSignals = 0;
@@ -35,6 +37,12 @@ class MockPlaceSearchService implements PlaceSearchService {
       unawaited(remoteAbortTrigger.then((_) => remoteAbortSignals++));
     }
     if (remoteDelay > Duration.zero) await Future<void>.delayed(remoteDelay);
+    if (remoteFailure) {
+      throw RemotePlaceSearchFailure(
+        cause: Exception('Error remoto simulado'),
+        localResults: await searchLocal(query: query),
+      );
+    }
     return [
       SearchResult(
         id: 'res-$query',
@@ -136,6 +144,28 @@ void main() {
         'res-Italia',
       );
     });
+
+    test(
+      'conserva resultados locales cuando falla la búsqueda remota',
+      () async {
+        final mockService = MockPlaceSearchService(remoteFailure: true);
+        final container = ProviderContainer(
+          overrides: [searchServiceProvider.overrideWithValue(mockService)],
+        );
+        addTearDown(container.dispose);
+        await container.read(remotePlaceSearchEnabledProvider.future);
+
+        await container
+            .read(searchControllerProvider.notifier)
+            .searchRemote(query: 'Italia');
+
+        final state = container.read(searchControllerProvider);
+        expect(state.status, SearchStatus.error);
+        expect(state.results.map((result) => result.id), ['local-Italia']);
+        expect(state.isLocalOnly, isTrue);
+        expect(state.errorMessage, contains('Error remoto simulado'));
+      },
+    );
 
     test('cancela la búsqueda remota cuando cambia la consulta', () async {
       final mockService = MockPlaceSearchService(

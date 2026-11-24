@@ -16,20 +16,30 @@ Además, el cliente emitía su medición con `developer.log`, no con
 respuestas HTTP, timeout, cancelación y errores de red, sin incluir el texto
 de búsqueda.
 
-## Pruebas contra el endpoint configurado
+## Diagnóstico del endpoint configurado
 
-Se hicieron exactamente dos solicitudes, una por consulta, a
-`https://rumboapp.onrender.com/geocode`:
+Dos solicitudes de diagnóstico anteriores (una por consulta) reportaron HTTP
+502 y no expusieron el cuerpo. No se repitieron. En una solicitud posterior,
+única para `faramiñán 801`, el endpoint respondió HTTP 200 con este cuerpo:
 
-| Texto enviado | Resultado observado |
-|---|---|
-| `faramiñán 801` | HTTP 502 desde la herramienta de consulta; no entregó cuerpo |
-| `shopping nuevocentro` | HTTP 502 desde la herramienta de consulta; no entregó cuerpo |
+```json
+[{"place_id":18229245,"osm_type":"way","osm_id":78114932,"lat":"-34.8412159","lon":"-56.2374153","category":"highway","type":"residential","name":"Faramiñán","display_name":"Faramiñán, Nuevo París, Montevideo, 11900, Uruguay","address":{"road":"Faramiñán","suburb":"Nuevo París","city":"Montevideo","state":"Montevideo","postcode":"11900","country":"Uruguay","country_code":"uy"}}]
+```
 
-No se reintentaron. Por ese 502 no se pudo observar una lista de resultados ni
-afirmar si Nominatim devuelve esos lugares. El endpoint de la app envía
-únicamente `q`; el proxy añade contexto “Montevideo, Uruguay” y configura
-`countrycodes=uy`, `format=jsonv2`, `addressdetails=1` y `limit=5`.
+La respuesta encuentra la calle, pero no contiene `house_number`: no confirma
+el número 801. La solicitud anterior para `shopping nuevocentro` había
+reportado HTTP 502, sin cuerpo; no se hizo una nueva llamada para esa consulta.
+No se tuvo acceso a los logs privados del servicio de Render, por lo que no se
+pudo inspeccionar su log upstream ni verificar qué IP o `User-Agent` recibió
+Nominatim. La respuesta 200 de la llamada más reciente indica que esa solicitud
+no fue rechazada, pero no permite concluir que no haya rechazos intermitentes.
+El proxy Python configura un `User-Agent` identificable
+(`RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)`) y caché en memoria de
+24 horas. No se hicieron llamadas adicionales a Render.
+
+El endpoint de la app envía únicamente `q`; el proxy añade contexto
+“Montevideo, Uruguay” y configura `countrycodes=uy`, `format=jsonv2`,
+`addressdetails=1` y `limit=5`.
 
 El proxy ahora agrega `viewbox=-56.4048,-34.7167,-55.9955,-34.9271` y
 `bounded=1` para priorizar y acotar al área de Montevideo cubierta por la seed

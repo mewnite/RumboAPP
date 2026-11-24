@@ -49,6 +49,19 @@ abstract interface class PlaceSearchService {
   Future<void> clearRecentSearches();
 }
 
+class RemotePlaceSearchFailure implements Exception {
+  const RemotePlaceSearchFailure({
+    required this.cause,
+    required this.localResults,
+  });
+
+  final Object cause;
+  final List<SearchResult> localResults;
+
+  @override
+  String toString() => cause.toString();
+}
+
 /// Implementación predeterminada del servicio de búsqueda integrada.
 class DefaultPlaceSearchService implements PlaceSearchService {
   DefaultPlaceSearchService({
@@ -99,11 +112,24 @@ class DefaultPlaceSearchService implements PlaceSearchService {
     // 2. Consulta remota si está permitida y la consulta tiene suficiente longitud
     var allCandidates = List<SearchResult>.from(localCandidates);
     if (allowRemote && parsed.normalized.length >= 3) {
-      final remoteCandidates = await geocodingRepo.searchRemote(
-        parsed,
-        limit: 10,
-        abortTrigger: remoteAbortTrigger,
-      );
+      final List<SearchResult> remoteCandidates;
+      try {
+        remoteCandidates = await geocodingRepo.searchRemote(
+          parsed,
+          limit: 10,
+          abortTrigger: remoteAbortTrigger,
+        );
+      } on Exception catch (error) {
+        throw RemotePlaceSearchFailure(
+          cause: error,
+          localResults: rankingEngine.rankAndDeduplicate(
+            candidates: localCandidates,
+            query: parsed,
+            userLatitude: userLatitude,
+            userLongitude: userLongitude,
+          ),
+        );
+      }
       allCandidates.addAll(remoteCandidates);
     }
 
