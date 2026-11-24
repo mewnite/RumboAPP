@@ -108,13 +108,20 @@ class LiveBusesState {
     final sorted = candidates.toList(growable: false)
       ..sort((a, b) => b.receivedAt.compareTo(a.receivedAt));
     // Un mismo bus puede reportarse con variantes distintas; conservamos
-    // la posición más reciente por busCode.
-    final seenBusCodes = <int>{};
-    final deduped = <BusPosition>[];
+    // una sola posición por busCode: primero la consistente con la variante
+    // seleccionada (si la hay) y, si no, la más reciente.
+    final byBusCode = <int, BusPosition>{};
     for (final position in sorted) {
-      if (seenBusCodes.add(position.busCode)) deduped.add(position);
+      final current = byBusCode[position.busCode];
+      if (current == null ||
+          (variants.contains(position.variantId) &&
+              !variants.contains(current.variantId))) {
+        byBusCode[position.busCode] = position;
+      }
     }
-    return deduped.take(maxMarkers.clamp(0, 60)).toList(growable: false);
+    return byBusCode.values
+        .take(maxMarkers.clamp(0, 60))
+        .toList(growable: false);
   }
 }
 

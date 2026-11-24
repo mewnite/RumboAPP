@@ -1,6 +1,8 @@
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../../../core/debug/performance_measurement.dart';
 import '../../stops_and_lines/domain/transit_models.dart';
 import '../../stops_and_lines/domain/transit_repository.dart';
@@ -279,10 +281,9 @@ class TransitTripPlanner {
       nearby(request.destinationLatitude, request.destinationLongitude),
     ]);
     sqliteWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] trip.stage_sqlite_stops=${sqliteWatch.elapsedMilliseconds}ms '
       'origins=${nearbyEndpoints[0].length} destinations=${nearbyEndpoints[1].length}',
-      name: 'Rumbo',
     );
     if (cancellation.isCancelled) {
       measurement.finish(details: 'cancelled=true');
@@ -312,10 +313,9 @@ class TransitTripPlanner {
         windowEnd: scheduleWindowEnd,
       );
       scheduleWatch.stop();
-      developer.log(
+      debugPrint(
         '[performance] trip.stage_schedule_stops='
         '${scheduleWatch.elapsedMilliseconds}ms',
-        name: 'Rumbo',
       );
     }
     if (cancellation.isCancelled) {
@@ -333,19 +333,17 @@ class TransitTripPlanner {
       now: current,
     );
     payloadWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] trip.stage_payload=${payloadWatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
     );
     final sendWatch = Stopwatch()..start();
     final plans = worker == null
         ? await runPlanSearch(payload, cancellation: cancellation)
         : await worker.searchPlans(payload, cancellation: cancellation);
     sendWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] trip.stage_search=${sendWatch.elapsedMilliseconds}ms '
       'plans=${plans.length}',
-      name: 'Rumbo',
     );
     final armWatch = Stopwatch()..start();
     measurement.finish(
@@ -353,9 +351,9 @@ class TransitTripPlanner {
           ? 'cancelled=true'
           : 'plans=${plans.length}',
     );
-    developer.log(
+    armWatch.stop();
+    debugPrint(
       '[performance] trip.stage_armado=${armWatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
     );
     if (identical(_activeCancellation, cancellation)) {
       _activeCancellation = null;
@@ -471,11 +469,10 @@ class TransitRouteSearch {
       clock: clock,
     );
     transitWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] trip.stage_transit_search='
       '${transitWatch.elapsedMilliseconds}ms originStops=${originStopIds.length} '
       'destinationStops=${destinationStopIds.length} plans=${transitPlans.length}',
-      name: 'Rumbo',
     );
     return _finalizePlans([?walkingOnly, ...transitPlans], request);
   }

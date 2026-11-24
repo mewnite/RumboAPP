@@ -72,7 +72,8 @@ class MontevideoRealtimeBusSource implements RealtimeBusSource {
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       developer.log(
-        '[performance] api_buses_error uri=$uri status=${response.statusCode}',
+        '[performance] api_buses_error uri=$uri status=${response.statusCode} '
+        'body=${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
         name: 'Rumbo',
       );
       throw HttpException(

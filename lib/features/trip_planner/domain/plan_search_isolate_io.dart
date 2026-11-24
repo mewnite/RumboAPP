@@ -1,6 +1,8 @@
 import 'dart:isolate';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'trip_planner.dart';
 import 'plan_search_cancellation.dart';
 
@@ -34,10 +36,9 @@ Future<List<TripPlan>> runPlanSearch(
     final deserialWatch = Stopwatch()..start();
     final message = await resultPort.first;
     deserialWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] plan_search_isolate_deserialize='
       '${deserialWatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
     );
     totalWatch.stop();
     developer.log(
