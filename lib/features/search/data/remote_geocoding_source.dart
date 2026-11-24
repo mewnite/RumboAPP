@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -75,6 +76,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
             'User-Agent': 'RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)',
           });
     late http.Response response;
+    final stopwatch = Stopwatch()..start();
     try {
       response = await _client
           .send(request)
@@ -89,6 +91,12 @@ class RemoteGeocodingSource implements GeocodingRepository {
     } finally {
       abort();
     }
+    stopwatch.stop();
+    developer.log(
+      '[performance] geocode_ms=${stopwatch.elapsedMilliseconds} '
+      'status=${response.statusCode}',
+      name: 'Rumbo',
+    );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(

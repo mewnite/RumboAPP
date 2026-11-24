@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -49,9 +50,16 @@ class MontevideoRealtimeBusSource implements RealtimeBusSource {
       path: '$basePath/buses',
       queryParameters: queryParams,
     );
+    final stopwatch = Stopwatch()..start();
     final response = await _client
         .get(uri, headers: const {'Accept': 'application/geo+json'})
         .timeout(const Duration(seconds: 25));
+    stopwatch.stop();
+    developer.log(
+      '[performance] api_buses_ms=${stopwatch.elapsedMilliseconds} '
+      'bytes=${response.body.length}',
+      name: 'Rumbo',
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
         'La API de tiempo real respondió HTTP ${response.statusCode}.',

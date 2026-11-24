@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -71,9 +72,16 @@ class MontevideoUpcomingBusSource implements OfficialUpcomingBusArrivalsSource {
         'amountperline': '$amountPerLine',
       },
     );
+    final stopwatch = Stopwatch()..start();
     final response = await _client
         .get(uri, headers: const {'Accept': 'application/json'})
         .timeout(_requestTimeout);
+    stopwatch.stop();
+    developer.log(
+      '[performance] api_upcomingbuses_ms='
+      '${stopwatch.elapsedMilliseconds}',
+      name: 'Rumbo',
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
         'La API de arribos respondió HTTP ${response.statusCode}.',

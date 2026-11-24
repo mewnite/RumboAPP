@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart' hide Route;
 import 'package:material_symbols_icons/symbols.dart';
@@ -413,6 +414,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   }
 
   Future<void> _findPlans() async {
+    developer.log('[performance] toque_buscar', name: 'Rumbo');
     final destination = _destination;
     if (destination == null ||
         (!_originUsesLocation && _origin == null) ||
