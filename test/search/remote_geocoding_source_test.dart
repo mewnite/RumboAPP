@@ -177,6 +177,30 @@ void main() {
       expect(results.single.subtitle, contains('Montevideo'));
     });
 
+    test('marca como aproximada una dirección sin house_number', () async {
+      final client = MockClient((request) async {
+        expect(request.url.queryParameters['q'], 'faramiñán 801');
+        return http.Response(
+          '[{"display_name":"Faramiñán, Nuevo París, Montevideo, Uruguay",'
+          '"address":{"road":"Faramiñán","suburb":"Nuevo París"},'
+          '"lat":"-34.8412159","lon":"-56.2374153","type":"residential"}]',
+          200,
+        );
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final result = (await source.searchRemote(parser.parse('faramiñán 801')))
+          .single;
+
+      expect(result.title, 'faramiñán 801');
+      expect(result.precision, GeoPrecision.unconfirmedDoorNumber);
+      expect(result.toTripEndpoint().isApproximate, isTrue);
+    });
+
     test(
       'envía las dos calles de una intersección al geocodificador',
       () async {

@@ -27,15 +27,27 @@ Dos solicitudes de diagnóstico anteriores (una por consulta) reportaron HTTP
 ```
 
 La respuesta encuentra la calle, pero no contiene `house_number`: no confirma
-el número 801. La solicitud anterior para `shopping nuevocentro` había
-reportado HTTP 502, sin cuerpo; no se hizo una nueva llamada para esa consulta.
-No se tuvo acceso a los logs privados del servicio de Render, por lo que no se
-pudo inspeccionar su log upstream ni verificar qué IP o `User-Agent` recibió
-Nominatim. La respuesta 200 de la llamada más reciente indica que esa solicitud
-no fue rechazada, pero no permite concluir que no haya rechazos intermitentes.
+el número 801. La UI conserva el texto consultado y muestra «Número no
+confirmado · ubicación aproximada»; el destino también se marca como
+aproximado para el planificador.
+
+La única llamada posterior para `shopping nuevocentro` respondió HTTP 200
+(Render request ID `0861718f-ddd0-40f4`) y devolvió dos lugares:
+
+| Nombre | Categoría | Tipo | Ubicación |
+|---|---|---|---|
+| Nuevocentro Shopping | `shop` | `mall` | Jacinto Vera, Montevideo |
+| Géant | `shop` | `supermarket` | Jacinto Vera, Montevideo |
+
+El primer resultado es el centro comercial buscado. No se tuvo acceso a los
+logs privados del servicio de Render, por lo que no se pudo inspeccionar su log
+upstream ni verificar qué IP o `User-Agent` recibió Nominatim. La respuesta
+200 de cada consulta indica que esas solicitudes no fueron rechazadas, pero no
+permite concluir que no haya rechazos intermitentes.
 El proxy Python configura un `User-Agent` identificable
 (`RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)`) y caché en memoria de
-24 horas. No se hicieron llamadas adicionales a Render.
+24 horas. Para esta verificación se hizo exactamente una llamada nueva para
+`shopping nuevocentro`; no se repitió ninguna consulta anterior.
 
 El endpoint de la app envía únicamente `q`; el proxy añade contexto
 “Montevideo, Uruguay” y configura `countrycodes=uy`, `format=jsonv2`,

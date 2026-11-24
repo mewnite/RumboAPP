@@ -11,9 +11,10 @@ import 'package:rumbo/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TestSearchService implements PlaceSearchService {
-  TestSearchService({this.failRemote = false});
+  TestSearchService({this.failRemote = false, this.unconfirmedAddress = false});
 
   final bool failRemote;
+  final bool unconfirmedAddress;
   int remoteCalls = 0;
 
   @override
@@ -34,6 +35,20 @@ class TestSearchService implements PlaceSearchService {
           userLongitude: userLongitude,
         ),
       );
+    }
+    if (unconfirmedAddress) {
+      return const [
+        SearchResult(
+          id: 'address-unconfirmed',
+          kind: SearchEntityKind.address,
+          title: 'faramiñán 801',
+          subtitle: 'Nuevo París, Montevideo',
+          latitude: -34.8412159,
+          longitude: -56.2374153,
+          precision: GeoPrecision.unconfirmedDoorNumber,
+          source: SearchDataSource.openStreetMap,
+        ),
+      ];
     }
     return [
       SearchResult(
@@ -206,6 +221,56 @@ void main() {
       expect(find.text('Av. 18 de Julio y Ejido'), findsOneWidget);
       expect(find.textContaining('Error remoto simulado'), findsOneWidget);
       expect(searchService.remoteCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'marca como aproximada una dirección cuyo número no fue confirmado',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'remote_place_search_enabled': true,
+      });
+      final searchService = TestSearchService(unconfirmedAddress: true);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            searchServiceProvider.overrideWithValue(searchService),
+            networkAvailableProvider.overrideWith(
+              (ref) => Stream<bool>.value(true),
+            ),
+          ],
+          child: MaterialApp(
+            locale: const Locale('es', 'UY'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: SearchDestinationSheet(onDestinationSelected: (_) {}),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'faramiñán 801');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      final result = find.byKey(
+        const ValueKey('search-result-address-unconfirmed'),
+      );
+      expect(
+        find.descendant(of: result, matching: find.text('faramiñán 801')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: result,
+          matching: find.text('Número no confirmado · ubicación aproximada'),
+        ),
+        findsOneWidget,
+      );
     },
   );
 
