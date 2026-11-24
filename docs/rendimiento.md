@@ -63,6 +63,104 @@ mediciones nuevas:
   198 MB. Corresponde a una implementación anterior y no fue repetida en esta
   ejecución.
 
+## Tarea 1: instalación limpia y diagnóstico local
+
+**MEDIDO EN EMULADOR** (`emulator-5554`, Android 17/API 37, x86_64; no hay un
+teléfono físico conectado). Se limpió el almacenamiento de la app y se reinstaló
+el APK debug con la red deshabilitada:
+
+- La instalación atómica terminó con `rumbo_transit.db` de 63.467.520 bytes
+  (**60,5 MiB**), `PRAGMA user_version = 7` y 1.086/1.086 variantes con
+  `external_variant_id`.
+- La metadata instalada indica feed `1.1`, vigencia `2026-12-17` y fuente
+  `GTFS oficial STM (API de Montevideo)`.
+- `transit_last_check_ms = 1795479804754`, equivalente a
+  `2026-11-23 21:23:24.754 -03:00`.
+- El APK instalado contiene `assets/flutter_assets/assets/transit_db/rumbo_transit_seed.db`
+  (63.467.520 bytes) y
+  `assets/flutter_assets/assets/walk_graph/walk_graph_seed.bin` (6.441.436
+  bytes, **6,14 MiB**).
+- Durante la copia se observó el temporal `.seednew`; luego desapareció y la
+  base final quedó completa. No se usó el proxy para esta comprobación.
+
+La causa de la referencia histórica a una base de aproximadamente 200 MB queda
+**NO VERIFICADA**. La base limpia actual no tiene ese tamaño. Hay un registro
+histórico de una base de 198 MB de una implementación anterior, pero no se pudo
+vincular con la instalación que originó la cifra mencionada. El tamaño de la
+base SQLite tampoco debe confundirse con `memory.rss` (los logs previos
+registraron hasta 671 MB de RSS, una métrica distinta).
+
+En dos lanzamientos debug el emulador registró un ANR de Android al iniciar
+`GeolocatorLocationService` (`waited 20018ms` y `20217ms`). En el primero, al
+elegir **Wait**, la interfaz respondió y se pudo abrir Ajustes; en el segundo,
+`flutter run` perdió la conexión con el emulador. Es **MEDIDO EN EMULADOR**, no
+una conclusión sobre teléfonos físicos. El panel de Ajustes se abrió, pero el
+estado quedó en “Red peatonal: cargando” y “Leyendo diagnóstico local…”.
+Los logs del build instrumentado sí muestran que la consulta SQLite terminó
+(63.467.520 bytes, esquema 7) y leyó `transit_last_check_ms`; aun así, el
+widget no mostró los valores. La carga de la seed peatonal tampoco registró su
+fin en esa sesión. La razón de esos estados pendientes queda **NO VERIFICADA**,
+así que el bloque no se declara funcionalmente cerrado en el emulador.
+
+El estado de mapa sin conexión era esperado porque se deshabilitó la red para
+evitar solicitudes externas durante la instalación limpia.
+
+### ANR de ubicación y bloqueante fuera del arranque
+
+Los dos ANRs se observaron al iniciar `GeolocatorLocationService`, no al leer
+la base ni al construir el worker peatonal. En la implementación actual no hay
+una llamada a ubicación durante `initState` del mapa ni en la construcción de
+la pantalla: `locate()` se ejecuta al tocar la acción de ubicación o al usar
+«ubicación» en el buscador. Tampoco el planificador lee GPS: usa una posición
+solo si la persona la solicita.
+
+La cadena que puede bloquear está en `GeolocatorLocationRepository`:
+permisos (`checkPermission`, `requestPermission`) y `getCurrentLocation`
+(posición cacheada seguida de `getCurrentPosition` con `timeLimit` de 20 s).
+El panel activo es el único consumidor que conserva un flujo con
+`watchActiveTripLocation`, pero solo lo inicia después de comenzar
+explícitamente un viaje activo y restaura un viaje ya activo. El provider del
+mapa espera `locate()` y el botón puede mostrar el estado `loading`, pero no
+hay evidencia de que ese proveedor se espere automáticamente durante el
+arranque.
+
+Reproducibilidad: los ANRs son reproducibles **en el emulador**
+(`emulator-5554`, dos de dos lanzamientos debug), pero no reproducidos en
+teléfono físico porque no hay uno conectado. No se declara que ocurran en
+dispositivos reales.
+
+Propuesta, sin implementar todavía: separar permisos y ubicación de la
+construcción de widgets; arrancar la app sin una consulta inicial; resolver
+ubicación con una tarea iniciada por la acción del usuario y mostrar un estado
+pendiente mientras el plugin trabaja. Mantener `getCurrentPosition` fuera del
+árbol de widgets y con un timeout corto, y mover el arranque/restauración del
+stream de viaje activo a una acción asincrónica post-arranque que tenga
+cancelación. El futuro de ubicación no debería ser observado por el provider
+del mapa durante el arranque.
+
+### Causa del estado «cargando»
+
+El provider peatonal y el provider del diagnóstico de tránsito tienen ahora
+timeouts de 15 s y `try/catch` con `developer.log`. El worker peatonal también
+registra el error de inicio y tiene timeout de 15 s para recibir el puerto
+listo. La prueba de arranque peatonal fallido pasó y confirmó que termina en
+`WalkingRedStatus.workerFallo` con `TimeoutException` al vencer el futuro
+sobrescrito.
+
+En el emulador anterior no se recibió una excepción peatonal ni un log de
+fin/carga en la sesión de diagnóstico. Por lo tanto, la causa exacta de
+«Red peatonal: cargando» en esa ejecución sigue **NO VERIFICADA**; el timeout
+ya evita que el estado quede pendiente indefinidamente. Tampoco se pudo
+confirmar un inicio fallido del worker: si no aparece el log
+`walk_graph_worker_ready`, no se puede afirmar que el isolate arrancó; si
+arrancó, sí debe evaluarse el resultado de `graphLoaded`.
+
+El provider de diagnóstico de tránsito también tiene fallback por excepción,
+pero antes del cambio no quedó demostrado por qué el widget conservó
+«Leyendo diagnóstico local…»: la lectura SQLite sí terminó en los logs y
+el archivo tenía el esquema correcto. La causa visual exacta quedó
+**NO VERIFICADA**; el timeout limita ahora ese futuro a 15 s.
+
 ## Auditoría visual
 
 ### Tokens actuales antes de Fase 2
