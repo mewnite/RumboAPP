@@ -87,7 +87,7 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
         onExit: exitPort.sendPort,
       );
       isolate = startedIsolate;
-      final ready = await readyPort.first.timeout(_startupTimeout);
+      final ready = await _waitForWorkerReady(readyPort);
       readyPort.close();
       if (ready is! SendPort) {
         final error = ready;
@@ -126,6 +126,28 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
       );
       rethrow;
     }
+  }
+
+  /// Espera el puerto ready del worker.
+  ///
+  /// El timeout de arranque no es un fallo permanente: si el worker
+  /// termina de arrancar después del timeout, la espera se sigue hasta
+  /// que llegue el puerto ready.
+  Future<Object?> _waitForWorkerReady(ReceivePort readyPort) async {
+    final readyFuture = readyPort.first;
+    final result = await Future.any<Object?>([
+      readyFuture,
+      Future<Object?>.delayed(_startupTimeout)
+          .then((_) => const _WorkerReadyTimeoutMarker()),
+    ]);
+    if (result is _WorkerReadyTimeoutMarker) {
+      developer.log(
+        'El worker peatonal no señaló que está listo dentro de $_startupTimeout; se sigue esperando.',
+        name: 'Rumbo',
+      );
+      return readyFuture;
+    }
+    return result;
   }
 
   void _handleResponse(Object? message) {
@@ -247,6 +269,10 @@ class _PendingRequest {
 
 class _WorkerCancelled implements Exception {
   const _WorkerCancelled();
+}
+
+class _WorkerReadyTimeoutMarker {
+  const _WorkerReadyTimeoutMarker();
 }
 
 void _runWalkGraphWorker(_WorkerInit init) {

@@ -1712,6 +1712,25 @@ class _MapScreenState extends ConsumerState<MapScreen>
         }
       });
     });
+    // Cuando el worker peatonal termina de arrancar después de que el
+    // estado cambió a "cargada", refina los tramos del plan seleccionado
+    // con la red peatonal ya disponible.
+    ref.listen(walkingRedStatusProvider, (_, state) {
+      if (state.value?.status != WalkingRedStatus.cargada ||
+          _selectedTripPlan == null) {
+        return;
+      }
+      final planner = TransitTripPlanner(
+        ref.read(transitRepositoryProvider),
+        walkGraphWorker: ref.read(walkGraphProvider).value,
+      );
+      unawaited(
+        _refreshSelectedTripPlanAfterGraphLoad(
+          planner,
+          ref.read(walkGraphProvider.future),
+        ),
+      );
+    });
     final favorites =
         ref.watch(favoritesControllerProvider).asData?.value ??
         const <Favorite>[];

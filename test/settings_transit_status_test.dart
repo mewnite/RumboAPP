@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,18 +13,22 @@ import 'package:rumbo/features/stops_and_lines/data/transit_database.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/stops_and_lines/presentation/feed_update_controller.dart';
 import 'package:rumbo/features/stops_and_lines/presentation/transit_status_providers.dart';
+import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 import 'package:rumbo/features/trip_planner/presentation/walking_red_status_provider.dart';
 import 'package:rumbo/features/trip_planner/presentation/walk_graph_provider.dart';
 import 'package:rumbo/features/trip_planner/domain/walk_graph_worker.dart';
 import 'package:rumbo/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/fake_walk_graph_worker.dart';
+
 void main() {
-  test('walking status reports a worker startup timeout', () async {
-    final workerStartup = Completer<WalkGraphWorker?>();
+  test('walking status reports workerFallo when there is no worker', () async {
     final container = ProviderContainer(
       overrides: [
-        walkGraphProvider.overrideWith((ref) => workerStartup.future),
+        walkGraphProvider.overrideWith(
+          (ref) => Future<WalkGraphWorker?>.value(null),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -31,6 +37,33 @@ void main() {
 
     expect(status.status, WalkingRedStatus.workerFallo);
   });
+
+  test(
+    'walking status passes to cargada when the worker starts after the timeout',
+    () async {
+      final fixture = jsonDecode(
+        await File('test/fixtures/osm_seed_minimal.json').readAsString(),
+      ) as Map<String, dynamic>;
+      final worker = FakeWalkGraphWorker(WalkGraph.fromGeoJson(fixture)!);
+      final startup = Completer<WalkGraphWorker?>();
+      final container = ProviderContainer(
+        overrides: [walkGraphProvider.overrideWith((ref) => startup.future)],
+      );
+      addTearDown(container.dispose);
+
+      final statusFuture = container.read(walkingRedStatusProvider.future);
+      // El worker termina de arrancar después del timeout (15 s) de arranque
+      // del proveedor: el estado debe pasar a cargada.
+      unawaited(
+        Future<void>.delayed(const Duration(seconds: 16))
+            .then((_) => startup.complete(worker)),
+      );
+
+      final status = await statusFuture;
+      expect(status.status, WalkingRedStatus.cargada);
+    },
+    timeout: const Timeout(Duration(seconds: 45)),
+  );
 
   testWidgets('settings shows counts loaded from the cached feed metadata', (
     tester,

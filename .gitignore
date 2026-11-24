@@ -49,3 +49,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# walk_graph seed binario generado (el placeholder de desarrollo sigue versionado)
+assets/walk_graph/walk_graph_seed.bin

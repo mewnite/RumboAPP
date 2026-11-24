@@ -35,23 +35,7 @@ class WalkingSnapNullController extends Notifier<bool> {
 /// peatonal está cargado.
 final walkingRedStatusProvider = FutureProvider<WalkingRedState>((ref) async {
   final snapNull = ref.watch(walkingSnapNullProvider);
-  WalkGraphWorker? worker;
-  try {
-    worker = await ref
-        .read(walkGraphProvider.future)
-        .timeout(_walkingStatusTimeout);
-  } on Object catch (error, stackTrace) {
-    developer.log(
-      'No se pudo iniciar el worker para el diagnóstico peatonal.',
-      name: 'Rumbo',
-      error: error,
-      stackTrace: stackTrace,
-    );
-    return ref.read(walkGraphSeedAvailabilityProvider) ==
-            WalkGraphSeedAvailability.absent
-        ? const WalkingRedState(WalkingRedStatus.seedAusente)
-        : const WalkingRedState(WalkingRedStatus.workerFallo);
-  }
+  final worker = await _awaitWorkerStart(ref);
   final currentSeedAvailability = ref.read(walkGraphSeedAvailabilityProvider);
   if (currentSeedAvailability == WalkGraphSeedAvailability.absent) {
     return const WalkingRedState(WalkingRedStatus.seedAusente);
@@ -79,3 +63,34 @@ final walkingRedStatusProvider = FutureProvider<WalkingRedState>((ref) async {
   }
   return const WalkingRedState(WalkingRedStatus.cargada);
 });
+
+/// Espera el worker peatonal.
+///
+/// Un timeout de arranque no marca fallo permanente: si el proveedor
+/// sigue cargando, se sigue esperando; si ya terminó con error, se
+/// reintenta una vez. Devuelve null cuando no pudo estar disponible
+/// ([WalkingRedStatus.workerFallo]).
+Future<WalkGraphWorker?> _awaitWorkerStart(Ref ref) async {
+  final workerFuture = ref.read(walkGraphProvider.future);
+  try {
+    return await workerFuture.timeout(_walkingStatusTimeout);
+  } on Object catch (error, stackTrace) {
+    developer.log(
+      'No se pudo iniciar el worker para el diagnóstico peatonal.',
+      name: 'Rumbo',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+  try {
+    return await workerFuture.timeout(_walkingStatusTimeout);
+  } on Object catch (error, stackTrace) {
+    developer.log(
+      'El worker peatonal no terminó de arrancar.',
+      name: 'Rumbo',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    return null;
+  }
+}
