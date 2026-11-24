@@ -20,6 +20,7 @@ class WalkGraph {
   static const double snapGapDashedThresholdMeters = 5;
   static const double _cellSize = 0.0002;
   static const double _mainSnapToleranceMeters = 75;
+  final Map<(int, int, int, int), WalkPath?> _shortestPathCache = {};
 
   factory WalkGraph.fromWays(
     List<List<ShapePoint>> ways, {
@@ -252,6 +253,15 @@ class WalkGraph {
   }
 
   WalkPath? shortestPath(double lat, double lon, double toLat, double toLon) {
+    final cacheKey = (
+      (lat * 100000).round(),
+      (lon * 100000).round(),
+      (toLat * 100000).round(),
+      (toLon * 100000).round(),
+    );
+    if (_shortestPathCache.containsKey(cacheKey)) {
+      return _shortestPathCache[cacheKey];
+    }
     final totalWatch = Stopwatch()..start();
     final snapWatch = Stopwatch()..start();
     final from = _snap(lat, lon, 0);
@@ -267,6 +277,7 @@ class WalkGraph {
         'tolerancia=${snapToleranceMeters.round()}m',
         name: 'Rumbo',
       );
+      if (_shortestPathCache.length < 5000) _shortestPathCache[cacheKey] = null;
       return null;
     }
 
@@ -349,7 +360,10 @@ class WalkGraph {
         );
       }
     }
-    if (distances[to.vertexId] == double.infinity) return null;
+    if (distances[to.vertexId] == double.infinity) {
+      if (_shortestPathCache.length < 5000) _shortestPathCache[cacheKey] = null;
+      return null;
+    }
 
     final route = <_RouteArc>[];
     for (var vertex = to.vertexId; vertex != from.vertexId;) {
@@ -392,6 +406,9 @@ class WalkGraph {
       'points=${result.points.length}',
       name: 'Rumbo',
     );
+    if (_shortestPathCache.length < 5000) {
+      _shortestPathCache[cacheKey] = result;
+    }
     return result;
   }
 

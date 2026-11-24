@@ -1,0 +1,345 @@
+[
+  {
+    "id": "pocitos_portones",
+    "origin": {
+      "latitude": -34.919799,
+      "longitude": -56.151802
+    },
+    "destination": {
+      "latitude": -34.902,
+      "longitude": -56.168
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:22:59.000",
+        "transfers": 1,
+        "walkingMeters": 766,
+        "routes": [
+          "1600018",
+          "47901054"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:24:59.000",
+        "transfers": 1,
+        "walkingMeters": 666,
+        "routes": [
+          "49901028",
+          "400004"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:27:40.000",
+        "transfers": 1,
+        "walkingMeters": 345,
+        "routes": [
+          "4000952",
+          "701062"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cordon_buceo",
+    "origin": {
+      "latitude": -34.904,
+      "longitude": -56.166
+    },
+    "destination": {
+      "latitude": -34.9075,
+      "longitude": -56.164
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:07:00.000",
+        "transfers": 0,
+        "walkingMeters": 559,
+        "routes": []
+      },
+      {
+        "arrival": "2026-11-24T08:08:52.000",
+        "transfers": 0,
+        "walkingMeters": 372,
+        "routes": [
+          "8702345"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:10:52.000",
+        "transfers": 0,
+        "walkingMeters": 316,
+        "routes": [
+          "701062"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "centro_punta",
+    "origin": {
+      "latitude": -34.903,
+      "longitude": -56.19
+    },
+    "destination": {
+      "latitude": -34.915,
+      "longitude": -56.149
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:27:42.000",
+        "transfers": 1,
+        "walkingMeters": 529,
+        "routes": [
+          "6702208",
+          "14602394"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:28:28.000",
+        "transfers": 0,
+        "walkingMeters": 498,
+        "routes": [
+          "6702208"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:29:42.000",
+        "transfers": 1,
+        "walkingMeters": 436,
+        "routes": [
+          "6702208",
+          "4601194"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "tres_cruces_buceo",
+    "origin": {
+      "latitude": -34.8942,
+      "longitude": -56.1646
+    },
+    "destination": {
+      "latitude": -34.92,
+      "longitude": -56.145
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:31:19.000",
+        "transfers": 1,
+        "walkingMeters": 766,
+        "routes": [
+          "12801052",
+          "47700868"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:32:19.000",
+        "transfers": 1,
+        "walkingMeters": 586,
+        "routes": [
+          "44902365",
+          "4000952"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:39:19.000",
+        "transfers": 1,
+        "walkingMeters": 582,
+        "routes": [
+          "47802219",
+          "4000952"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "centro_cordon",
+    "origin": {
+      "latitude": -34.906,
+      "longitude": -56.188
+    },
+    "destination": {
+      "latitude": -34.915,
+      "longitude": -56.145
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:29:59.000",
+        "transfers": 0,
+        "walkingMeters": 654,
+        "routes": [
+          "3800069"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:32:02.000",
+        "transfers": 0,
+        "walkingMeters": 571,
+        "routes": [
+          "6702208"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:38:02.000",
+        "transfers": 1,
+        "walkingMeters": 564,
+        "routes": [
+          "9800331",
+          "701062"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "aguada_barrio_sur",
+    "origin": {
+      "latitude": -34.889,
+      "longitude": -56.183
+    },
+    "destination": {
+      "latitude": -34.905,
+      "longitude": -56.19
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:20:18.000",
+        "transfers": 0,
+        "walkingMeters": 631,
+        "routes": [
+          "8302262"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:20:27.000",
+        "transfers": 0,
+        "walkingMeters": 487,
+        "routes": [
+          "48200998"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:23:55.000",
+        "transfers": 1,
+        "walkingMeters": 385,
+        "routes": [
+          "102241",
+          "6702208"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "parque_rodo",
+    "origin": {
+      "latitude": -34.913,
+      "longitude": -56.166
+    },
+    "destination": {
+      "latitude": -34.883,
+      "longitude": -56.05
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:50:46.000",
+        "transfers": 0,
+        "walkingMeters": 559,
+        "routes": [
+          "2800044"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:56:57.000",
+        "transfers": 1,
+        "walkingMeters": 288,
+        "routes": [
+          "44301060",
+          "5900960"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T08:58:57.000",
+        "transfers": 1,
+        "walkingMeters": 279,
+        "routes": [
+          "12801052",
+          "2201134"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "union_manga",
+    "origin": {
+      "latitude": -34.868,
+      "longitude": -56.147
+    },
+    "destination": {
+      "latitude": -34.814,
+      "longitude": -56.128
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:57:28.000",
+        "transfers": 1,
+        "walkingMeters": 720,
+        "routes": [
+          "9301110",
+          "11000983"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cerro_centro",
+    "origin": {
+      "latitude": -34.884,
+      "longitude": -56.251
+    },
+    "destination": {
+      "latitude": -34.906,
+      "longitude": -56.193
+    },
+    "top": [
+      {
+        "arrival": "2026-11-24T08:53:03.000",
+        "transfers": 1,
+        "walkingMeters": 295,
+        "routes": [
+          "48002294",
+          "1901003"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T09:16:13.000",
+        "transfers": 1,
+        "walkingMeters": 262,
+        "routes": [
+          "48002294",
+          "2702399"
+        ]
+      },
+      {
+        "arrival": "2026-11-24T09:23:13.000",
+        "transfers": 1,
+        "walkingMeters": 248,
+        "routes": [
+          "48002294",
+          "3201106"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "malvin_nueva_palma",
+    "origin": {
+      "latitude": -34.92,
+      "longitude": -56.131
+    },
+    "destination": {
+      "latitude": -34.887,
+      "longitude": -56.142
+    },
+    "top": []
+  }
+]

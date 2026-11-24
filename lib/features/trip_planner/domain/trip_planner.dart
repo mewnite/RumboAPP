@@ -442,6 +442,15 @@ const _arrivalSearchStepMinutes = 10;
 const _arrivalSearchWindowMinutes = 180;
 const _maximumEndpointStopCandidates = 15;
 
+class _TransitSearchMetrics {
+  int originDestinationPairs = 0;
+  int patternsTraversed = 0;
+  int tripsTraversed = 0;
+  int stopTimesRead = 0;
+  int candidatesGenerated = 0;
+  int transfersEvaluated = 0;
+}
+
 class TransitRouteSearch {
   const TransitRouteSearch({this.walkGraph});
 
@@ -461,20 +470,37 @@ class TransitRouteSearch {
 
     final walkingOnly = _walkingOnlyPlan(request, clock);
     final transitWatch = Stopwatch()..start();
+    final metrics = _TransitSearchMetrics();
     final transitPlans = _findTransitPlans(
       request: request,
       data: data,
       originStopIds: originStopIds,
       destinationStopIds: destinationStopIds,
       clock: clock,
+      metrics: metrics,
     );
     transitWatch.stop();
+    final finalizedPlans = _finalizePlans([
+      ?walkingOnly,
+      ...transitPlans,
+    ], request);
     debugPrint(
       '[performance] trip.stage_transit_search='
       '${transitWatch.elapsedMilliseconds}ms originStops=${originStopIds.length} '
       'destinationStops=${destinationStopIds.length} plans=${transitPlans.length}',
     );
-    return _finalizePlans([?walkingOnly, ...transitPlans], request);
+    debugPrint(
+      '[performance] trip.search_origin_destination_pairs='
+      '${originStopIds.length * destinationStopIds.length}',
+    );
+    debugPrint(
+      '[performance] trip.search_counts patterns=${metrics.patternsTraversed} '
+      'trips=${metrics.tripsTraversed} stop_times=${metrics.stopTimesRead} '
+      'candidates=${metrics.candidatesGenerated} '
+      'returned=${finalizedPlans.length} '
+      'transfers=${metrics.transfersEvaluated}',
+    );
+    return finalizedPlans;
   }
 
   List<TripPlan> _findTransitPlans({
@@ -483,6 +509,7 @@ class TransitRouteSearch {
     required Set<String> originStopIds,
     required Set<String> destinationStopIds,
     required DateTime clock,
+    required _TransitSearchMetrics metrics,
   }) {
     if (originStopIds.isEmpty || destinationStopIds.isEmpty) return const [];
     final indexCache = <DateTime, _ScheduleIndex>{};
@@ -494,6 +521,7 @@ class TransitRouteSearch {
           originStopIds: originStopIds,
           destinationStopIds: destinationStopIds,
           indexCache: indexCache,
+          metrics: metrics,
         );
       case TripTimingMode.departAt:
         return _findForward(
@@ -502,6 +530,7 @@ class TransitRouteSearch {
           originStopIds: originStopIds,
           destinationStopIds: destinationStopIds,
           indexCache: indexCache,
+          metrics: metrics,
         );
       case TripTimingMode.arriveBy:
         final target = request.timing.dateTime!;
@@ -520,6 +549,7 @@ class TransitRouteSearch {
                     originStopIds: originStopIds,
                     destinationStopIds: destinationStopIds,
                     indexCache: indexCache,
+                    metrics: metrics,
                   )
                   .where((plan) => !plan.arrivalTime.isAfter(target))
                   .toList(growable: false);
@@ -535,6 +565,7 @@ class TransitRouteSearch {
     required Set<String> originStopIds,
     required Set<String> destinationStopIds,
     required Map<DateTime, _ScheduleIndex> indexCache,
+    required _TransitSearchMetrics metrics,
   }) {
     final departureTime = request.departureTime;
     if (departureTime == null) return const [];
@@ -547,6 +578,11 @@ class TransitRouteSearch {
       serviceDay,
       () => _ScheduleIndex.build(data, serviceDay),
     );
+    metrics.originDestinationPairs +=
+        originStopIds.length * destinationStopIds.length;
+    metrics.patternsTraversed += index.instances.length;
+    metrics.tripsTraversed += data.trips.length;
+    metrics.stopTimesRead += data.stopTimes.length;
     final config = request.config;
     final transferTargetsByStop = <String, List<_TransferTarget>>{};
     final destinationIndicesByInstance = <_TripInstance, List<int>>{};
@@ -604,6 +640,7 @@ class TransitRouteSearch {
             final walkingMeters =
                 initialWalk.distanceMeters + finalWalk.distanceMeters;
             if (walkingMeters <= config.maximumWalkingMeters) {
+              metrics.candidatesGenerated++;
               plans.add(
                 _buildPlan(
                   departureTime: departureTime,
@@ -625,6 +662,7 @@ class TransitRouteSearch {
             () => _transferTargets(alightStop, index, config),
           );
           for (final target in targets) {
+            metrics.transfersEvaluated++;
             final transferArrival = firstTimes[alightIndex].arrival;
             final transferWalk = target.stop.id == alightStop.id
                 ? null
@@ -677,6 +715,7 @@ class TransitRouteSearch {
                     finalWalk.distanceMeters +
                     (transferWalk?.distanceMeters ?? 0);
                 if (walkingMeters > config.maximumWalkingMeters) continue;
+                metrics.candidatesGenerated++;
                 plans.add(
                   _buildPlan(
                     departureTime: departureTime,
@@ -710,6 +749,7 @@ class TransitRouteSearch {
     PlannerConfig config,
   ) {
     final targets = <_TransferTarget>[];
+    final nearby = <Stop>[];
     for (final stop in index.nearbyStops(
       from,
       config.maximumTransferWalkingMeters,
@@ -725,9 +765,25 @@ class TransitRouteSearch {
         stop.longitude,
       );
       if (meters <= config.maximumTransferWalkingMeters) {
-        targets.add(_TransferTarget(stop));
+        nearby.add(stop);
       }
     }
+    nearby.sort((a, b) {
+      final aMeters = _distanceMeters(
+        from.latitude,
+        from.longitude,
+        a.latitude,
+        a.longitude,
+      );
+      final bMeters = _distanceMeters(
+        from.latitude,
+        from.longitude,
+        b.latitude,
+        b.longitude,
+      );
+      return aMeters.compareTo(bMeters);
+    });
+    targets.addAll(nearby.take(6).map((stop) => _TransferTarget(stop)));
     return targets;
   }
 
