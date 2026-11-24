@@ -7,12 +7,19 @@ import 'plan_search_cancellation.dart';
 import 'trip_planner.dart';
 import 'walk_graph.dart';
 
-typedef _WorkerInit = (SendPort, TransferableTypedData?);
+typedef _WorkerInit = (SendPort, TransferableTypedData?, Duration);
 typedef _WorkerCommand = (int, String, Object?, SendPort);
 typedef _WorkerResponse = (int, Object?, String?, String?);
 
-Future<WalkGraphWorker> createWalkGraphWorker(Uint8List? seedBytes) =>
-    _PersistentWalkGraphWorker.start(seedBytes);
+Future<WalkGraphWorker> createWalkGraphWorker(
+  Uint8List? seedBytes, {
+  Duration? startupTimeout,
+  Duration? readyDelay,
+}) => _PersistentWalkGraphWorker.start(
+  seedBytes,
+  startupTimeout: startupTimeout,
+  readyDelay: readyDelay,
+);
 
 abstract interface class WalkGraphWorker {
   Future<List<TripPlan>> searchPlans(
@@ -38,11 +45,23 @@ abstract interface class WalkGraphWorker {
 }
 
 class _PersistentWalkGraphWorker implements WalkGraphWorker {
-  static const _startupTimeout = Duration(seconds: 15);
+  static const _defaultStartupTimeout = Duration(seconds: 60);
 
-  _PersistentWalkGraphWorker(this._seedBytes);
+  _PersistentWalkGraphWorker(
+    this._seedBytes, {
+    Duration? startupTimeout,
+    Duration? readyDelay,
+  }) : startupTimeout = startupTimeout ?? _defaultStartupTimeout,
+       readyDelay = readyDelay ?? Duration.zero;
 
   final Uint8List? _seedBytes;
+
+  /// Tope de espera para que el worker señale que está listo.
+  final Duration startupTimeout;
+
+  /// Retardo antes de señalar que el worker está listo (solo para pruebas).
+  final Duration readyDelay;
+
   final Map<int, _PendingRequest> _pending = {};
   Isolate? _isolate;
   SendPort? _commandPort;
@@ -52,8 +71,16 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
   int _nextRequestId = 0;
   bool _disposed = false;
 
-  static Future<_PersistentWalkGraphWorker> start(Uint8List? seedBytes) async {
-    final worker = _PersistentWalkGraphWorker(seedBytes);
+  static Future<_PersistentWalkGraphWorker> start(
+    Uint8List? seedBytes, {
+    Duration? startupTimeout,
+    Duration? readyDelay,
+  }) async {
+    final worker = _PersistentWalkGraphWorker(
+      seedBytes,
+      startupTimeout: startupTimeout,
+      readyDelay: readyDelay,
+    );
     await worker._ensureStarted();
     return worker;
   }
@@ -83,7 +110,7 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
           : TransferableTypedData.fromList([_seedBytes]);
       final startedIsolate = await Isolate.spawn<_WorkerInit>(
         _runWalkGraphWorker,
-        (readyPort.sendPort, transferable),
+        (readyPort.sendPort, transferable, readyDelay),
         onExit: exitPort.sendPort,
       );
       isolate = startedIsolate;
@@ -130,22 +157,20 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
 
   /// Espera el puerto ready del worker.
   ///
-  /// El timeout de arranque no es un fallo permanente: si el worker
-  /// termina de arrancar después del timeout, la espera se sigue hasta
-  /// que llegue el puerto ready.
+  /// Si el worker no señala que está listo dentro de [startupTimeout],
+  /// la espera se da por terminada con un error.
   Future<Object?> _waitForWorkerReady(ReceivePort readyPort) async {
     final readyFuture = readyPort.first;
     final result = await Future.any<Object?>([
       readyFuture,
-      Future<Object?>.delayed(_startupTimeout)
+      Future<Object?>.delayed(startupTimeout)
           .then((_) => const _WorkerReadyTimeoutMarker()),
     ]);
     if (result is _WorkerReadyTimeoutMarker) {
-      developer.log(
-        'El worker peatonal no señaló que está listo dentro de $_startupTimeout; se sigue esperando.',
-        name: 'Rumbo',
+      throw StateError(
+        'El worker peatonal no señaló que está listo dentro de '
+        '$startupTimeout.',
       );
-      return readyFuture;
     }
     return result;
   }
@@ -276,36 +301,52 @@ class _WorkerReadyTimeoutMarker {
 }
 
 void _runWalkGraphWorker(_WorkerInit init) {
-  final (readyPort, transferable) = init;
+  final (readyPort, transferable, readyDelay) = init;
   try {
     final graph = transferable == null
         ? null
         : WalkGraph.fromSeedBytes(transferable.materialize().asUint8List());
     final commands = ReceivePort();
-    readyPort.send(commands.sendPort);
-    commands.listen((message) {
-      if (message is! _WorkerCommand) return;
-      final (id, operation, payload, responsePort) = message;
-      try {
-        final result = switch (operation) {
-          'search' => searchPlansSync(
-            payload as PlanSearchPayload,
-            walkGraph: graph,
-          ),
-          'refresh' => refreshWalkingSegmentsSync(
-            payload as TripPlan,
-            walkGraph: graph,
-          ),
-          'walk' => _runWalkCommand(graph, payload),
-          'ping' => null,
-          'graphLoaded' => graph != null,
-          _ => throw ArgumentError.value(operation, 'operation'),
-        };
-        responsePort.send((id, result, null, null));
-      } on Object catch (error, stackTrace) {
-        responsePort.send((id, null, error.toString(), stackTrace.toString()));
-      }
-    });
+    void signalReady() {
+      readyPort.send(commands.sendPort);
+      commands.listen((message) {
+        if (message is! _WorkerCommand) return;
+        final (id, operation, payload, responsePort) = message;
+        try {
+          final result = switch (operation) {
+            'search' => searchPlansSync(
+              payload as PlanSearchPayload,
+              walkGraph: graph,
+            ),
+            'refresh' => refreshWalkingSegmentsSync(
+              payload as TripPlan,
+              walkGraph: graph,
+            ),
+            'walk' => _runWalkCommand(graph, payload),
+            'ping' => null,
+            'graphLoaded' => graph != null,
+            _ => throw ArgumentError.value(operation, 'operation'),
+          };
+          responsePort.send((id, result, null, null));
+        } on Object catch (error, stackTrace) {
+          responsePort.send((
+            id,
+            null,
+            error.toString(),
+            stackTrace.toString(),
+          ));
+        }
+      });
+    }
+
+    if (readyDelay > Duration.zero) {
+      Future<void>(() async {
+        await Future.delayed(readyDelay);
+        signalReady();
+      });
+    } else {
+      signalReady();
+    }
   } on Object catch (error, stackTrace) {
     readyPort.send((error.toString(), stackTrace.toString()));
   }

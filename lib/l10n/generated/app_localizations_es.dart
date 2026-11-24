@@ -624,6 +624,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get walkingRedCargada => 'cargada';
 
   @override
+  String get walkingRedCargando => 'Cargando red peatonal…';
+
+  @override
   String get walkingRedIndisponible => 'no disponible';
 
   @override
@@ -1883,6 +1886,9 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get walkingRedCargada => 'cargada';
+
+  @override
+  String get walkingRedCargando => 'Cargando red peatonal…';
 
   @override
   String get walkingRedIndisponible => 'no disponible';

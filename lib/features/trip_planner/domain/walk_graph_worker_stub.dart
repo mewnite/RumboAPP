@@ -26,10 +26,13 @@ abstract interface class WalkGraphWorker {
   Future<void> dispose();
 }
 
-Future<WalkGraphWorker> createWalkGraphWorker(Uint8List? seedBytes) async =>
-    _WalkGraphWorkerStub(
-      seedBytes == null ? null : WalkGraph.fromSeedBytes(seedBytes),
-    );
+Future<WalkGraphWorker> createWalkGraphWorker(
+  Uint8List? seedBytes, {
+  Duration? startupTimeout,
+  Duration? readyDelay,
+}) async => _WalkGraphWorkerStub(
+  seedBytes == null ? null : WalkGraph.fromSeedBytes(seedBytes),
+);
 
 class _WalkGraphWorkerStub implements WalkGraphWorker {
   _WalkGraphWorkerStub(this._graph);

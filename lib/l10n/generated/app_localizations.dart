@@ -1171,6 +1171,12 @@ abstract class AppLocalizations {
   /// **'cargada'**
   String get walkingRedCargada;
 
+  /// No description provided for @walkingRedCargando.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Cargando red peatonal…'**
+  String get walkingRedCargando;
+
   /// No description provided for @walkingRedIndisponible.
   ///
   /// In es_UY, this message translates to:

@@ -23,6 +23,26 @@ void main() {
   });
 
   testWidgets(
+    'persistent worker fails when ready is not signaled within the timeout',
+    (tester) async {
+      await tester.runAsync(() async {
+        final fixture = jsonDecode(
+          await File('test/fixtures/osm_seed_minimal.json').readAsString(),
+        ) as Map<String, dynamic>;
+        final graph = WalkGraph.fromGeoJson(fixture)!;
+        await expectLater(
+          createWalkGraphWorker(
+            graph.toSeedBytes(),
+            startupTimeout: const Duration(milliseconds: 300),
+            readyDelay: const Duration(seconds: 60),
+          ),
+          throwsA(isA<StateError>()),
+        );
+      });
+    },
+  );
+
+  testWidgets(
     'persistent worker searches and refreshes walking through messages',
     (tester) async {
       await tester.runAsync(() async {

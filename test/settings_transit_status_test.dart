@@ -33,13 +33,16 @@ void main() {
     );
     addTearDown(container.dispose);
 
+    // Espera a que el proveedor termine de cargar para no confundir con
+    // el nuevo estado "cargando".
+    await container.read(walkGraphProvider.future);
     final status = await container.read(walkingRedStatusProvider.future);
 
     expect(status.status, WalkingRedStatus.workerFallo);
   });
 
   test(
-    'walking status passes to cargada when the worker starts after the timeout',
+    'walking status is cargando while the worker starts and then cargada',
     () async {
       final fixture = jsonDecode(
         await File('test/fixtures/osm_seed_minimal.json').readAsString(),
@@ -51,18 +54,17 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final statusFuture = container.read(walkingRedStatusProvider.future);
-      // El worker termina de arrancar después del timeout (15 s) de arranque
-      // del proveedor: el estado debe pasar a cargada.
-      unawaited(
-        Future<void>.delayed(const Duration(seconds: 16))
-            .then((_) => startup.complete(worker)),
+      final loadingStatus = await container.read(
+        walkingRedStatusProvider.future,
       );
+      expect(loadingStatus.status, WalkingRedStatus.cargando);
 
-      final status = await statusFuture;
+      startup.complete(worker);
+      await container.read(walkGraphProvider.future);
+      final status = await container.read(walkingRedStatusProvider.future);
       expect(status.status, WalkingRedStatus.cargada);
     },
-    timeout: const Timeout(Duration(seconds: 45)),
+    timeout: const Timeout(Duration(seconds: 15)),
   );
 
   testWidgets('settings shows counts loaded from the cached feed metadata', (

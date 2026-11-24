@@ -384,6 +384,7 @@ class SettingsScreen extends ConsumerWidget {
     error: (error, stackTrace) =>
         _walkingUnavailableText(l10n, l10n.walkingRedMotivoWorkerFallo),
     data: (value) => switch (value.status) {
+      WalkingRedStatus.cargando => l10n.walkingRedCargando,
       WalkingRedStatus.cargada => l10n.walkingRedCargada,
       WalkingRedStatus.seedAusente => _walkingUnavailableText(
         l10n,

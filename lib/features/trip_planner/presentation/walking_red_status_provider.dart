@@ -8,7 +8,7 @@ import 'walk_graph_provider.dart';
 const _walkingStatusTimeout = Duration(seconds: 15);
 
 /// Estado de la red peatonal mostrado en Ajustes.
-enum WalkingRedStatus { cargada, seedAusente, workerFallo, snapNulo }
+enum WalkingRedStatus { cargando, cargada, seedAusente, workerFallo, snapNulo }
 
 class WalkingRedState {
   const WalkingRedState(this.status);
@@ -35,6 +35,9 @@ class WalkingSnapNullController extends Notifier<bool> {
 /// peatonal está cargado.
 final walkingRedStatusProvider = FutureProvider<WalkingRedState>((ref) async {
   final snapNull = ref.watch(walkingSnapNullProvider);
+  if (ref.watch(walkGraphProvider).isLoading) {
+    return const WalkingRedState(WalkingRedStatus.cargando);
+  }
   final worker = await _awaitWorkerStart(ref);
   final currentSeedAvailability = ref.read(walkGraphSeedAvailabilityProvider);
   if (currentSeedAvailability == WalkGraphSeedAvailability.absent) {

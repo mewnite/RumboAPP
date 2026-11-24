@@ -299,6 +299,7 @@
   "transitVariantsWithIdLabel": "variantes con ID",
   "walkingRedTitle": "Red peatonal",
   "walkingRedCargada": "cargada",
+  "walkingRedCargando": "Cargando red peatonal…",
   "walkingRedIndisponible": "no disponible",
   "walkingRedLoading": "cargando",
   "walkingRedMotivoPrefix": "motivo: ",

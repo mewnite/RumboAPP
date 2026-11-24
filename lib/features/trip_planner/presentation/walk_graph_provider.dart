@@ -60,9 +60,10 @@ final walkGraphProvider = FutureProvider<WalkGraphWorker?>((ref) async {
     rethrow;
   }
   try {
-    // El timeout de arranque del worker es no fatal: si el worker tarda
-    // más de lo esperado en quedarse listo, la espera sigue hasta que
-    // termine de arrancar (véase _waitForWorkerReady en walk_graph_worker_io).
+    // El timeout de arranque del worker (60 s, véase
+    // _waitForWorkerReady en walk_graph_worker_io) finaliza la espera
+    // cuando el worker no señala que está listo a tiempo; aquí solo
+    // preparamos el worker y propagamos el error.
     final worker = await createWalkGraphWorker(seedBytes);
     ref.onDispose(() => unawaited(worker.dispose()));
     return worker;
