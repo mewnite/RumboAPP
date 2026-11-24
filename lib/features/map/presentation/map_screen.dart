@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -28,6 +29,7 @@ import '../../../features/trip_planner/data/open_street_map_place_source.dart';
 import '../../../features/trip_planner/domain/trip_planner.dart';
 import '../../../features/trip_planner/domain/walk_graph_worker.dart';
 import '../../../features/trip_planner/presentation/walk_graph_provider.dart';
+import '../../../features/trip_planner/presentation/walking_red_status_provider.dart';
 import '../../../features/trip_planner/presentation/trip_plan_details.dart';
 import '../../../features/trip_detail/presentation/active_trip_controller.dart';
 import '../../../features/trip_planner/presentation/trip_search_sheet.dart';
@@ -803,15 +805,37 @@ class _MapScreenState extends ConsumerState<MapScreen>
     TransitTripPlanner planner,
     Future<WalkGraphWorker?> workerFuture,
   ) async {
-    final worker = ref.read(walkGraphProvider).value ?? await workerFuture;
     final selected = _selectedTripPlan;
     if (selected == null) return null;
-    if (worker == null) return selected;
-    planner.walkGraphWorker = worker;
-    final refreshed = await planner.refreshWalkingSegments(selected);
-    if (identical(refreshed, selected) || !mounted) return selected;
-    setState(() => _selectedTripPlan = refreshed);
-    return refreshed;
+    try {
+      final worker =
+          ref.read(walkGraphProvider).value ??
+          await workerFuture.timeout(const Duration(seconds: 15));
+      if (worker == null) return selected;
+      if (!await worker.graphLoaded().timeout(const Duration(seconds: 15))) {
+        return selected;
+      }
+      planner.walkGraphWorker = worker;
+      final refreshed = await planner.refreshWalkingSegments(selected);
+      if (!mounted) return selected;
+      final hasApproximateWalking = refreshed.legs.any(
+        (leg) => leg.kind == TripLegKind.walking && leg.approximate,
+      );
+      ref
+          .read(walkingSnapNullProvider.notifier)
+          .setSnapNull(hasApproximateWalking);
+      if (identical(refreshed, selected)) return selected;
+      setState(() => _selectedTripPlan = refreshed);
+      return refreshed;
+    } on Object catch (error, stackTrace) {
+      developer.log(
+        'No se pudo refinar la caminata del plan seleccionado.',
+        name: 'Rumbo',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return _selectedTripPlan ?? selected;
+    }
   }
 
   Future<void> _startActiveTrip(TripPlan plan) async {

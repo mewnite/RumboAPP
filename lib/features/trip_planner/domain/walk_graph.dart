@@ -257,7 +257,18 @@ class WalkGraph {
     final from = _snap(lat, lon, 0);
     final to = _snap(toLat, toLon, 1);
     snapWatch.stop();
-    if (from == null || to == null) return null;
+    if (from == null || to == null) {
+      final missingEndpoints = [
+        if (from == null) 'origen',
+        if (to == null) 'destino',
+      ].join(',');
+      developer.log(
+        '[caminata] snap nulo: extremos=$missingEndpoints; '
+        'tolerancia=${snapToleranceMeters.round()}m',
+        name: 'Rumbo',
+      );
+      return null;
+    }
 
     final dynamicNodeCount = vertexCount + 2;
     final longitudeScale = math.cos(to.point.latitude * math.pi / 180);

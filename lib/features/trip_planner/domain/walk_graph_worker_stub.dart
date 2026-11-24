@@ -21,6 +21,8 @@ abstract interface class WalkGraphWorker {
 
   Future<void> ping();
 
+  Future<bool> graphLoaded();
+
   Future<void> dispose();
 }
 
@@ -51,6 +53,9 @@ class _WalkGraphWorkerStub implements WalkGraphWorker {
 
   @override
   Future<void> ping() async {}
+
+  @override
+  Future<bool> graphLoaded() async => _graph != null;
 
   @override
   Future<List<TripPlan>> searchPlans(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,38 +7,73 @@ import 'package:rumbo/core/theme/app_colors.dart';
 import 'package:rumbo/core/theme/app_theme.dart';
 import 'package:rumbo/features/settings/presentation/settings_screen.dart';
 import 'package:rumbo/features/search/presentation/search_controller.dart';
+import 'package:rumbo/features/stops_and_lines/data/transit_database.dart';
 import 'package:rumbo/features/stops_and_lines/domain/transit_models.dart';
 import 'package:rumbo/features/stops_and_lines/presentation/feed_update_controller.dart';
+import 'package:rumbo/features/stops_and_lines/presentation/transit_status_providers.dart';
+import 'package:rumbo/features/trip_planner/presentation/walking_red_status_provider.dart';
+import 'package:rumbo/features/trip_planner/presentation/walk_graph_provider.dart';
+import 'package:rumbo/features/trip_planner/domain/walk_graph_worker.dart';
 import 'package:rumbo/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'test_helpers.dart';
-
 void main() {
+  test('walking status reports a worker startup timeout', () async {
+    final workerStartup = Completer<WalkGraphWorker?>();
+    final container = ProviderContainer(
+      overrides: [
+        walkGraphProvider.overrideWith((ref) => workerStartup.future),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final status = await container.read(walkingRedStatusProvider.future);
+
+    expect(status.status, WalkingRedStatus.workerFallo);
+  });
+
   testWidgets('settings shows counts loaded from the cached feed metadata', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(
-      buildRumboTestApp(
-        wrapApp: (child) => ProviderScope(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: ProviderScope(
           overrides: [
             feedUpdateControllerProvider.overrideWith(
               _CachedFeedUpdateController.new,
             ),
+            transitLocalStatusProvider.overrideWith(
+              (_) => Future.value(_localStatus()),
+            ),
+            walkingRedStatusProvider.overrideWith(
+              (_) =>
+                  Future.value(const WalkingRedState(WalkingRedStatus.cargada)),
+            ),
           ],
-          child: child,
+          child: const SettingsScreen(),
         ),
       ),
     );
     await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('navigation-settings')));
-    await tester.pumpAndSettle();
+    await _scrollToDiagnostics(tester);
 
     expect(find.textContaining('Fuente: Datos GTFS guardados'), findsOneWidget);
     expect(find.text('18 paradas · 3 líneas'), findsOneWidget);
+    final visibleText = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((widget) => widget.data)
+        .whereType<String>();
+    expect(visibleText, contains('Red peatonal: cargada'));
+    expect(find.text('Versión: 1.1'), findsOneWidget);
+    expect(find.text('Vigencia: 2026-12-17'), findsOneWidget);
+    expect(find.text('Versión del esquema SQLite: 7'), findsOneWidget);
+    expect(find.text('tamaño de la base: 60.5 MiB'), findsOneWidget);
+    expect(find.text('variantes con ID: 1086/1086'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
@@ -54,9 +91,18 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ProviderScope(
+            key: ValueKey(mode),
             overrides: [
               feedUpdateControllerProvider.overrideWith(
                 _CachedFeedUpdateController.new,
+              ),
+              transitLocalStatusProvider.overrideWith(
+                (_) => Future.value(_localStatus()),
+              ),
+              walkingRedStatusProvider.overrideWith(
+                (_) => Future.value(
+                  const WalkingRedState(WalkingRedStatus.cargada),
+                ),
               ),
             ],
             child: const SettingsScreen(),
@@ -90,6 +136,11 @@ void main() {
         tester.widget<Text>(find.text('18 paradas · 3 líneas')).style?.color,
         mode == ThemeMode.dark ? AppColors.ivory : AppColors.ink,
       );
+      await tester.scrollUntilVisible(
+        find.text('Muestra de identidad visual'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
       expect(
         tester
             .widget<Text>(find.text('Muestra de identidad visual'))
@@ -97,6 +148,45 @@ void main() {
             ?.color,
         mode == ThemeMode.dark ? AppColors.ivory : AppColors.ink,
       );
+    }
+  });
+
+  testWidgets('settings explains why the pedestrian network is unavailable', (
+    tester,
+  ) async {
+    const cases = [
+      (WalkingRedStatus.seedAusente, 'no disponible (motivo: seed ausente)'),
+      (WalkingRedStatus.workerFallo, 'no disponible (motivo: worker falló)'),
+      (WalkingRedStatus.snapNulo, 'no disponible (motivo: snap nulo)'),
+    ];
+
+    for (final (status, expected) in cases) {
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('es', 'UY'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ProviderScope(
+            key: ValueKey(status),
+            overrides: [
+              feedUpdateControllerProvider.overrideWith(
+                _CachedFeedUpdateController.new,
+              ),
+              transitLocalStatusProvider.overrideWith(
+                (_) => Future.value(_localStatus()),
+              ),
+              walkingRedStatusProvider.overrideWith(
+                (_) => Future.value(WalkingRedState(status)),
+              ),
+            ],
+            child: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollToDiagnostics(tester);
+      expect(find.text('Red peatonal: $expected'), findsOneWidget);
     }
   });
 
@@ -117,6 +207,26 @@ void main() {
     expect(preferences.getBool('remote_place_search_enabled'), isTrue);
   });
 }
+
+Future<void> _scrollToDiagnostics(WidgetTester tester) async {
+  await tester.scrollUntilVisible(
+    find.text('Diagnóstico local'),
+    300,
+    scrollable: find.byType(Scrollable).last,
+  );
+}
+
+TransitLocalStatus _localStatus() => TransitLocalStatus(
+  database: TransitDatabaseDiagnostics(
+    fileSizeBytes: 63467520,
+    schemaVersion: 7,
+    feedVersion: '1.1',
+    feedValidUntil: DateTime(2026, 12, 17),
+    variantCount: 1086,
+    variantsWithExternalId: 1086,
+  ),
+  lastCheckMilliseconds: 1795473504440,
+);
 
 class _CachedFeedUpdateController extends FeedUpdateController {
   @override

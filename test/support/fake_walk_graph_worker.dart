@@ -15,6 +15,9 @@ class FakeWalkGraphWorker implements WalkGraphWorker {
   Future<void> ping() async {}
 
   @override
+  Future<bool> graphLoaded() async => graph != null;
+
+  @override
   Future<TripPlan> refreshWalkingSegments(TripPlan plan) async =>
       refreshWalkingSegmentsSync(plan, walkGraph: graph);
 

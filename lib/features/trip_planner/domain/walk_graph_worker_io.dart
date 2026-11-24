@@ -31,10 +31,15 @@ abstract interface class WalkGraphWorker {
 
   Future<void> ping();
 
+  /// True si el worker tiene cargado el grafo peatonal.
+  Future<bool> graphLoaded();
+
   Future<void> dispose();
 }
 
 class _PersistentWalkGraphWorker implements WalkGraphWorker {
+  static const _startupTimeout = Duration(seconds: 15);
+
   _PersistentWalkGraphWorker(this._seedBytes);
 
   final Uint8List? _seedBytes;
@@ -63,44 +68,64 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
     final readyPort = ReceivePort();
     final exitPort = ReceivePort();
     final responsePort = ReceivePort();
-    final stopwatch = Stopwatch()..start();
-    final transferable = _seedBytes == null
-        ? null
-        : TransferableTypedData.fromList([_seedBytes]);
-    final isolate = await Isolate.spawn<_WorkerInit>(_runWalkGraphWorker, (
-      readyPort.sendPort,
-      transferable,
-    ), onExit: exitPort.sendPort);
-    final ready = await readyPort.first;
-    readyPort.close();
-    if (ready is! SendPort) {
-      isolate.kill(priority: Isolate.immediate);
+    Isolate? isolate;
+    void closeStartupPorts() {
+      isolate?.kill(priority: Isolate.immediate);
+      readyPort.close();
       exitPort.close();
       responsePort.close();
-      final error = ready;
-      if (error is (String, String)) {
-        throw RemoteError(error.$1, error.$2);
-      }
-      throw StateError('El worker peatonal no inició correctamente.');
     }
 
-    _isolate = isolate;
-    _commandPort = ready;
-    _responsePort = responsePort;
-    _exitPort = exitPort;
-    responsePort.listen(_handleResponse);
-    exitPort.listen((_) {
-      if (identical(_isolate, isolate) && !_disposed) {
-        _failPending(StateError('El worker peatonal terminó inesperadamente.'));
-        _clearWorkerPorts();
+    try {
+      final stopwatch = Stopwatch()..start();
+      final transferable = _seedBytes == null
+          ? null
+          : TransferableTypedData.fromList([_seedBytes]);
+      final startedIsolate = await Isolate.spawn<_WorkerInit>(
+        _runWalkGraphWorker,
+        (readyPort.sendPort, transferable),
+        onExit: exitPort.sendPort,
+      );
+      isolate = startedIsolate;
+      final ready = await readyPort.first.timeout(_startupTimeout);
+      readyPort.close();
+      if (ready is! SendPort) {
+        final error = ready;
+        if (error is (String, String)) {
+          throw RemoteError(error.$1, error.$2);
+        }
+        throw StateError('El worker peatonal no inició correctamente.');
       }
-    });
-    stopwatch.stop();
-    developer.log(
-      '[performance] walk_graph_worker_ready=${stopwatch.elapsedMilliseconds}ms '
-      'seed_bytes=${_seedBytes?.length ?? 0}',
-      name: 'Rumbo',
-    );
+
+      _isolate = startedIsolate;
+      _commandPort = ready;
+      _responsePort = responsePort;
+      _exitPort = exitPort;
+      responsePort.listen(_handleResponse);
+      exitPort.listen((_) {
+        if (identical(_isolate, startedIsolate) && !_disposed) {
+          _failPending(
+            StateError('El worker peatonal terminó inesperadamente.'),
+          );
+          _clearWorkerPorts();
+        }
+      });
+      stopwatch.stop();
+      developer.log(
+        '[performance] walk_graph_worker_ready=${stopwatch.elapsedMilliseconds}ms '
+        'seed_bytes=${_seedBytes?.length ?? 0}',
+        name: 'Rumbo',
+      );
+    } on Object catch (error, stackTrace) {
+      closeStartupPorts();
+      developer.log(
+        'No se pudo iniciar el worker peatonal.',
+        name: 'Rumbo',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   void _handleResponse(Object? message) {
@@ -201,6 +226,10 @@ class _PersistentWalkGraphWorker implements WalkGraphWorker {
   }
 
   @override
+  Future<bool> graphLoaded() async =>
+      (await _send('graphLoaded', null)) as bool;
+
+  @override
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
@@ -243,6 +272,7 @@ void _runWalkGraphWorker(_WorkerInit init) {
           ),
           'walk' => _runWalkCommand(graph, payload),
           'ping' => null,
+          'graphLoaded' => graph != null,
           _ => throw ArgumentError.value(operation, 'operation'),
         };
         responsePort.send((id, result, null, null));

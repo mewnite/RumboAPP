@@ -807,13 +807,17 @@ class TransitRouteSearch {
               ShapePoint(toLatitude, toLongitude, 1),
             ],
           );
-    developer.log(
-      '[rumbo][caminata] tramo: desde $fromLatitude,$fromLongitude hasta '
-      '$toLatitude,$toLongitude; grafo=${graph != null}; camino=$hasPath; '
-      'distancia=${distanceMeters.round()} m; puntos=${shape.points.length}; '
-      'aproximado=$approximate',
-      name: 'Rumbo',
-    );
+    if (approximate && PerformanceMeasurement.enabled) {
+      final reason = graph == null
+          ? 'sin grafo peatonal'
+          : 'snap nulo o sin camino válido';
+      developer.log(
+        '[caminata] tramo aproximado: desde=${fromStop?.id ?? 'punto'}; '
+        'hasta=${toStop?.id ?? 'punto'}; motivo=$reason; '
+        'distancia=${distanceMeters.round()}m',
+        name: 'Rumbo',
+      );
+    }
     return _WalkingLeg(
       fromStop: fromStop,
       toStop: toStop,

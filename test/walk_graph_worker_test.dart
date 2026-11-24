@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rumbo/features/stops_and_lines/data/fake_transit_repository.dart';
@@ -9,6 +11,17 @@ import 'package:rumbo/features/trip_planner/domain/walk_graph.dart';
 import 'package:rumbo/features/trip_planner/domain/walk_graph_worker.dart';
 
 void main() {
+  testWidgets('persistent worker reports invalid seed initialization', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      await expectLater(
+        createWalkGraphWorker(Uint8List(0)),
+        throwsA(isA<RemoteError>()),
+      );
+    });
+  });
+
   testWidgets(
     'persistent worker searches and refreshes walking through messages',
     (tester) async {
