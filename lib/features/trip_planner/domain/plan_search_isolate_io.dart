@@ -1,5 +1,4 @@
 import 'dart:isolate';
-import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 
@@ -26,10 +25,9 @@ Future<List<TripPlan>> runPlanSearch(
       resultPort.sendPort,
     ), onExit: resultPort.sendPort);
     spawnWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] plan_search_isolate_spawn='
       '${spawnWatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
     );
     cancellation?.attach(() => isolate.kill(priority: Isolate.immediate));
 
@@ -41,10 +39,9 @@ Future<List<TripPlan>> runPlanSearch(
       '${deserialWatch.elapsedMilliseconds}ms',
     );
     totalWatch.stop();
-    developer.log(
+    debugPrint(
       '[performance] plan_search_isolate_total='
       '${totalWatch.elapsedMilliseconds}ms',
-      name: 'Rumbo',
     );
     if (message == null) {
       if (cancellation?.isCancelled ?? false) return const [];

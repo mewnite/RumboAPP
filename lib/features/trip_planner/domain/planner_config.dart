@@ -32,7 +32,7 @@ class PlannerConfig {
   /// Tiempo mínimo entre la llegada de un viaje y la salida del siguiente.
   final Duration minimumTransferTime;
 
-  /// Cantidad máxima de transbordos (la V1 solo contempla 0 o 1).
+  /// Cantidad máxima de transbordos (el planificador admite hasta 2).
   final int maximumTransfers;
 
   /// Espera máxima antes de abordar, incluido el tramo peatonal del transbordo.

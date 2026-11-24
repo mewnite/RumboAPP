@@ -438,7 +438,7 @@ void main() {
           destinationLatitude: 0,
           destinationLongitude: 0,
           timing: TripTiming.departAt(travelDay),
-          config: const PlannerConfig(maximumTransfers: 2),
+          config: const PlannerConfig(maximumTransfers: 3),
         ),
         data: const TransitScheduleData(),
         originStopIds: {'A'},
