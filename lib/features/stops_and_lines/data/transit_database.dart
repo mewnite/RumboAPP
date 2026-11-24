@@ -10,6 +10,32 @@ import '../../../core/debug/performance_measurement.dart';
 import '../domain/transit_models.dart';
 import 'gtfs_parser.dart';
 
+class TransitDatabaseDiagnostics {
+  const TransitDatabaseDiagnostics({
+    required this.fileSizeBytes,
+    required this.schemaVersion,
+    required this.feedVersion,
+    required this.feedValidUntil,
+    required this.variantCount,
+    required this.variantsWithExternalId,
+  });
+
+  const TransitDatabaseDiagnostics.empty()
+    : fileSizeBytes = 0,
+      schemaVersion = 0,
+      feedVersion = null,
+      feedValidUntil = null,
+      variantCount = 0,
+      variantsWithExternalId = 0;
+
+  final int fileSizeBytes;
+  final int schemaVersion;
+  final String? feedVersion;
+  final DateTime? feedValidUntil;
+  final int variantCount;
+  final int variantsWithExternalId;
+}
+
 /// Writes a complete feed into a temporary database and swaps files only after
 /// the transaction commits, leaving the previous database usable on failure.
 class TransitDatabase {
@@ -157,6 +183,77 @@ class TransitDatabase {
         (row['trips'] as int? ?? 0) > 0 &&
         (row['patterns'] as int? ?? 0) > 0 &&
         (row['pattern_stops'] as int? ?? 0) > 0;
+  }
+
+  Future<TransitDatabaseDiagnostics> diagnostics() async {
+    final file = File(
+      p.join((await _directoryProvider()).path, 'rumbo_transit.db'),
+    );
+    if (!await file.exists()) {
+      return const TransitDatabaseDiagnostics.empty();
+    }
+
+    final db = await _factory.openDatabase(
+      file.path,
+      options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+    );
+    try {
+      final schemaVersion =
+          Sqflite.firstIntValue(await db.rawQuery('PRAGMA user_version')) ?? 0;
+      final tables = (await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table'",
+      )).map((row) => row['name']).whereType<String>().toSet();
+
+      String? feedVersion;
+      DateTime? feedValidUntil;
+      if (tables.contains('feed_metadata')) {
+        final rows = await db.query(
+          'feed_metadata',
+          columns: ['version', 'valid_until'],
+          limit: 1,
+        );
+        if (rows.isNotEmpty) {
+          final row = rows.single;
+          feedVersion = row['version'] as String?;
+          final validUntil = row['valid_until'] as String?;
+          feedValidUntil = validUntil == null
+              ? null
+              : DateTime.tryParse(validUntil);
+        }
+      }
+
+      var variantCount = 0;
+      var variantsWithExternalId = 0;
+      if (tables.contains('variants')) {
+        variantCount =
+            Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM variants'),
+            ) ??
+            0;
+        final columns = await db.rawQuery('PRAGMA table_info(variants)');
+        if (columns.any((row) => row['name'] == 'external_variant_id')) {
+          variantsWithExternalId =
+              Sqflite.firstIntValue(
+                await db.rawQuery(
+                  'SELECT COUNT(*) FROM variants '
+                  'WHERE external_variant_id IS NOT NULL',
+                ),
+              ) ??
+              0;
+        }
+      }
+
+      return TransitDatabaseDiagnostics(
+        fileSizeBytes: await file.length(),
+        schemaVersion: schemaVersion,
+        feedVersion: feedVersion,
+        feedValidUntil: feedValidUntil,
+        variantCount: variantCount,
+        variantsWithExternalId: variantsWithExternalId,
+      );
+    } finally {
+      await db.close();
+    }
   }
 
   Future<Map<String, int>> installedVariantExternalIds() async {

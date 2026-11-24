@@ -590,10 +590,56 @@ class AppLocalizationsEs extends AppLocalizations {
   String get transitDataLoading => 'Cargando datos de prueba…';
 
   @override
+  String get transitDiagnosticsLoading => 'Leyendo diagnóstico local…';
+
+  @override
   String get transitSourceLabel => 'Fuente';
 
   @override
   String get transitVersionLabel => 'Versión';
+
+  @override
+  String get transitDiagnosticsTitle => 'Diagnóstico local';
+
+  @override
+  String get transitDiagnosticsLocalNotice =>
+      'Estos datos se leen del dispositivo y no hacen consultas de red.';
+
+  @override
+  String get transitSchemaVersionLabel => 'Versión del esquema SQLite';
+
+  @override
+  String get transitLastCheckLabel => 'Último chequeo de actualización';
+
+  @override
+  String get transitDbSizeLabel => 'tamaño de la base';
+
+  @override
+  String get transitVariantsWithIdLabel => 'variantes con ID';
+
+  @override
+  String get walkingRedTitle => 'Red peatonal';
+
+  @override
+  String get walkingRedCargada => 'cargada';
+
+  @override
+  String get walkingRedIndisponible => 'no disponible';
+
+  @override
+  String get walkingRedLoading => 'cargando';
+
+  @override
+  String get walkingRedMotivoPrefix => 'motivo: ';
+
+  @override
+  String get walkingRedMotivoSeedAusente => 'seed ausente';
+
+  @override
+  String get walkingRedMotivoWorkerFallo => 'worker falló';
+
+  @override
+  String get walkingRedMotivoSnapNulo => 'snap nulo';
 
   @override
   String get transitUpdatedLabel => 'Última actualización';
@@ -1805,10 +1851,56 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get transitDataLoading => 'Cargando datos de prueba…';
 
   @override
+  String get transitDiagnosticsLoading => 'Leyendo diagnóstico local…';
+
+  @override
   String get transitSourceLabel => 'Fuente';
 
   @override
   String get transitVersionLabel => 'Versión';
+
+  @override
+  String get transitDiagnosticsTitle => 'Diagnóstico local';
+
+  @override
+  String get transitDiagnosticsLocalNotice =>
+      'Estos datos se leen del dispositivo y no hacen consultas de red.';
+
+  @override
+  String get transitSchemaVersionLabel => 'Versión del esquema SQLite';
+
+  @override
+  String get transitLastCheckLabel => 'Último chequeo de actualización';
+
+  @override
+  String get transitDbSizeLabel => 'tamaño de la base';
+
+  @override
+  String get transitVariantsWithIdLabel => 'variantes con ID';
+
+  @override
+  String get walkingRedTitle => 'Red peatonal';
+
+  @override
+  String get walkingRedCargada => 'cargada';
+
+  @override
+  String get walkingRedIndisponible => 'no disponible';
+
+  @override
+  String get walkingRedLoading => 'cargando';
+
+  @override
+  String get walkingRedMotivoPrefix => 'motivo: ';
+
+  @override
+  String get walkingRedMotivoSeedAusente => 'seed ausente';
+
+  @override
+  String get walkingRedMotivoWorkerFallo => 'worker falló';
+
+  @override
+  String get walkingRedMotivoSnapNulo => 'snap nulo';
 
   @override
   String get transitUpdatedLabel => 'Última actualización';

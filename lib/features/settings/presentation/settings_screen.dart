@@ -9,6 +9,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/config/transit_config.dart';
 import '../../stops_and_lines/presentation/feed_update_controller.dart';
+import '../../stops_and_lines/presentation/transit_status_providers.dart';
+import '../../trip_planner/presentation/walking_red_status_provider.dart';
 import 'theme_mode_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -19,6 +21,8 @@ class SettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final themeMode = ref.watch(themeModeControllerProvider);
     final feedState = ref.watch(feedUpdateControllerProvider);
+    final redStatus = ref.watch(walkingRedStatusProvider);
+    final localTransitStatus = ref.watch(transitLocalStatusProvider);
     final theme = Theme.of(context);
     final onSurface = theme.colorScheme.onSurface;
     final bodyStyle = theme.textTheme.bodyMedium!.copyWith(color: onSurface);
@@ -247,11 +251,14 @@ class SettingsScreen extends ConsumerWidget {
                           child: FilledButton.icon(
                             onPressed: feed.phase == FeedUpdatePhase.downloading
                                 ? null
-                                : () => ref
-                                      .read(
-                                        feedUpdateControllerProvider.notifier,
-                                      )
-                                      .updateNow(),
+                                : () async {
+                                    await ref
+                                        .read(
+                                          feedUpdateControllerProvider.notifier,
+                                        )
+                                        .updateNow();
+                                    ref.invalidate(transitLocalStatusProvider);
+                                  },
                             icon: const Icon(Symbols.refresh_rounded),
                             label: Text(l10n.transitUpdateNow),
                           ),
@@ -268,6 +275,84 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     );
                   },
+                ),
+              ),
+            ),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.transitDiagnosticsTitle,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${l10n.walkingRedTitle}: '
+                      '${_redStatusText(l10n, redStatus)}',
+                      style: bodyStyle,
+                    ),
+                    const SizedBox(height: 8),
+                    localTransitStatus.when(
+                      loading: () => Text(
+                        l10n.transitDiagnosticsLoading,
+                        style: secondaryBodyStyle,
+                      ),
+                      error: (error, stackTrace) => Text(
+                        l10n.settingsLoadError,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                      data: (status) {
+                        final database = status.database;
+                        final validUntil = database.feedValidUntil;
+                        final lastCheck = status.lastCheckMilliseconds;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${l10n.transitVersionLabel}: '
+                              '${database.feedVersion ?? l10n.transitUnknownValue}',
+                              style: bodyStyle,
+                            ),
+                            Text(
+                              '${l10n.transitValidityLabel}: '
+                              '${validUntil == null ? l10n.transitUnknownValue : _formatDate(validUntil)}',
+                              style: bodyStyle,
+                            ),
+                            Text(
+                              '${l10n.transitSchemaVersionLabel}: '
+                              '${database.schemaVersion}',
+                              style: bodyStyle,
+                            ),
+                            Text(
+                              '${l10n.transitDbSizeLabel}: '
+                              '${_formatDatabaseSize(database.fileSizeBytes, l10n)}',
+                              style: bodyStyle,
+                            ),
+                            Text(
+                              '${l10n.transitVariantsWithIdLabel}: '
+                              '${database.variantsWithExternalId}/${database.variantCount}',
+                              style: bodyStyle,
+                            ),
+                            Text(
+                              '${l10n.transitLastCheckLabel}: '
+                              '${lastCheck == null ? l10n.transitUpdatedAtNone : _formatDateTime(DateTime.fromMillisecondsSinceEpoch(lastCheck))}',
+                              style: secondaryBodyStyle,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.transitDiagnosticsLocalNotice,
+                      style: secondaryBodyStyle,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -289,5 +374,44 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _redStatusText(
+    AppLocalizations l10n,
+    AsyncValue<WalkingRedState> status,
+  ) => status.when(
+    loading: () => l10n.walkingRedLoading,
+    error: (error, stackTrace) =>
+        _walkingUnavailableText(l10n, l10n.walkingRedMotivoWorkerFallo),
+    data: (value) => switch (value.status) {
+      WalkingRedStatus.cargada => l10n.walkingRedCargada,
+      WalkingRedStatus.seedAusente => _walkingUnavailableText(
+        l10n,
+        l10n.walkingRedMotivoSeedAusente,
+      ),
+      WalkingRedStatus.workerFallo => _walkingUnavailableText(
+        l10n,
+        l10n.walkingRedMotivoWorkerFallo,
+      ),
+      WalkingRedStatus.snapNulo => _walkingUnavailableText(
+        l10n,
+        l10n.walkingRedMotivoSnapNulo,
+      ),
+    },
+  );
+
+  String _walkingUnavailableText(AppLocalizations l10n, String reason) =>
+      '${l10n.walkingRedIndisponible} '
+      '(${l10n.walkingRedMotivoPrefix}$reason)';
+
+  String _formatDate(DateTime value) =>
+      value.toLocal().toIso8601String().substring(0, 10);
+
+  String _formatDateTime(DateTime value) =>
+      value.toLocal().toIso8601String().substring(0, 16).replaceFirst('T', ' ');
+
+  String _formatDatabaseSize(int bytes, AppLocalizations l10n) {
+    if (bytes <= 0) return l10n.transitUnknownValue;
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
   }
 }

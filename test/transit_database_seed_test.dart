@@ -10,6 +10,29 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 void main() {
   setUpAll(sqfliteFfiInit);
 
+  test('diagnostics report a missing database without creating one', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'rumbo-diagnostics-',
+    );
+    final store = TransitDatabase(
+      directoryProvider: () async => directory,
+      factory: databaseFactoryFfi,
+    );
+
+    final diagnostics = await store.diagnostics();
+
+    expect(diagnostics.fileSizeBytes, 0);
+    expect(diagnostics.schemaVersion, 0);
+    expect(diagnostics.variantCount, 0);
+    expect(diagnostics.variantsWithExternalId, 0);
+    expect(
+      File('${directory.path}${Platform.pathSeparator}rumbo_transit.db')
+          .existsSync(),
+      isFalse,
+    );
+    await directory.delete(recursive: true);
+  });
+
   test(
     'installSeed replaces an empty DB and the app accepts it as usable',
     () async {
@@ -54,6 +77,11 @@ void main() {
       );
       expect((await database.query('stops')), isNotEmpty);
       await database.close();
+      final diagnostics = await target.diagnostics();
+      expect(diagnostics.fileSizeBytes, seedBytes.length);
+      expect(diagnostics.schemaVersion, 7);
+      expect(diagnostics.variantCount, 1);
+      expect(diagnostics.variantsWithExternalId, 1);
 
       await directory.delete(recursive: true);
       await targetDir.delete(recursive: true);

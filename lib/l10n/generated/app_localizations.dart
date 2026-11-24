@@ -1105,6 +1105,12 @@ abstract class AppLocalizations {
   /// **'Cargando datos de prueba…'**
   String get transitDataLoading;
 
+  /// No description provided for @transitDiagnosticsLoading.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Leyendo diagnóstico local…'**
+  String get transitDiagnosticsLoading;
+
   /// No description provided for @transitSourceLabel.
   ///
   /// In es_UY, this message translates to:
@@ -1116,6 +1122,90 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'Versión'**
   String get transitVersionLabel;
+
+  /// No description provided for @transitDiagnosticsTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Diagnóstico local'**
+  String get transitDiagnosticsTitle;
+
+  /// No description provided for @transitDiagnosticsLocalNotice.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Estos datos se leen del dispositivo y no hacen consultas de red.'**
+  String get transitDiagnosticsLocalNotice;
+
+  /// No description provided for @transitSchemaVersionLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Versión del esquema SQLite'**
+  String get transitSchemaVersionLabel;
+
+  /// No description provided for @transitLastCheckLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Último chequeo de actualización'**
+  String get transitLastCheckLabel;
+
+  /// No description provided for @transitDbSizeLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'tamaño de la base'**
+  String get transitDbSizeLabel;
+
+  /// No description provided for @transitVariantsWithIdLabel.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'variantes con ID'**
+  String get transitVariantsWithIdLabel;
+
+  /// No description provided for @walkingRedTitle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Red peatonal'**
+  String get walkingRedTitle;
+
+  /// No description provided for @walkingRedCargada.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'cargada'**
+  String get walkingRedCargada;
+
+  /// No description provided for @walkingRedIndisponible.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'no disponible'**
+  String get walkingRedIndisponible;
+
+  /// No description provided for @walkingRedLoading.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'cargando'**
+  String get walkingRedLoading;
+
+  /// No description provided for @walkingRedMotivoPrefix.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'motivo: '**
+  String get walkingRedMotivoPrefix;
+
+  /// No description provided for @walkingRedMotivoSeedAusente.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'seed ausente'**
+  String get walkingRedMotivoSeedAusente;
+
+  /// No description provided for @walkingRedMotivoWorkerFallo.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'worker falló'**
+  String get walkingRedMotivoWorkerFallo;
+
+  /// No description provided for @walkingRedMotivoSnapNulo.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'snap nulo'**
+  String get walkingRedMotivoSnapNulo;
 
   /// No description provided for @transitUpdatedLabel.
   ///
