@@ -37,6 +37,15 @@ abstract interface class RealtimeBusSource {
   Future<RealtimeSnapshot> fetch({Set<String>? lines});
 }
 
+/// Excepción de la API de tiempo real cuando el servidor responde 429
+/// (Too Many Requests); [retryAfter] respeta el encabezado `Retry-After`
+/// cuando el servidor lo envía.
+class RealtimeBusRateLimitedException implements Exception {
+  const RealtimeBusRateLimitedException({this.retryAfter});
+
+  final Duration? retryAfter;
+}
+
 abstract interface class ArrivalsSource {
   Future<List<StopArrival>> arrivalsForStop(
     String stopId,

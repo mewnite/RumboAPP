@@ -60,12 +60,32 @@ class MontevideoRealtimeBusSource implements RealtimeBusSource {
       'bytes=${response.body.length}',
       name: 'Rumbo',
     );
+    if (response.statusCode == 429) {
+      developer.log(
+        '[performance] api_buses_429 uri=$uri '
+        'retry_after=${response.headers['retry-after']}',
+        name: 'Rumbo',
+      );
+      throw RealtimeBusRateLimitedException(
+        retryAfter: _retryAfter(response.headers['retry-after']),
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      developer.log(
+        '[performance] api_buses_error uri=$uri status=${response.statusCode}',
+        name: 'Rumbo',
+      );
       throw HttpException(
         'La API de tiempo real respondió HTTP ${response.statusCode}.',
         uri: uri,
       );
     }
     return parseStmOnlineGeoJson(response.body, _clock());
+  }
+
+  static Duration? _retryAfter(String? header) {
+    final seconds = int.tryParse(header?.trim() ?? '');
+    if (seconds == null) return null;
+    return Duration(seconds: seconds);
   }
 }

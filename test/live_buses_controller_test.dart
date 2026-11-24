@@ -85,6 +85,53 @@ void main() {
     },
   );
 
+  test('deduplicates buses by busCode keeping the most recent position', () {
+    BusPosition bus(int busCode, int variantId, DateTime receivedAt) =>
+        BusPosition(
+          sourceId: 'src-$busCode-$variantId',
+          companyCode: 1,
+          busCode: busCode,
+          variantId: variantId,
+          lineLabel: 'A',
+          sublineDescription: 'A',
+          destinationCode: 'N',
+          destinationName: 'Norte',
+          lineTypeCode: 1,
+          lineTypeName: 'Regular',
+          subsystemCode: 1,
+          subsystemName: 'STM',
+          latitude: -34.9,
+          longitude: -56.1,
+          speedKmh: 20,
+          receivedAt: receivedAt,
+        );
+
+    final state = LiveBusesState(
+      positions: [
+        // El 266 aparece con las variantes 883 y 888: debe mostrarse una vez.
+        bus(266, 883, DateTime(2026, 6, 1, 8, 0)),
+        bus(266, 888, DateTime(2026, 6, 1, 8, 1)),
+        bus(266, 888, DateTime(2026, 6, 1, 8, 2)),
+        bus(101, 1, DateTime(2026, 6, 1, 8, 3)),
+      ],
+      visibleBounds: const LiveBusesBounds(
+        minLatitude: -35,
+        maxLatitude: -34,
+        minLongitude: -57,
+        maxLongitude: -56,
+      ),
+    );
+
+    final positions = state.filteredPositions();
+    expect(positions, hasLength(2));
+    expect(positions.where((p) => p.busCode == 266), hasLength(1));
+    // La conservada es la más reciente.
+    expect(
+      positions.firstWhere((p) => p.busCode == 266).receivedAt,
+      DateTime(2026, 6, 1, 8, 2),
+    );
+  });
+
   test(
     'filters by selected line and visible bounds while capping markers',
     () async {

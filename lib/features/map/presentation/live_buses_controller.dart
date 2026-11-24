@@ -107,7 +107,14 @@ class LiveBusesState {
     }
     final sorted = candidates.toList(growable: false)
       ..sort((a, b) => b.receivedAt.compareTo(a.receivedAt));
-    return sorted.take(maxMarkers.clamp(0, 60)).toList(growable: false);
+    // Un mismo bus puede reportarse con variantes distintas; conservamos
+    // la posición más reciente por busCode.
+    final seenBusCodes = <int>{};
+    final deduped = <BusPosition>[];
+    for (final position in sorted) {
+      if (seenBusCodes.add(position.busCode)) deduped.add(position);
+    }
+    return deduped.take(maxMarkers.clamp(0, 60)).toList(growable: false);
   }
 }
 
@@ -233,7 +240,14 @@ class LiveBusesController extends Notifier<LiveBusesState> {
         return;
       }
       final shouldContinuePolling = state.isPolling;
-      final nextDelay = _nextBackoffDelay();
+      final rateLimitDelay = error is RealtimeBusRateLimitedException
+          ? error.retryAfter
+          : null;
+      final nextDelay = rateLimitDelay != null
+          ? (rateLimitDelay <= const Duration(seconds: 60)
+                ? rateLimitDelay
+                : const Duration(seconds: 60))
+          : _nextBackoffDelay();
       final failures = state.consecutiveFailures + 1;
       if (kDebugMode) {
         debugPrint(

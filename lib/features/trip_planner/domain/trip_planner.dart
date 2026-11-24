@@ -273,10 +273,17 @@ class TransitTripPlanner {
       );
     }
 
+    final sqliteWatch = Stopwatch()..start();
     final nearbyEndpoints = await Future.wait([
       nearby(request.originLatitude, request.originLongitude),
       nearby(request.destinationLatitude, request.destinationLongitude),
     ]);
+    sqliteWatch.stop();
+    developer.log(
+      '[performance] trip.stage_sqlite_stops=${sqliteWatch.elapsedMilliseconds}ms '
+      'origins=${nearbyEndpoints[0].length} destinations=${nearbyEndpoints[1].length}',
+      name: 'Rumbo',
+    );
     if (cancellation.isCancelled) {
       measurement.finish(details: 'cancelled=true');
       return const [];
@@ -298,10 +305,17 @@ class TransitTripPlanner {
         ...origins.map((stop) => stop.id),
         ...destinations.map((stop) => stop.id),
       };
+      final scheduleWatch = Stopwatch()..start();
       data = await _repository.scheduleForStops(
         relevantStopIds,
         windowStart: scheduleWindowStart,
         windowEnd: scheduleWindowEnd,
+      );
+      scheduleWatch.stop();
+      developer.log(
+        '[performance] trip.stage_schedule_stops='
+        '${scheduleWatch.elapsedMilliseconds}ms',
+        name: 'Rumbo',
       );
     }
     if (cancellation.isCancelled) {
@@ -310,6 +324,7 @@ class TransitTripPlanner {
     }
 
     final worker = walkGraphWorker;
+    final payloadWatch = Stopwatch()..start();
     final payload = PlanSearchPayload(
       request: request,
       data: data,
@@ -317,13 +332,30 @@ class TransitTripPlanner {
       destinationStopIds: destinations.map((stop) => stop.id).toSet(),
       now: current,
     );
+    payloadWatch.stop();
+    developer.log(
+      '[performance] trip.stage_payload=${payloadWatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
+    );
+    final sendWatch = Stopwatch()..start();
     final plans = worker == null
         ? await runPlanSearch(payload, cancellation: cancellation)
         : await worker.searchPlans(payload, cancellation: cancellation);
+    sendWatch.stop();
+    developer.log(
+      '[performance] trip.stage_search=${sendWatch.elapsedMilliseconds}ms '
+      'plans=${plans.length}',
+      name: 'Rumbo',
+    );
+    final armWatch = Stopwatch()..start();
     measurement.finish(
       details: cancellation.isCancelled
           ? 'cancelled=true'
           : 'plans=${plans.length}',
+    );
+    developer.log(
+      '[performance] trip.stage_armado=${armWatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
     );
     if (identical(_activeCancellation, cancellation)) {
       _activeCancellation = null;
@@ -430,12 +462,20 @@ class TransitRouteSearch {
     if (request.timing.isPast(clock)) return const [];
 
     final walkingOnly = _walkingOnlyPlan(request, clock);
+    final transitWatch = Stopwatch()..start();
     final transitPlans = _findTransitPlans(
       request: request,
       data: data,
       originStopIds: originStopIds,
       destinationStopIds: destinationStopIds,
       clock: clock,
+    );
+    transitWatch.stop();
+    developer.log(
+      '[performance] trip.stage_transit_search='
+      '${transitWatch.elapsedMilliseconds}ms originStops=${originStopIds.length} '
+      'destinationStops=${destinationStopIds.length} plans=${transitPlans.length}',
+      name: 'Rumbo',
     );
     return _finalizePlans([?walkingOnly, ...transitPlans], request);
   }

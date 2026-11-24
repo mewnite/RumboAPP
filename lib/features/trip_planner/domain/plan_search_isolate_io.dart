@@ -31,7 +31,14 @@ Future<List<TripPlan>> runPlanSearch(
     );
     cancellation?.attach(() => isolate.kill(priority: Isolate.immediate));
 
+    final deserialWatch = Stopwatch()..start();
     final message = await resultPort.first;
+    deserialWatch.stop();
+    developer.log(
+      '[performance] plan_search_isolate_deserialize='
+      '${deserialWatch.elapsedMilliseconds}ms',
+      name: 'Rumbo',
+    );
     totalWatch.stop();
     developer.log(
       '[performance] plan_search_isolate_total='
