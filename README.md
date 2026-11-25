@@ -11,7 +11,7 @@ en el dispositivo.
 La forma más sencilla de probar Rumbo es instalar una versión publicada:
 
 - **[Abrir la última release](https://github.com/mewnite/RumboAPP/releases/latest)**
-- **[Descargar Rumbo v1.0.0 APK](https://github.com/mewnite/RumboAPP/releases/download/v1.0.0/Rumbo-v1.0.0-release.apk)**
+- **[Descargar Rumbo v1.0.2 APK](https://github.com/mewnite/RumboAPP/releases/download/v1.0.2/app-release.apk)** 
 - En la página de release, descargá el archivo cuyo nombre termine en
   `-arm64-v8a-release.apk` para teléfonos Android actuales; elegí
   `-armeabi-v7a-release.apk` o `-x86_64-release.apk` solo si tu dispositivo lo
