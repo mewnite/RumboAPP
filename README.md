@@ -43,7 +43,7 @@ La forma más sencilla de instalar Rumbo es descargar una APK desde GitHub.
 **Enlaces de descarga:**
 
 - [🚀 Descargar última versión](https://github.com/mewnite/RumboAPP/releases/latest)
-- [📦 Descargar Rumbo v1.0.2 APK](https://github.com/mewnite/RumboAPP/releases/download/v1.0.2/app-release.apk)
+- [📦 Descargar Rumbo v1.0.3 APK](https://github.com/mewnite/RumboAPP/releases/download/v1.0.2/app-release.apk)
 - [📋 Ver todas las versiones](https://github.com/mewnite/RumboAPP/releases)
 
 ### Cómo instalar
