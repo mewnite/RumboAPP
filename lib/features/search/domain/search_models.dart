@@ -9,6 +9,8 @@ enum SearchEntityKind {
   intersection,
   poi,
   neighborhood,
+  street,
+  geographicArea,
   favorite,
   recentSearch,
 }

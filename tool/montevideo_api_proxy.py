@@ -72,6 +72,43 @@ MONTEVIDEO_GEOCODING_VIEWBOX = "-56.4048,-34.7167,-55.9955,-34.9271"
 # location bias, never the user's GPS position.
 URUGUAY_GEOCODING_BOUNDS = (-58.5, -35.2, -53.0, -30.0)
 MONTEVIDEO_GEOCODING_BIAS = (-34.9037, -56.1882)
+MONTEVIDEO_POI_CATALOG = {
+    "auditorio nacional adela reta": {
+        "official_name": "Auditorio Nacional Adela Reta",
+        "aliases": ("SODRE", "Auditorio Adela Reta"),
+        "category": "amenity:theatre",
+    },
+    "nuevo centro shopping": {
+        "official_name": "Nuevo Centro Shopping",
+        "aliases": ("Nuevo Centro", "Nuevo Centro Montevideo"),
+        "category": "shop:mall",
+    },
+    "catedral metropolitana de montevideo": {
+        "official_name": "Catedral Metropolitana",
+        "aliases": ("Catedral Metropolitana de Montevideo", "Catedral de Montevideo"),
+        "category": "amenity:place_of_worship",
+    },
+    "teatro solis": {
+        "official_name": "Teatro Solís",
+        "aliases": ("Teatro Solis"),
+        "category": "amenity:theatre",
+    },
+    "estadio centenario": {
+        "official_name": "Estadio Centenario",
+        "aliases": ("Estadio Centenario",),
+        "category": "leisure:stadium",
+    },
+    "shopping punta carretas": {
+        "official_name": "Shopping Punta Carretas",
+        "aliases": ("Punta Carretas Shopping",),
+        "category": "shop:mall",
+    },
+    "palacio salvo": {
+        "official_name": "Palacio Salvo",
+        "aliases": ("Edificio Palacio Salvo",),
+        "category": "building:palace",
+    },
+}
 # Accepted from the app's place sources. The proxy builds its own upstream
 # query, so these only describe the client request and never reach Nominatim
 # verbatim.
@@ -134,6 +171,23 @@ def geocoding_query(search: str) -> str:
         flags=re.IGNORECASE,
     )
     normalized = re.sub(r"\s+", " ", normalized).strip()
+    catalog_query = re.sub(r"\s+", " ", normalized).strip().casefold()
+    catalog_match = next(
+        (
+            record
+            for canonical, record in MONTEVIDEO_POI_CATALOG.items()
+            if catalog_query == canonical
+            or any(
+                catalog_query == unicodedata.normalize("NFKD", alias).encode(
+                    "ascii", "ignore"
+                ).decode("ascii").casefold()
+                for alias in record["aliases"]
+            )
+        ),
+        None,
+    )
+    if catalog_match is not None:
+        normalized = catalog_match["official_name"]
     match = INTERSECTION_QUERY.match(normalized)
     scoped_search = (
         f"{match.group(1).strip()} & {match.group(2).strip()}"
@@ -143,6 +197,37 @@ def geocoding_query(search: str) -> str:
     if MONTEVIDEO_CONTEXT.search(scoped_search):
         return scoped_search
     return f"{scoped_search}, Montevideo, Uruguay"
+
+
+def classify_place_query(search: str) -> str:
+    """Classify query structure without treating provider matches as evidence."""
+    normalized = ApiProxy._normalize_place_text(search)
+    if INTERSECTION_QUERY.match(normalized):
+        return "intersection"
+    if ApiProxy._address_query(normalized) is not None:
+        return "address"
+    if re.search(
+        r"\brambla\b|\bplaya\b|\bbahia\b",
+        normalized,
+    ):
+        return "geographic_area"
+    if re.search(
+        r"\bbarrio\b|\bciudad vieja\b|\bpocitos\b|\bparque rodo\b",
+        normalized,
+    ):
+        return "neighborhood"
+    if re.search(
+        r"\b(shopping|teatro|estadio|catedral|auditorio|terminal|mercado|"
+        r"aeropuerto|hospital|palacio|plaza|mercado)\b",
+        normalized,
+    ):
+        return "poi"
+    if re.search(
+        r"\b(avenida|bulevar|camino|rambla|calle|pasaje|general)\b",
+        normalized,
+    ):
+        return "street"
+    return "unknown"
 
 
 class ApiError(Exception):
@@ -625,7 +710,13 @@ class ApiProxy:
                 default=0,
             )
             text_score = best_coverage * 75
-        kind_score = 100 if kind == "poi" else 70 if kind == "address" else 40
+        kind_score = (
+            100
+            if kind in {"poi", "geographicArea", "neighborhood"}
+            else 70
+            if kind in {"address", "street"}
+            else 40
+        )
         precision_score = 100 if precision == "exactDoorNumber" else 60
         locality_score = 100 if "montevideo" in city.casefold() else 70
         distance = math.sqrt(
@@ -725,6 +816,41 @@ class ApiProxy:
             if name and official_name and name.casefold() != official_name.casefold():
                 aliases.append(name)
             title_name = official_name or name
+            if (
+                self._normalize_place_text(search) == "sodre"
+                and self._normalize_place_text(title_name)
+                == "auditorio nacional adela reta"
+            ):
+                aliases.append("SODRE")
+            query_catalog = next(
+                (
+                    record
+                    for canonical, record in MONTEVIDEO_POI_CATALOG.items()
+                    if (
+                        self._normalize_place_text(search)
+                        in {
+                            canonical,
+                            *[
+                                self._normalize_place_text(alias)
+                                for alias in record["aliases"]
+                            ],
+                        }
+                        or self._normalize_place_text(title_name)
+                        in {
+                            canonical,
+                            *[
+                                self._normalize_place_text(alias)
+                                for alias in record["aliases"]
+                            ],
+                        }
+                    )
+                ),
+                None,
+            )
+            if query_catalog is not None:
+                aliases.extend(query_catalog["aliases"])
+                if not official_name:
+                    official_name = title_name
             category = f"{osm_key}:{osm_value}".strip(":")
             neighborhood = next(
                 (
@@ -820,7 +946,21 @@ class ApiProxy:
                 kind = self._photon_kind(osm_key, osm_value)
                 if self._photon_text_score(search, [title, *aliases]) < 50:
                     continue
-                precision = "rooftopPoi" if kind == "poi" else "streetSegment"
+                query_kind = classify_place_query(search)
+                if query_kind == "geographic_area":
+                    kind = "geographicArea"
+                    precision = "approximateArea"
+                elif query_kind == "neighborhood":
+                    kind = "neighborhood"
+                    precision = "approximateArea"
+                elif query_kind == "street":
+                    kind = "street"
+                    precision = "streetSegment"
+                else:
+                    precision = {
+                        "poi": "rooftopPoi",
+                        "neighborhood": "approximateArea",
+                    }.get(kind, "streetSegment")
                 text_for_score = search
 
             if intersection:
@@ -908,6 +1048,13 @@ class ApiProxy:
     def _photon_kind(osm_key: str, osm_value: str) -> str:
         if osm_key in {"highway", "road"}:
             return "address"
+        if osm_key == "boundary" and osm_value in {
+            "neighborhood",
+            "neighbourhood",
+            "suburb",
+            "quarter",
+        }:
+            return "neighborhood"
         if osm_key in {"place"}:
             if osm_value in {"suburb", "neighbourhood", "quarter"}:
                 return "neighborhood"

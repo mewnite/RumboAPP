@@ -186,11 +186,45 @@ class SmartRankingEngine {
   }
 
   double _typeScore(SearchResult candidate, ParsedQuery query) {
+    if (query.intent == QueryIntentKind.poi) {
+      return switch (candidate.kind) {
+        SearchEntityKind.poi => 100,
+        SearchEntityKind.address => 25,
+        SearchEntityKind.stop => 20,
+        _ => 10,
+      };
+    }
+    if (query.intent == QueryIntentKind.neighborhood) {
+      return switch (candidate.kind) {
+        SearchEntityKind.neighborhood => 100,
+        SearchEntityKind.geographicArea => 60,
+        SearchEntityKind.poi => 20,
+        _ => 10,
+      };
+    }
+    if (query.intent == QueryIntentKind.street) {
+      return switch (candidate.kind) {
+        SearchEntityKind.address => 100,
+        SearchEntityKind.street => 100,
+        SearchEntityKind.poi => 15,
+        _ => 10,
+      };
+    }
+    if (query.intent == QueryIntentKind.geographicArea) {
+      return switch (candidate.kind) {
+        SearchEntityKind.geographicArea => 100,
+        SearchEntityKind.neighborhood => 65,
+        SearchEntityKind.poi => 30,
+        _ => 10,
+      };
+    }
     if (query.intent == QueryIntentKind.addressWithNumber) {
       return switch (candidate.kind) {
         SearchEntityKind.address => 100,
         SearchEntityKind.poi => 20,
         SearchEntityKind.neighborhood => 10,
+        SearchEntityKind.street => 30,
+        SearchEntityKind.geographicArea => 5,
         _ => 0,
       };
     }
@@ -214,6 +248,10 @@ class SmartRankingEngine {
         return 70.0;
       case SearchEntityKind.intersection:
         return 70.0;
+      case SearchEntityKind.street:
+        return 75.0;
+      case SearchEntityKind.geographicArea:
+        return 65.0;
       case SearchEntityKind.poi:
         return 90.0;
       case SearchEntityKind.favorite:
@@ -285,6 +323,17 @@ class SmartRankingEngine {
     SearchResult second,
     double distanceMeters,
   ) {
+    final sameConfirmedAddress =
+        first.kind == SearchEntityKind.address &&
+        second.kind == SearchEntityKind.address &&
+        first.precision == GeoPrecision.exactDoorNumber &&
+        second.precision == GeoPrecision.exactDoorNumber &&
+        queryParser.normalizeText(first.title) ==
+            queryParser.normalizeText(second.title) &&
+        _localityScore(first) == 100 &&
+        _localityScore(second) == 100;
+    if (sameConfirmedAddress) return true;
+
     final firstNames = _normalizedNames(first);
     final secondNames = _normalizedNames(second);
     final exactNamesMatch = firstNames.any(secondNames.contains);
@@ -297,7 +346,8 @@ class SmartRankingEngine {
           _localityScore(second) == 100;
     }
 
-    final namesMatch = exactNamesMatch ||
+    final namesMatch =
+        exactNamesMatch ||
         firstNames.any(
           (firstName) => secondNames.any(
             (secondName) => _similarNames(firstName, secondName),

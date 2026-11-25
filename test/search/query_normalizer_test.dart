@@ -136,14 +136,27 @@ void main() {
 
     test('clasifica búsquedas generales y POIs', () {
       final q1 = parser.parse('Hospital de Clínicas');
-      expect(q1.intent, QueryIntentKind.general);
+      expect(q1.intent, QueryIntentKind.poi);
       expect(q1.normalized, 'hospital de clinicas');
 
       final q2 = parser.parse('Facultad de Ingeniería');
       expect(q2.intent, QueryIntentKind.general);
 
       final q3 = parser.parse('Pocitos');
-      expect(q3.intent, QueryIntentKind.general);
+      expect(q3.intent, QueryIntentKind.neighborhood);
+    });
+
+    test('clasifica calles, áreas geográficas y entidades conocidas', () {
+      expect(parser.parse('Avenida Italia').intent, QueryIntentKind.street);
+      expect(
+        parser.parse('Rambla de Montevideo').intent,
+        QueryIntentKind.geographicArea,
+      );
+      expect(
+        parser.parse('Catedral Metropolitana').intent,
+        QueryIntentKind.poi,
+      );
+      expect(parser.parse('Ciudad Vieja').intent, QueryIntentKind.neighborhood);
     });
 
     test('clasifica las once consultas geográficas requeridas', () {
@@ -176,14 +189,10 @@ void main() {
         'SODRE',
         'Estadio Centenario',
         'Terminal Tres Cruces',
-        'Parque Rodo',
       ]) {
-        expect(
-          parser.parse(query).intent,
-          QueryIntentKind.general,
-          reason: query,
-        );
+        expect(parser.parse(query).intent, QueryIntentKind.poi, reason: query);
       }
+      expect(parser.parse('Parque Rodo').intent, QueryIntentKind.neighborhood);
     });
   });
 }

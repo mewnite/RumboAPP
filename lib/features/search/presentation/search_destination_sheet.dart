@@ -481,6 +481,10 @@ class _SearchResultTile extends StatelessWidget {
         return Symbols.location_city_rounded;
       case SearchEntityKind.neighborhood:
         return Symbols.map_rounded;
+      case SearchEntityKind.street:
+        return Symbols.route_rounded;
+      case SearchEntityKind.geographicArea:
+        return Symbols.park_rounded;
       case SearchEntityKind.favorite:
         return Symbols.favorite_rounded;
       case SearchEntityKind.recentSearch:
@@ -540,6 +544,10 @@ class _SearchResultTile extends StatelessWidget {
       case SearchEntityKind.poi:
         return l10n.searchKindPoi;
       case SearchEntityKind.neighborhood:
+        return l10n.searchKindNeighborhood;
+      case SearchEntityKind.street:
+        return l10n.searchKindAddress;
+      case SearchEntityKind.geographicArea:
         return l10n.searchKindNeighborhood;
       case SearchEntityKind.favorite:
         return l10n.searchKindFavorite;

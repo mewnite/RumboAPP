@@ -16,7 +16,7 @@ from tool.montevideo_api_proxy import (
     Handler,
     load_env,
 )
-from tool.montevideo_api_proxy import geocoding_query
+from tool.montevideo_api_proxy import classify_place_query, geocoding_query
 from tool.fetch_seeds.fetch_seeds import feature_collection_to_overpass
 
 
@@ -123,6 +123,10 @@ class ApiProxyTest(unittest.TestCase):
             "shopping Nuevo Centro, Montevideo, Uruguay",
         )
         self.assertEqual(
+            geocoding_query("SODRE"),
+            "Auditorio Nacional Adela Reta, Montevideo, Uruguay",
+        )
+        self.assertEqual(
             geocoding_query("Av. Italia y Gral. Flores"),
             "avenida Italia & general Flores, Montevideo, Uruguay",
         )
@@ -138,6 +142,34 @@ class ApiProxyTest(unittest.TestCase):
             geocoding_query("Av. Italia 2450, Uruguay"),
             "avenida Italia 2450, Uruguay",
         )
+
+    def test_place_catalog_resolves_known_aliases_without_coordinates(self):
+        self.assertEqual(
+            geocoding_query("Catedral Metropolitana de Montevideo"),
+            "Catedral Metropolitana, Montevideo, Uruguay",
+        )
+        self.assertEqual(
+            geocoding_query("Nuevo Centro Shopping"),
+            "Nuevo Centro Shopping, Montevideo, Uruguay",
+        )
+        self.assertEqual(
+            geocoding_query("Teatro Solís"),
+            "Teatro Solís, Montevideo, Uruguay",
+        )
+
+    def test_place_query_classification_covers_geographic_intents(self):
+        cases = {
+            "Shopping Punta Carretas": "poi",
+            "Avenida Italia": "street",
+            "Rambla de Montevideo": "geographic_area",
+            "Ciudad Vieja": "neighborhood",
+            "18 de Julio y Ejido": "intersection",
+            "Avenida Italia 2450": "address",
+            "una consulta desconocida": "unknown",
+        }
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                self.assertEqual(classify_place_query(query), expected)
 
     def test_photon_normalizes_addresses_intersections_and_pois(self):
         fixture = Path("tool/test_fixtures/photon_montevideo.json").read_bytes()
@@ -237,7 +269,7 @@ class ApiProxyTest(unittest.TestCase):
             "SODRE": ("poi", "rooftopPoi"),
             "Estadio Centenario": ("poi", "rooftopPoi"),
             "Terminal Tres Cruces": ("poi", "rooftopPoi"),
-            "Parque Rodo": ("poi", "rooftopPoi"),
+            "Parque Rodo": ("neighborhood", "approximateArea"),
         }
 
         for query, (expected_kind, expected_precision) in expectations.items():
@@ -281,6 +313,61 @@ class ApiProxyTest(unittest.TestCase):
         self.assertEqual(result["street"], "Andes")
         self.assertEqual(result["externalId"], "osm:relation:9001")
         self.assertEqual(result["subtitle"], "Andes · Montevideo")
+
+    def test_photon_normalization_adds_known_sodre_alias(self):
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-56.1987, -34.9042],
+            },
+            "properties": {
+                "osm_id": 9002,
+                "osm_type": "R",
+                "osm_key": "amenity",
+                "osm_value": "theatre",
+                "name": 'Auditorio Nacional "Adela Reta"',
+                "street": "Andes",
+                "city": "Montevideo",
+            },
+        }
+        response = json.dumps(
+            {"type": "FeatureCollection", "features": [feature]}
+        ).encode()
+
+        result = json.loads(
+            self.proxy._normalize_photon_response(response, "SODRE")
+        )[0]
+
+        self.assertEqual(result["title"], 'Auditorio Nacional "Adela Reta"')
+        self.assertIn("SODRE", result["aliases"])
+
+    def test_photon_normalization_classifies_neighborhood_boundary(self):
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-56.1677, -34.9141],
+            },
+            "properties": {
+                "osm_id": 9003,
+                "osm_type": "R",
+                "osm_key": "boundary",
+                "osm_value": "neighborhood",
+                "name": "Parque Rodó",
+                "city": "Montevideo",
+            },
+        }
+        response = json.dumps(
+            {"type": "FeatureCollection", "features": [feature]}
+        ).encode()
+
+        result = json.loads(
+            self.proxy._normalize_photon_response(response, "Parque Rodo")
+        )[0]
+
+        self.assertEqual(result["kind"], "neighborhood")
+        self.assertEqual(result["precision"], "approximateArea")
 
     def test_photon_normalization_rejects_unrelated_or_unconfirmed_intersections(self):
         features = [

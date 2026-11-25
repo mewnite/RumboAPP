@@ -356,7 +356,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Plaza Independencia',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Plaza Independencia',
       targetLatitude: -34.906,
       targetLongitude: -56.199,
@@ -375,7 +375,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Plaza Cagancha',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Plaza Cagancha',
       targetLatitude: -34.905,
       targetLongitude: -56.191,
@@ -394,7 +394,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Portones Shopping',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Portones',
       targetLatitude: -34.881,
       targetLongitude: -56.083,
@@ -413,7 +413,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Punta Carretas Shopping',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Punta Carretas',
       targetLatitude: -34.923,
       targetLongitude: -56.158,
@@ -434,7 +434,7 @@ void main() {
     // 21-25: Puntos de Interés (POIs) y edificios públicos
     EvaluationTestCase(
       query: 'Hospital de Clínicas',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Hospital de Clínicas',
       targetLatitude: -34.891,
       targetLongitude: -56.151,
@@ -472,7 +472,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Palacio Legislativo',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Palacio Legislativo',
       targetLatitude: -34.891,
       targetLongitude: -56.187,
@@ -491,7 +491,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Estadio Centenario',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Estadio Centenario',
       targetLatitude: -34.894,
       targetLongitude: -56.153,
@@ -510,7 +510,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'Teatro Solís',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.poi,
       expectedPrimaryMatch: 'Teatro Solís',
       targetLatitude: -34.907,
       targetLongitude: -56.201,
@@ -531,7 +531,7 @@ void main() {
     // 26-30: Barrios, tolerancia ortográfica y variaciones
     EvaluationTestCase(
       query: 'Pocitos',
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.neighborhood,
       expectedPrimaryMatch: 'Pocitos',
       targetLatitude: -34.915,
       targetLongitude: -56.150,
@@ -550,7 +550,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'av italia', // sin tildes ni mayúsculas
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.street,
       expectedPrimaryMatch: 'Avenida Italia',
       targetLatitude: -34.88,
       targetLongitude: -56.14,
@@ -569,7 +569,7 @@ void main() {
     ),
     EvaluationTestCase(
       query: 'bvr artigas', // abreviatura informal
-      expectedIntent: QueryIntentKind.general,
+      expectedIntent: QueryIntentKind.street,
       expectedPrimaryMatch: 'Bulevar Artigas',
       targetLatitude: -34.89,
       targetLongitude: -56.16,

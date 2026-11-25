@@ -310,6 +310,54 @@ void main() {
   });
 
   group('SmartRankingEngine - Deduplicación espacial', () {
+    test('deduplica registros exactos de una misma dirección de puerta', () {
+      final query = parser.parse('Rivera');
+      const address1 = SearchResult(
+        id: 'osm:node:1',
+        kind: SearchEntityKind.address,
+        title: 'Avenida General Rivera 3245',
+        subtitle: 'Parque Batlle · Montevideo',
+        latitude: -34.8950,
+        longitude: -56.1600,
+        precision: GeoPrecision.exactDoorNumber,
+        source: SearchDataSource.openStreetMap,
+      );
+      const address2 = SearchResult(
+        id: 'osm:way:2',
+        kind: SearchEntityKind.address,
+        title: 'Avenida General Rivera 3245',
+        subtitle: 'Parque Batlle · Montevideo',
+        latitude: -34.8970,
+        longitude: -56.1620,
+        precision: GeoPrecision.exactDoorNumber,
+        source: SearchDataSource.openStreetMap,
+      );
+      const nearbyDifferentAddress = SearchResult(
+        id: 'osm:node:3',
+        kind: SearchEntityKind.address,
+        title: 'Avenida General Rivera 3250',
+        subtitle: 'Parque Batlle · Montevideo',
+        latitude: -34.8951,
+        longitude: -56.1601,
+        precision: GeoPrecision.exactDoorNumber,
+        source: SearchDataSource.openStreetMap,
+      );
+
+      final results = engine.rankAndDeduplicate(
+        candidates: [address1, address2, nearbyDifferentAddress],
+        query: query,
+      );
+
+      expect(results, hasLength(2));
+      expect(
+        results.map((result) => result.title),
+        containsAll([
+          'Avenida General Rivera 3245',
+          'Avenida General Rivera 3250',
+        ]),
+      );
+    });
+
     test('deduplica dos representaciones OSM del mismo barrio', () {
       final query = parser.parse('Parque Rodo');
       const suburb = SearchResult(

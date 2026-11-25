@@ -168,13 +168,18 @@ class RemoteGeocodingSource implements GeocodingRepository {
     if (item.containsKey('title') && item.containsKey('kind')) {
       var title = (item['title'] as String?)?.trim() ?? '';
       if (title.isEmpty) return null;
-      final kind = _parseKind(item['kind']?.toString());
+      final category = item['category']?.toString();
+      final kind = _parseStructuredKind(item['kind']?.toString(), category);
       final precision = _parsePrecision(item['precision']?.toString());
       final street = _firstNonEmpty([item['street']]);
       final houseNumber = _firstNonEmpty([item['houseNumber']]);
       final aliases = _readAliases(item['aliases']);
-      var resultPrecision = precision;
-      if (_isUnrequestedAtm(item['category']?.toString(), query)) {
+      var resultPrecision =
+          kind == SearchEntityKind.neighborhood ||
+              kind == SearchEntityKind.geographicArea
+          ? GeoPrecision.approximateArea
+          : precision;
+      if (_isUnrequestedAmenity(category, query)) {
         return null;
       }
 
@@ -261,7 +266,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
         : null;
     final osmType = item['type']?.toString().toLowerCase() ?? '';
     final osmCategory = item['category']?.toString().toLowerCase() ?? '';
-    if (_isUnrequestedAtm('$osmCategory:$osmType', query)) return null;
+    if (_isUnrequestedAmenity('$osmCategory:$osmType', query)) return null;
     final kind = _inferKindFromOsmType(osmType, osmCategory);
     final hasIntersectionGeometry =
         osmType == 'intersection' ||
@@ -495,6 +500,25 @@ class RemoteGeocodingSource implements GeocodingRepository {
     );
   }
 
+  SearchEntityKind _parseStructuredKind(String? kind, String? category) {
+    final normalizedCategory = category?.toLowerCase() ?? '';
+    if (kind == 'geographicArea') {
+      return SearchEntityKind.geographicArea;
+    }
+    if (kind == 'street') {
+      return SearchEntityKind.street;
+    }
+    if (normalizedCategory == 'boundary:neighborhood' ||
+        normalizedCategory == 'boundary:neighbourhood' ||
+        normalizedCategory == 'place:suburb' ||
+        normalizedCategory == 'place:neighborhood' ||
+        normalizedCategory == 'place:neighbourhood' ||
+        normalizedCategory == 'place:quarter') {
+      return SearchEntityKind.neighborhood;
+    }
+    return _parseKind(kind);
+  }
+
   GeoPrecision _parsePrecision(String? value) {
     return GeoPrecision.values.firstWhere(
       (e) => e.name == value,
@@ -541,12 +565,20 @@ class RemoteGeocodingSource implements GeocodingRepository {
     }
   }
 
-  bool _isUnrequestedAtm(String? category, ParsedQuery query) {
-    if (category == null || category.toLowerCase().split(':').last != 'atm') {
-      return false;
-    }
+  bool _isUnrequestedAmenity(String? category, ParsedQuery query) {
+    if (category == null) return false;
+    final value = category.toLowerCase().split(':').last;
     final normalizedQuery = _queryParser.normalizeText(query.raw);
-    return !normalizedQuery.contains('atm') &&
-        !normalizedQuery.contains('cajero');
+    final queryTokens = normalizedQuery.split(' ').toSet();
+    return switch (value) {
+      'atm' => !queryTokens.contains('atm') && !queryTokens.contains('cajero'),
+      'bicycle_rental' => !queryTokens.any(
+        {'bicicleta', 'bicicletas', 'bici', 'bicicletero', 'alquiler'}.contains,
+      ),
+      'parking' => !queryTokens.any(
+        {'parking', 'estacionamiento', 'estacionar'}.contains,
+      ),
+      _ => false,
+    };
   }
 }

@@ -4,6 +4,11 @@ enum QueryIntentKind {
   intersection,
   addressWithNumber,
   routeCode,
+  poi,
+  neighborhood,
+  street,
+  geographicArea,
+  unknown,
   general,
 }
 
@@ -59,6 +64,20 @@ class MontevideoQueryParser {
   };
   static const Map<String, String> _placeAliases = {
     'nuevocentro': 'nuevo centro',
+  };
+  static const Set<String> _knownPoiNames = {
+    'sodre',
+    'auditorio nacional adela reta',
+    'nuevo centro',
+    'nuevo centro shopping',
+    'nuevo centro montevideo',
+    'catedral metropolitana',
+    'catedral metropolitana de montevideo',
+    'teatro solis',
+    'estadio centenario',
+    'shopping punta carretas',
+    'punta carretas shopping',
+    'palacio salvo',
   };
 
   static final RegExp _diacritics = RegExp(r'[áàäâéèëêíìïîóòöôúùüûñ]');
@@ -248,6 +267,56 @@ class MontevideoQueryParser {
     }
 
     // 5. Búsqueda libre general
+    final neighborhoodPattern = RegExp(
+      r'\b(barrio|ciudad vieja|pocitos|parque rodó|parque rodo)\b',
+      caseSensitive: false,
+    );
+    if (neighborhoodPattern.hasMatch(normalized)) {
+      return ParsedQuery(
+        raw: rawQuery,
+        normalized: normalized,
+        intent: QueryIntentKind.neighborhood,
+      );
+    }
+
+    final geographicAreaPattern = RegExp(
+      r'\b(rambla|playa|bahía|bahia)\b',
+      caseSensitive: false,
+    );
+    if (geographicAreaPattern.hasMatch(normalized)) {
+      return ParsedQuery(
+        raw: rawQuery,
+        normalized: normalized,
+        intent: QueryIntentKind.geographicArea,
+      );
+    }
+
+    final poiPattern = RegExp(
+      r'\b(shopping|teatro|estadio|catedral|auditorio|terminal|mercado|'
+      r'aeropuerto|hospital|palacio|plaza)\b',
+      caseSensitive: false,
+    );
+    if (poiPattern.hasMatch(normalized) ||
+        _knownPoiNames.contains(normalized)) {
+      return ParsedQuery(
+        raw: rawQuery,
+        normalized: normalized,
+        intent: QueryIntentKind.poi,
+      );
+    }
+
+    final streetPattern = RegExp(
+      r'\b(avenida|bulevar|camino|rambla|calle|pasaje|general)\b',
+      caseSensitive: false,
+    );
+    if (streetPattern.hasMatch(normalized)) {
+      return ParsedQuery(
+        raw: rawQuery,
+        normalized: normalized,
+        intent: QueryIntentKind.street,
+      );
+    }
+
     return ParsedQuery(
       raw: rawQuery,
       normalized: normalized,

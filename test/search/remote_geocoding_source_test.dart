@@ -226,6 +226,82 @@ void main() {
       },
     );
 
+    test('normalizes structured neighborhood categories from Photon', () async {
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: MockClient(
+          (_) async => http.Response(
+            '['
+            '{"id":"osm:relation:1","kind":"poi","title":"Parque Rodó",'
+            '"category":"boundary:neighborhood","lat":-34.9141,"lon":-56.1677,'
+            '"precision":"rooftopPoi","source":"openStreetMap"},'
+            '{"id":"osm:way:2","kind":"poi","title":"Parque Rodó",'
+            '"category":"leisure:park","lat":-34.9155,"lon":-56.1675,'
+            '"precision":"rooftopPoi","source":"openStreetMap"},'
+            '{"id":"osm:node:3","kind":"neighborhood","title":"Parque Rodó",'
+            '"category":"place:suburb","lat":-34.9100,"lon":-56.1697,'
+            '"precision":"streetSegment","source":"openStreetMap"}'
+            ']',
+            200,
+          ),
+        ),
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(parser.parse('Parque Rodo'));
+      final boundary = results.singleWhere(
+        (result) => result.category == 'boundary:neighborhood',
+      );
+      final suburb = results.singleWhere(
+        (result) => result.category == 'place:suburb',
+      );
+
+      expect(boundary.kind, SearchEntityKind.neighborhood);
+      expect(boundary.precision, GeoPrecision.approximateArea);
+      expect(suburb.kind, SearchEntityKind.neighborhood);
+      expect(suburb.precision, GeoPrecision.approximateArea);
+    });
+
+    test(
+      'filters service POIs unless the query asks for that service',
+      () async {
+        final source = RemoteGeocodingSource(
+          endpoint: 'https://example.test/geocode',
+          client: MockClient((request) async {
+            final response = request.url.queryParameters['q'] == 'Teatro Solis'
+                ? '['
+                      '{"id":"bike","kind":"poi","title":"Teatro Solís",'
+                      '"category":"amenity:bicycle_rental","lat":-34.9081,'
+                      '"lon":-56.2000,"precision":"rooftopPoi"},'
+                      '{"id":"theatre","kind":"poi","title":"Teatro Solís",'
+                      '"category":"amenity:theatre","lat":-34.9078,'
+                      '"lon":-56.2010,"precision":"rooftopPoi"}'
+                      ']'
+                : '['
+                      '{"id":"parking","kind":"poi","title":"Punta Carretas Shopping",'
+                      '"category":"amenity:parking","lat":-34.9233,'
+                      '"lon":-56.1588,"precision":"rooftopPoi"},'
+                      '{"id":"mall","kind":"poi","title":"Punta Carretas Shopping",'
+                      '"category":"shop:mall","lat":-34.9239,'
+                      '"lon":-56.1585,"precision":"rooftopPoi"}'
+                      ']';
+            return http.Response(response, 200);
+          }),
+        );
+        addTearDown(source.close);
+
+        final theatre = await source.searchRemote(parser.parse('Teatro Solis'));
+        final shopping = await source.searchRemote(
+          parser.parse('Shopping Punta Carretas'),
+        );
+
+        expect(theatre, hasLength(1));
+        expect(theatre.single.category, 'amenity:theatre');
+        expect(shopping, hasLength(1));
+        expect(shopping.single.category, 'shop:mall');
+      },
+    );
+
     test('mantiene calle y número juntos en una dirección exacta', () async {
       final client = MockClient((request) async {
         expect(request.url.queryParameters['q'], 'faramiñán 801');

@@ -1,5 +1,31 @@
 # Búsqueda remota de direcciones
 
+## Arquitectura híbrida implementada
+
+La búsqueda clasifica primero el texto en dirección con puerta,
+intersección, POI, barrio, calle, área geográfica o consulta desconocida.
+El backend conserva nombres oficiales y alias verificables en un catálogo
+local de Montevideo, normaliza abreviaturas y expande alias antes de consultar
+Photon. El catálogo no contiene coordenadas propias: toda coordenada mostrada
+debe provenir de la respuesta geográfica confirmada por el proveedor.
+
+Fuentes incorporadas actualmente:
+
+- **OpenStreetMap**: datos geográficos y objetos indexados por Photon.
+- **Photon**: proveedor externo principal configurable mediante
+  `RUMBO_GEOCODING_URL`.
+- **Proxy de Render**: caché y normalización del contrato Rumbo.
+
+No se incorporó una base municipal de numeración ni geometrías oficiales de
+calles porque no se verificó un endpoint distribuible y estable en esta
+implementación. Tampoco se añadieron endpoints de datos oficiales sin URL,
+licencia o formato comprobados.
+
+Los alias conocidos resuelven variantes como SODRE, Nuevo Centro, Catedral
+Metropolitana y Teatro Solís, pero el resultado se crea únicamente si Photon
+devuelve un objeto que coincida con la entidad. Las consultas de intersección
+siguen exigiendo un cruce, junction o representación que contenga ambas calles.
+
 ## Consentimiento y flujo
 
 `remote_place_search_enabled` se guarda en `SharedPreferences`. Una instalación
@@ -119,3 +145,86 @@ La respuesta pública de Render continúa usando campos del formato Nominatim
 qué upstream atendió la solicitud; Photon **no se pudo confirmar como
 desplegado**. La prueba Android valida la experiencia contra el endpoint
 público actual, no el contrato Photon del proxy local.
+
+## Segunda ronda Photon en Android (2026-11-25)
+
+Se volvió a probar el endpoint público desde la app instalada en
+`emulator-5554`, con consentimiento de búsqueda online habilitado. Se probaron
+26 consultas en la interfaz (incluyendo la consulta inicial a Palacio
+Legislativo); las consultas finales tuvieron respuesta HTTP 200. El endpoint
+ahora devuelve el contrato normalizado de Rumbo (`id`, `kind`, `title`,
+`precision`, `category` y `source`), a diferencia de la respuesta Nominatim
+observada en la ronda anterior. No se inspeccionaron los ajustes ni logs
+privados de Render.
+
+| Consulta | Resultado visible en Android |
+|---|---|
+| `Palacio Legislativo` | Correcto: POI con nombre y Avenida de las Leyes, Aguada. |
+| `Estadio Centenario` | Correcto: POI con nombre y Avenida Doctor Américo Ricaldoni, Parque Batlle. |
+| `Terminal Tres Cruces` | Terminal como POI y parada STM por separado. |
+| `Parque Rodo` | Antes del ajuste: dos tarjetas POI con el mismo título, además del barrio. |
+| `SODRE` | Sin resultados. El endpoint respondió HTTP 200 vacío. |
+| `Mercado Agricola de Montevideo` | POI con nombre Mercado Agrícola de Montevideo y José L. Terra 2220. |
+| `Teatro Solis` | Antes del ajuste: el teatro y una estación de alquiler de bicis aparecían con el mismo nombre. |
+| `Hospital de Clinicas` | POI Hospital de Clínicas “Doctor Manuel Quintela”, en La Blanqueada. |
+| `Shopping Punta Carretas` | Antes del ajuste: dos tarjetas con el mismo nombre, una de parking y otra del shopping. |
+| `Aeropuerto Carrasco` | POI Aeropuerto Internacional de Carrasco; el contexto señala Colonia Nicolich. |
+| `18 de Julio 1234` | Avenida 18 de Julio 1234, marcada como dirección exacta. |
+| `Avenida Italia 2450` | Sin resultados. HTTP 200 vacío; `Italia 2450` devuelve solo un elemento sin número confirmado, no una dirección exacta utilizable. |
+| `Bulevar Artigas 1500` | Cuatro candidatos visibles, todos con «Número no confirmado · ubicación aproximada» y barrios distintos. |
+| `Colonia 1234` | Dirección exacta en Centro. |
+| `Rivera 3245` | Antes del ajuste: tres tarjetas duplicadas de Avenida General Rivera 3245, todas marcadas exactas. |
+| `18 de Julio y Ejido` | No confirmó la esquina; la interfaz lo indicó explícitamente. |
+| `Rivera esquina Soca` | No confirmó la esquina; la interfaz lo indicó explícitamente. |
+| `Bulevar Artigas y Garibaldi` | No confirmó la esquina; la interfaz lo indicó explícitamente. |
+| `Ejido y Colonia` | No confirmó la esquina; la interfaz lo indicó explícitamente. |
+| `Parque Batlle` | Parque y barrio aparecen como entidades distintas. |
+| `Rambla de Montevideo` | La API devolvió dos segmentos de rambla no relacionados (Punta Gorda y Pajas Blancas); Flutter no mostró resultados. |
+| `Ciudad Vieja` | Barrio correcto, pero también apareció un café cuyo nombre incluye Ciudad Vieja y una línea STM local. |
+| `Nuevo Centro Shopping` | Sin resultado útil. La API devolvió Naranjita Nuevo Centro (guardería), que Flutter descartó. |
+| `Plaza Independencia` | Plaza correcta primero; además aparecieron candidatos débiles, incluida otra plaza en Tres Cruces y una parada. |
+| `Catedral Metropolitana de Montevideo` | Sin resultados; HTTP 200 vacío. |
+| `Palacio Salvo` | POI correcto, en Plaza Independencia / Ciudad Vieja. |
+
+### Ajustes realizados y reprobados
+
+En la app local se corrigió la interpretación de `boundary:neighborhood`
+como barrio y su precisión como área aproximada. También se excluyen alquileres
+de bicicletas, parkings y cajeros cuando la consulta no pide ese servicio.
+Para direcciones con número confirmado, se deduplican registros con el mismo
+título normalizado y localidad, sin fusionar puertas distintas.
+
+Después de compilar e instalar el APK actualizado, se repitieron cuatro casos:
+
+- `Parque Rodo`: ya no hay dos POI iguales; parque y barrio permanecen
+  diferenciados. También puede aparecer Lago o Canteras del Parque Rodó.
+- `Teatro Solis`: queda una tarjeta del teatro; la estación de bicicletas
+  homónima desapareció.
+- `Shopping Punta Carretas`: queda una tarjeta del shopping; el parking
+  homónimo desapareció.
+- `Rivera 3245`: queda una sola tarjeta de dirección exacta.
+
+El proxy local ahora expande `SODRE` al nombre conocido del Auditorio Nacional
+Adela Reta y agrega el alias al resultado solo si el nombre del POI coincide.
+La consulta pública por `Auditorio Nacional Adela Reta` sí devolvió ese POI,
+lo que confirma que el objeto está indexado aunque el alias de búsqueda no lo
+esté.
+La respuesta pública de Render para `SODRE` sigue vacía: **este ajuste aún no
+está desplegado ni se validó en producción**.
+
+### Pendientes de datos / proveedor
+
+No se deben “arreglar” los cuatro cruces con coordenadas inferidas: Photon no
+devolvió una geometría que confirmara ambas calles. Para `Avenida Italia
+2450`, los resultados disponibles no confirman la puerta; para `Bulevar
+Artigas 1500` solo hay aproximaciones en barrios diferentes. `Rambla de
+Montevideo` produce coincidencias parciales en otras zonas. `Nuevo Centro
+Shopping`, `Catedral Metropolitana` y `SODRE` no tienen resultado útil en la
+respuesta pública actual. Son pendientes para revisar la configuración,
+índice y cobertura del proveedor; el alias SODRE requiere desplegar el cambio
+del proxy.
+
+El APK de esta ronda se compiló e instaló en el emulador. Las correcciones del
+cliente se verificaron contra el endpoint público. No se desplegó ningún
+cambio a Render; por lo tanto, los arreglos del proxy local no deben
+considerarse activos allí.
