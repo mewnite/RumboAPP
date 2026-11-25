@@ -58,6 +58,17 @@ class LiveBusesState {
       DateTime.now().difference(lastUpdatedAt!) > const Duration(seconds: 60);
   bool get shouldShowError => error != null && consecutiveFailures >= 2;
 
+  BusPosition? positionForBusCode(int busCode) {
+    BusPosition? latest;
+    for (final position in positions) {
+      if (position.busCode == busCode &&
+          (latest == null || position.receivedAt.isAfter(latest.receivedAt))) {
+        latest = position;
+      }
+    }
+    return latest;
+  }
+
   LiveBusesState copyWith({
     List<BusPosition>? positions,
     Set<String>? selectedLines,

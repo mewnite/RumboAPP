@@ -45,6 +45,34 @@ class _FailAfterSnapshotSource implements RealtimeBusSource {
 }
 
 void main() {
+  test('positionForBusCode retains the latest real report for a vehicle', () {
+    BusPosition bus(int variantId, DateTime receivedAt) => BusPosition(
+      sourceId: '266-$variantId',
+      companyCode: 1,
+      busCode: 266,
+      variantId: variantId,
+      lineLabel: 'A',
+      sublineDescription: 'A',
+      destinationCode: 'N',
+      destinationName: 'Norte',
+      lineTypeCode: 1,
+      lineTypeName: 'Regular',
+      subsystemCode: 1,
+      subsystemName: 'STM',
+      latitude: -34.9,
+      longitude: -56.1,
+      speedKmh: 20,
+      receivedAt: receivedAt,
+    );
+
+    final oldReport = bus(1, DateTime(2026, 6, 1, 8, 0));
+    final latestReport = bus(1, DateTime(2026, 6, 1, 8, 1));
+    final state = LiveBusesState(positions: [oldReport, latestReport]);
+
+    expect(state.positionForBusCode(266), same(latestReport));
+    expect(state.positionForBusCode(999), isNull);
+  });
+
   test(
     'never returns more than 60 buses even if the configured limit is higher',
     () {

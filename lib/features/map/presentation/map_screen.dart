@@ -152,6 +152,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   Set<int> _cachedBusVariantIds = const {};
   int? _cachedBusMarkerLimit;
   List<BusPosition>? _cachedVisibleBuses;
+  int? _selectedBusCode;
+  bool _followingSelectedBus = false;
+  int _ignoreNextCameraIdle = 0;
   TripPlan? _selectedTripPlan;
   String? _selectedTripOriginName;
   String? _selectedTripDestinationName;
@@ -376,6 +379,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   void _onMapEvent(MapEvent event) {
     if (event is MapEventCameraIdle) {
+      if (_ignoreNextCameraIdle > 0) {
+        _ignoreNextCameraIdle--;
+      } else if (_followingSelectedBus) {
+        _followingSelectedBus = false;
+        if (mounted) setState(() {});
+      }
       _updateMetersPerPixel();
       _updateVisibleBounds();
     } else if (event is MapEventClick) {
@@ -420,46 +429,142 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (nearest.isEmpty) return false;
 
     final bus = nearest.first.bus;
-    final now = DateTime.now();
-    final ageSeconds = now.difference(bus.receivedAt).inSeconds;
+    setState(() {
+      _selectedBusCode = bus.busCode;
+      _followingSelectedBus = false;
+    });
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: false,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RumboSheetHandle(label: bus.lineLabel),
-              LiveBusChip(
-                bus: bus,
-                matchedVariantIds: liveState.selectedVariantIds,
-                now: now,
-              ),
-              const SizedBox(height: AppTokens.space12),
-              Text(
-                bus.destinationName,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              Text(
-                '${bus.speedKmh.toStringAsFixed(0)} km/h',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              if (ageSeconds > 60)
-                Text(
-                  AppLocalizations.of(context).mapBusAge(ageSeconds),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+      builder: (context) => Consumer(
+        builder: (context, ref, child) {
+          final l10n = AppLocalizations.of(context);
+          final liveState = ref.watch(liveBusesControllerProvider);
+          final latest = liveState.positionForBusCode(bus.busCode);
+          final current = latest ?? bus;
+          final ageSeconds = DateTime.now()
+              .difference(current.receivedAt)
+              .inSeconds;
+          final stale = ageSeconds > 60;
+          return StatefulBuilder(
+            builder: (context, sheetSetState) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RumboSheetHandle(label: current.lineLabel),
+                    LiveBusChip(
+                      bus: current,
+                      matchedVariantIds: liveState.selectedVariantIds,
+                    ),
+                    const SizedBox(height: AppTokens.space12),
+                    Text(
+                      current.destinationName.isEmpty
+                          ? l10n.mapBusDestinationUnavailable
+                          : current.destinationName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppTokens.space4),
+                    Text(
+                      l10n.mapBusCompany(current.subsystemName),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    Text(
+                      l10n.mapBusVehicle(current.busCode),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    Text(
+                      l10n.mapBusVariant(current.variantId),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppTokens.space8),
+                    Text(
+                      stale
+                          ? l10n.mapBusGpsStale(ageSeconds)
+                          : l10n.mapBusGpsLive(
+                              current.speedKmh.toStringAsFixed(0),
+                            ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: stale
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                            : Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: AppTokens.space4),
+                    Text(
+                      l10n.mapBusEtaUnavailable,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: AppTokens.space12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: stale
+                            ? null
+                            : () {
+                                sheetSetState(() {
+                                  _followingSelectedBus =
+                                      !_followingSelectedBus;
+                                });
+                                if (_followingSelectedBus) {
+                                  unawaited(
+                                    _animateCameraToSelectedBus(current),
+                                  );
+                                }
+                              },
+                        icon: Icon(
+                          _followingSelectedBus
+                              ? Symbols.my_location_rounded
+                              : Symbols.navigation_rounded,
+                        ),
+                        label: Text(
+                          _followingSelectedBus
+                              ? l10n.mapBusStopFollowing
+                              : l10n.mapBusFollow,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
+    if (mounted) {
+      setState(() {
+        _selectedBusCode = null;
+        _followingSelectedBus = false;
+      });
+    }
     return true;
+  }
+
+  Future<void> _animateCameraToSelectedBus(BusPosition bus) async {
+    final controller = _mapController;
+    if (controller == null ||
+        !_mapStyleReady ||
+        !_followingSelectedBus ||
+        DateTime.now().difference(bus.receivedAt) >
+            const Duration(seconds: 60)) {
+      return;
+    }
+    _ignoreNextCameraIdle++;
+    try {
+      await controller.animateCamera(
+        center: Geographic(lon: bus.longitude, lat: bus.latitude),
+        zoom: 16,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.sizeOf(context).height * _sheetExtent,
+        ),
+      );
+    } on Exception {
+      if (_ignoreNextCameraIdle > 0) _ignoreNextCameraIdle--;
+    }
   }
 
   Future<void> _showNearestStop(MapEventClick event) async {
@@ -1128,30 +1233,60 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   List<Layer> _busLayers(List<BusPosition> buses) {
     if (buses.isEmpty) return const [];
-    final points = [
-      for (final bus in buses)
-        Feature<Point>(
-          geometry: Point(Geographic(lon: bus.longitude, lat: bus.latitude)),
+    final normalPoints = <Feature<Point>>[];
+    final selectedPoints = <Feature<Point>>[];
+    for (final bus in buses) {
+      final point = Feature<Point>(
+        geometry: Point(Geographic(lon: bus.longitude, lat: bus.latitude)),
+      );
+      if (bus.busCode == _selectedBusCode) {
+        selectedPoints.add(point);
+      } else {
+        normalPoints.add(point);
+      }
+    }
+    final layers = <Layer>[];
+    if (normalPoints.isNotEmpty) {
+      layers.addAll([
+        CircleLayer(
+          points: normalPoints,
+          radius: 10,
+          color: AppColors.lime,
+          strokeWidth: 2,
+          strokeColor: AppColors.surface,
         ),
-    ];
-    return [
-      CircleLayer(
-        points: points,
-        radius: 10,
-        color: AppColors.lime,
-        strokeWidth: 2,
-        strokeColor: AppColors.surface,
-      ),
-      MarkerLayer(
-        points: points,
-        textField: '●',
-        textFont: const ['Open Sans Regular', 'Arial Unicode MS Regular'],
-        textSize: 11,
-        textColor: AppColors.ink,
-        textAllowOverlap: true,
-        textIgnorePlacement: true,
-      ),
-    ];
+        MarkerLayer(
+          points: normalPoints,
+          textField: '●',
+          textFont: const ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          textSize: 11,
+          textColor: AppColors.ink,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+        ),
+      ]);
+    }
+    if (selectedPoints.isNotEmpty) {
+      layers.addAll([
+        CircleLayer(
+          points: selectedPoints,
+          radius: 15,
+          color: AppColors.rumbo,
+          strokeWidth: 4,
+          strokeColor: AppColors.lime,
+        ),
+        MarkerLayer(
+          points: selectedPoints,
+          textField: '●',
+          textFont: const ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          textSize: 13,
+          textColor: AppColors.ivory,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+        ),
+      ]);
+    }
+    return layers;
   }
 
   List<BusPosition> _visibleBusesFor(
@@ -1753,6 +1888,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final routesByStop =
         stopRoutes.asData?.value ?? const <String, List<Route>>{};
     final liveBuses = ref.watch(liveBusesControllerProvider);
+    ref.listen(liveBusesControllerProvider, (previous, next) {
+      final busCode = _selectedBusCode;
+      if (!_followingSelectedBus || busCode == null) return;
+      final latest = next.positionForBusCode(busCode);
+      if (latest == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_animateCameraToSelectedBus(latest));
+      });
+    });
     final activeTrip = ref.watch(activeTripControllerProvider);
     final selectedRoute = _selectedRoute;
     final Map<String, Route> selectedRoutes = selectedRoute == null

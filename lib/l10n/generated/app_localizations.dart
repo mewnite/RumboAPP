@@ -589,6 +589,60 @@ abstract class AppLocalizations {
   /// **'hace {seconds} s'**
   String mapBusAge(int seconds);
 
+  /// No description provided for @mapBusCompany.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Empresa: {company}'**
+  String mapBusCompany(String company);
+
+  /// No description provided for @mapBusVehicle.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Vehículo: {vehicle}'**
+  String mapBusVehicle(int vehicle);
+
+  /// No description provided for @mapBusVariant.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Variante: {variant}'**
+  String mapBusVariant(int variant);
+
+  /// No description provided for @mapBusDestinationUnavailable.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Destino no informado por STM'**
+  String get mapBusDestinationUnavailable;
+
+  /// No description provided for @mapBusGpsLive.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'GPS en vivo · {speed} km/h'**
+  String mapBusGpsLive(String speed);
+
+  /// No description provided for @mapBusGpsStale.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'GPS antiguo · última transmisión hace {seconds} s'**
+  String mapBusGpsStale(int seconds);
+
+  /// No description provided for @mapBusEtaUnavailable.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Estimación de llegada no disponible'**
+  String get mapBusEtaUnavailable;
+
+  /// No description provided for @mapBusFollow.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Seguir ómnibus'**
+  String get mapBusFollow;
+
+  /// No description provided for @mapBusStopFollowing.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Dejar de seguir'**
+  String get mapBusStopFollowing;
+
   /// No description provided for @mapLiveError.
   ///
   /// In es_UY, this message translates to:

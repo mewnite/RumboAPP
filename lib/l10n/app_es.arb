@@ -132,6 +132,40 @@
       }
     }
   },
+  "mapBusCompany": "Empresa: {company}",
+  "@mapBusCompany": {
+    "placeholders": {
+      "company": {"type": "String"}
+    }
+  },
+  "mapBusVehicle": "Vehículo: {vehicle}",
+  "@mapBusVehicle": {
+    "placeholders": {
+      "vehicle": {"type": "int"}
+    }
+  },
+  "mapBusVariant": "Variante: {variant}",
+  "@mapBusVariant": {
+    "placeholders": {
+      "variant": {"type": "int"}
+    }
+  },
+  "mapBusDestinationUnavailable": "Destino no informado por STM",
+  "mapBusGpsLive": "GPS en vivo · {speed} km/h",
+  "@mapBusGpsLive": {
+    "placeholders": {
+      "speed": {"type": "String"}
+    }
+  },
+  "mapBusGpsStale": "GPS antiguo · última transmisión hace {seconds} s",
+  "@mapBusGpsStale": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "mapBusEtaUnavailable": "Estimación de llegada no disponible",
+  "mapBusFollow": "Seguir ómnibus",
+  "mapBusStopFollowing": "Dejar de seguir",
   "mapLiveError": "No se pudo actualizar el tiempo real: {message}",
   "@mapLiveError": {
     "placeholders": {

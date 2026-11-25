@@ -26,6 +26,20 @@ Metropolitana y Teatro Solís, pero el resultado se crea únicamente si Photon
 devuelve un objeto que coincida con la entidad. Las consultas de intersección
 siguen exigiendo un cruce, junction o representación que contenga ambas calles.
 
+## Seguimiento de ómnibus en el mapa
+
+El mapa selecciona marcadores reales de la API STM y mantiene visible una
+tarjeta compacta con línea, destino, empresa, variante, vehículo y transmisión
+GPS. Los datos se actualizan desde el mismo snapshot compartido del controlador
+de ómnibus; no se genera una solicitud independiente al seleccionar o seguir
+un vehículo.
+
+El seguimiento activa una reorientación suave de la cámara hacia la posición
+reciente. Una posición con más de 60 segundos se identifica como antigua y no
+permite activar el seguimiento. El movimiento manual suspende el seguimiento
+automático hasta que el usuario lo reactive. Las estimaciones de llegada no se
+calculan ni se presentan si el STM no entrega una ETA verificable.
+
 ## Consentimiento y flujo
 
 `remote_place_search_enabled` se guarda en `SharedPreferences`. Una instalación

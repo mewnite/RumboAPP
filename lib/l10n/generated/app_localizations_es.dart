@@ -295,6 +295,43 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String mapBusCompany(String company) {
+    return 'Empresa: $company';
+  }
+
+  @override
+  String mapBusVehicle(int vehicle) {
+    return 'Vehículo: $vehicle';
+  }
+
+  @override
+  String mapBusVariant(int variant) {
+    return 'Variante: $variant';
+  }
+
+  @override
+  String get mapBusDestinationUnavailable => 'Destino no informado por STM';
+
+  @override
+  String mapBusGpsLive(String speed) {
+    return 'GPS en vivo · $speed km/h';
+  }
+
+  @override
+  String mapBusGpsStale(int seconds) {
+    return 'GPS antiguo · última transmisión hace $seconds s';
+  }
+
+  @override
+  String get mapBusEtaUnavailable => 'Estimación de llegada no disponible';
+
+  @override
+  String get mapBusFollow => 'Seguir ómnibus';
+
+  @override
+  String get mapBusStopFollowing => 'Dejar de seguir';
+
+  @override
   String mapLiveError(String message) {
     return 'No se pudo actualizar el tiempo real: $message';
   }
@@ -1567,6 +1604,43 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String mapBusAge(int seconds) {
     return 'hace $seconds s';
   }
+
+  @override
+  String mapBusCompany(String company) {
+    return 'Empresa: $company';
+  }
+
+  @override
+  String mapBusVehicle(int vehicle) {
+    return 'Vehículo: $vehicle';
+  }
+
+  @override
+  String mapBusVariant(int variant) {
+    return 'Variante: $variant';
+  }
+
+  @override
+  String get mapBusDestinationUnavailable => 'Destino no informado por STM';
+
+  @override
+  String mapBusGpsLive(String speed) {
+    return 'GPS en vivo · $speed km/h';
+  }
+
+  @override
+  String mapBusGpsStale(int seconds) {
+    return 'GPS antiguo · última transmisión hace $seconds s';
+  }
+
+  @override
+  String get mapBusEtaUnavailable => 'Estimación de llegada no disponible';
+
+  @override
+  String get mapBusFollow => 'Seguir ómnibus';
+
+  @override
+  String get mapBusStopFollowing => 'Dejar de seguir';
 
   @override
   String mapLiveError(String message) {
