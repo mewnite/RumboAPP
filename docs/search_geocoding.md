@@ -49,16 +49,30 @@ El proxy Python configura un `User-Agent` identificable
 24 horas. Para esta verificación se hizo exactamente una llamada nueva para
 `shopping nuevocentro`; no se repitió ninguna consulta anterior.
 
-El endpoint de la app envía únicamente `q`; el proxy añade contexto
-“Montevideo, Uruguay” y configura `countrycodes=uy`, `format=jsonv2`,
-`addressdetails=1` y `limit=5`.
+El endpoint público de la app sigue recibiendo únicamente `q`. El código del
+proxy consulta Photon (`https://photon.komoot.io/api/`) por defecto y convierte
+su GeoJSON al contrato enriquecido que consume Flutter. Esto describe la
+configuración del proxy en el repositorio, no confirma qué proveedor está
+desplegado en Render. Para priorizar
+Montevideo envía una ubicación fija de sesgo en
+`lat=-34.9037&lon=-56.1882`; nunca envía la ubicación GPS de la persona.
+Limita las búsquedas a Uruguay con `bbox=-58.5,-35.2,-53.0,-30.0`.
 
-El proxy ahora agrega `viewbox=-56.4048,-34.7167,-55.9955,-34.9271` y
-`bounded=1` para priorizar y acotar al área de Montevideo cubierta por la seed
-de transporte. Normaliza acentos, marcas de número como `n°`, abreviaturas
-locales (por ejemplo, `Av.` y `Gral.`) y el alias `nuevocentro`. Los cambios
-están en el proxy Python y en el Worker de Cloudflare; se verificaron con
-pruebas locales simuladas, no con nuevas llamadas a Render.
+El proxy normaliza acentos, marcas de número como `n°`, abreviaturas locales
+(por ejemplo, `Av.` y `Gral.`) y el alias `nuevocentro`. Las direcciones con
+puerta conservan el número confirmado por Photon; las demás se marcan como
+`unconfirmedDoorNumber`. Las intersecciones solo se devuelven si el resultado
+contiene las dos calles o identifica explícitamente un cruce.
+
+En Render se puede configurar `RUMBO_GEOCODING_URL` con un servicio compatible.
+El predeterminado es Photon y no requiere API key. Se conserva compatibilidad
+con una URL de Nominatim configurada explícitamente. Las respuestas se
+cachean 24 horas y la caché obsoleta se reutiliza si el proveedor falla.
+
+Los fixtures de Photon bajo `tool/test_fixtures/` son sintéticos y solo sirven
+para pruebas automatizadas; sus IDs y coordenadas no son datos oficiales.
+Render debe volver a verificarse tras desplegar antes de afirmar que Photon
+está activo allí.
 
 ## Errores, espera y caché
 
@@ -68,3 +82,40 @@ búsqueda actual. Se cachean hasta 20 consultas en memoria y los destinos
 seleccionados se guardan en búsquedas recientes locales. HTTP 429 y timeout
 se propagan a la interfaz como error explícito; ya no se degradan
 silenciosamente a una lista vacía.
+
+## Validación final en Android
+
+Se instaló el APK debug en `emulator-5554`, se habilitó la búsqueda en línea
+mediante el consentimiento de la app y se ejecutaron las once consultas
+solicitadas. Las respuestas HTTP de esta ronda fueron 200. La tabla refleja
+las tarjetas visibles en Flutter, no solo el resultado HTTP.
+
+| Consulta | Resultado observado en el emulador |
+|---|---|
+| `18 de Julio 1234` | Una tarjeta con ese texto; «Número no confirmado · ubicación aproximada», en Centro. No se confirmó la puerta. |
+| `Avenida Italia 2450` | Cuatro tarjetas aproximadas con el mismo título, en Malvín Nuevo, La Blanqueada, Malvín y Carrasco Norte. Ninguna confirma el número. |
+| `Bulevar Artigas 1500` | Cuatro tarjetas aproximadas, en Parque Rodó, Bella Vista, Atahualpa y Jacinto Vera. Ninguna confirma el número. |
+| `18 de Julio y Ejido` | Sin resultado remoto visible; no se mostró una esquina confirmada. |
+| `Rivera esquina Soca` | Sin resultado remoto visible; no se mostró una esquina confirmada. |
+| `Bulevar Artigas & Garibaldi` | Sin resultado remoto visible; no se mostró una esquina confirmada. |
+| `Palacio Legislativo` | Una tarjeta titulada «Palacio Legislativo», categoría Punto de interés, con Avenida de las Leyes y Aguada. |
+| `SODRE` | Sin resultado visible. |
+| `Estadio Centenario` | Una tarjeta titulada «Estadio Centenario», categoría Punto de interés, con Avenida Doctor Américo Ricaldoni y Parque Batlle. |
+| `Terminal Tres Cruces` | En la versión final: una tarjeta Punto de interés para la terminal y otra «Parada de ómnibus». Se descartó el cajero que el proveedor también nombraba «Terminal Tres Cruces». |
+| `Parque Rodo` | Una tarjeta del parque y una del barrio. Se eliminó una representación duplicada del mismo barrio; el parque y el barrio se conservaron como objetos distintos. |
+
+Se seleccionó «Parque Rodó» y quedó como destino en el campo «Hasta» del
+planificador. La búsqueda local de paradas seguía disponible. En las
+intersecciones sin resultado no se fabricaron coordenadas.
+
+Los cuatro candidatos aproximados para Avenida Italia y Bulevar Artigas
+siguen siendo una limitación: el proveedor devuelve ubicaciones distintas
+para una puerta que no confirma. Se identifican como aproximadas, pero la
+persona debe elegir entre barrios alejados; no se deben presentar como cuatro
+direcciones exactas ni colapsarlas únicamente por cercanía.
+
+La respuesta pública de Render continúa usando campos del formato Nominatim
+(`place_id`, `osm_type`, `osm_id`, `display_name` y `address`). Esto no prueba
+qué upstream atendió la solicitud; Photon **no se pudo confirmar como
+desplegado**. La prueba Android valida la experiencia contra el endpoint
+público actual, no el contrato Photon del proxy local.

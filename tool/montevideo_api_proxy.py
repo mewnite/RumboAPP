@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import io
 import logging
+import math
 import os
 import re
 import tempfile
@@ -31,7 +32,7 @@ PLACE_SEARCH_CACHE_SECONDS = 24 * 60 * 60
 MAX_GTFS_BYTES = 100 * 1024 * 1024
 PLACE_SEARCH_URL = os.environ.get(
     "RUMBO_GEOCODING_URL",
-    "https://nominatim.openstreetmap.org/search",
+    "https://photon.komoot.io/api/",
 )
 OVERPASS_URL = os.environ.get(
     "RUMBO_OVERPASS_URL",
@@ -67,6 +68,10 @@ RUMBO_USER_AGENT = "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)"
 # Nominatim viewbox order is west,north,east,south; bounds follow the
 # Montevideo-area transit seed and are intentionally only an approximate bias.
 MONTEVIDEO_GEOCODING_VIEWBOX = "-56.4048,-34.7167,-55.9955,-34.9271"
+# Uruguay bounds used as a hard geographic filter. Montevideo receives a fixed
+# location bias, never the user's GPS position.
+URUGUAY_GEOCODING_BOUNDS = (-58.5, -35.2, -53.0, -30.0)
+MONTEVIDEO_GEOCODING_BIAS = (-34.9037, -56.1882)
 # Accepted from the app's place sources. The proxy builds its own upstream
 # query, so these only describe the client request and never reach Nominatim
 # verbatim.
@@ -85,7 +90,7 @@ MONTEVIDEO_CONTEXT = re.compile(r"\b(?:montevideo|uruguay)\b", re.IGNORECASE)
 
 
 def geocoding_query(search: str) -> str:
-    """Normalize local address syntax and add city context for Nominatim."""
+    """Normalize local address syntax and add city context for geocoders."""
     normalized = unicodedata.normalize("NFKD", search)
     normalized = "".join(
         character
@@ -443,8 +448,476 @@ class ApiProxy:
                 )
         return search
 
+    @staticmethod
+    def _normalize_place_text(value: str) -> str:
+        normalized = unicodedata.normalize("NFKD", value)
+        normalized = "".join(
+            character
+            for character in normalized
+            if not unicodedata.combining(character)
+        )
+        normalized = re.sub(r"[^a-zA-Z0-9\s]", " ", normalized).casefold()
+        abbreviations = {
+            "av": "avenida",
+            "avda": "avenida",
+            "bvar": "bulevar",
+            "bvr": "bulevar",
+            "bv": "bulevar",
+            "gral": "general",
+            "cno": "camino",
+            "dr": "doctor",
+            "sta": "santa",
+            "sto": "santo",
+            "pje": "pasaje",
+            "pza": "plaza",
+            "rbla": "rambla",
+        }
+        tokens = re.sub(r"\s+", " ", normalized).strip().split()
+        return " ".join(abbreviations.get(token, token) for token in tokens)
+
+    @classmethod
+    def _street_matches(cls, candidate: str, requested: str) -> bool:
+        candidate_tokens = cls._normalize_place_text(candidate).split()
+        requested_tokens = cls._normalize_place_text(requested).split()
+        if not candidate_tokens or not requested_tokens:
+            return False
+
+        prefixes = {
+            "avenida",
+            "calle",
+            "camino",
+            "bulevar",
+            "rambla",
+            "pasaje",
+            "plaza",
+            "general",
+            "doctor",
+            "ingeniero",
+            "brigadier",
+        }
+
+        def variants(tokens: list[str]) -> list[list[str]]:
+            result = [tokens]
+            start = 0
+            while start < len(tokens) and tokens[start] in prefixes:
+                start += 1
+                result.append(tokens[start:])
+            return result
+
+        def contains(haystack: list[str], needle: list[str]) -> bool:
+            return any(
+                haystack[start : start + len(needle)] == needle
+                for start in range(len(haystack) - len(needle) + 1)
+            )
+
+        return any(
+            contains(candidate_variant, requested_variant)
+            or contains(requested_variant, candidate_variant)
+            for candidate_variant in variants(candidate_tokens)
+            for requested_variant in variants(requested_tokens)
+        )
+
+    @staticmethod
+    def _address_query(search: str) -> tuple[str, int] | None:
+        match = re.fullmatch(
+            r"\s*(.+?)\s+(?:n\s*[º°o.]?\s*)?(\d{1,5})"
+            r"(?:\s*(?:bis|b|a))?\s*",
+            search,
+            flags=re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        street = match.group(1).strip()
+        number = int(match.group(2))
+        return (street, number) if street and number > 0 else None
+
+    @staticmethod
+    def _photon_house_number(
+        value: str, requested: int
+    ) -> str:
+        if not value:
+            return "missing"
+        exact = re.fullmatch(
+            r"\s*0*(\d+)(?:\s*(?:bis|b|a))?\s*",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if exact is not None:
+            return "exact" if int(exact.group(1)) == requested else "different"
+        range_match = re.fullmatch(r"\s*(\d+)\s*[-–]\s*(\d+)\s*", value)
+        if range_match is not None:
+            start, end = map(int, range_match.groups())
+            return (
+                "approximate"
+                if min(start, end) <= requested <= max(start, end)
+                else "different"
+            )
+        numbers = [int(number) for number in re.findall(r"\d+", value)]
+        if requested in numbers:
+            return "approximate"
+        return "different" if numbers else "missing"
+
+    @staticmethod
+    def _photon_names(properties: dict[str, object]) -> list[str]:
+        aliases: list[str] = []
+        for key in (
+            "alt_name",
+            "official_name",
+            "short_name",
+            "int_name",
+            "name:es",
+            "name:en",
+            "brand",
+        ):
+            value = properties.get(key)
+            if isinstance(value, str):
+                aliases.extend(re.split(r"[;,|]", value))
+            elif isinstance(value, list):
+                aliases.extend(item for item in value if isinstance(item, str))
+        return list(dict.fromkeys(alias.strip() for alias in aliases if alias.strip()))
+
+    @staticmethod
+    def _photon_osm_id(properties: dict[str, object]) -> str | None:
+        osm_id = properties.get("osm_id")
+        osm_type = str(properties.get("osm_type") or "").strip().lower()
+        if osm_id is None:
+            return None
+        normalized_type = {
+            "n": "node",
+            "w": "way",
+            "r": "relation",
+        }.get(osm_type, osm_type)
+        if not normalized_type:
+            return None
+        return f"osm:{normalized_type}:{osm_id}"
+
+    @classmethod
+    def _photon_feature_score(
+        cls,
+        *,
+        query: str,
+        title: str,
+        aliases: list[str],
+        kind: str,
+        precision: str,
+        city: str,
+        latitude: float,
+        longitude: float,
+    ) -> float:
+        normalized_query = cls._normalize_place_text(query)
+        normalized_names = [
+            cls._normalize_place_text(name)
+            for name in [title, *aliases]
+            if name
+        ]
+        if normalized_query in normalized_names:
+            text_score = 100
+        elif any(normalized_query in name for name in normalized_names):
+            text_score = 85
+        else:
+            query_tokens = normalized_query.split()
+            best_coverage = max(
+                (
+                    sum(token in name.split() for token in query_tokens)
+                    / max(1, len(query_tokens))
+                    for name in normalized_names
+                ),
+                default=0,
+            )
+            text_score = best_coverage * 75
+        kind_score = 100 if kind == "poi" else 70 if kind == "address" else 40
+        precision_score = 100 if precision == "exactDoorNumber" else 60
+        locality_score = 100 if "montevideo" in city.casefold() else 70
+        distance = math.sqrt(
+            (latitude - MONTEVIDEO_GEOCODING_BIAS[0]) ** 2
+            + (longitude - MONTEVIDEO_GEOCODING_BIAS[1]) ** 2
+        )
+        locality_bias = max(0, 100 - distance * 1000)
+        return (
+            text_score * 0.68
+            + kind_score * 0.20
+            + precision_score * 0.08
+            + locality_score * 0.03
+            + locality_bias * 0.01
+        )
+
+    @classmethod
+    def _photon_text_score(
+        cls,
+        query: str,
+        names: list[str],
+    ) -> float:
+        normalized_query = cls._normalize_place_text(query)
+        if not normalized_query:
+            return 0
+        normalized_names = [
+            cls._normalize_place_text(name) for name in names if name
+        ]
+        if normalized_query in normalized_names:
+            return 100
+        if any(normalized_query in name for name in normalized_names):
+            return 85
+        query_tokens = normalized_query.split()
+        return max(
+            (
+                75
+                * sum(token in name.split() for token in query_tokens)
+                / len(query_tokens)
+                for name in normalized_names
+            ),
+            default=0,
+        )
+
+    def _normalize_photon_response(self, body: bytes, search: str) -> bytes:
+        try:
+            payload = json.loads(body)
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise ApiError(
+                502,
+                f"Photon devolvió JSON inválido: {error}",
+            ) from None
+        if not isinstance(payload, dict) or not isinstance(payload.get("features"), list):
+            raise ApiError(
+                502,
+                "Photon devolvió GeoJSON malformado sin una lista de features.",
+            )
+
+        intersection = INTERSECTION_QUERY.match(search)
+        address_query = self._address_query(search)
+        west, south, east, north = URUGUAY_GEOCODING_BOUNDS
+        normalized_results: list[tuple[float, dict[str, object]]] = []
+        seen_osm_ids: set[str] = set()
+        seen_fallback: list[tuple[str, str, float, float]] = []
+
+        for index, feature in enumerate(payload["features"]):
+            if not isinstance(feature, dict):
+                continue
+            geometry = feature.get("geometry")
+            properties = feature.get("properties")
+            if not isinstance(geometry, dict) or not isinstance(properties, dict):
+                continue
+            coordinates = geometry.get("coordinates")
+            if not isinstance(coordinates, list) or len(coordinates) < 2:
+                continue
+            try:
+                longitude = float(coordinates[0])
+                latitude = float(coordinates[1])
+            except (TypeError, ValueError):
+                continue
+            if not (
+                -90 <= latitude <= 90
+                and -180 <= longitude <= 180
+                and west <= longitude <= east
+                and south <= latitude <= north
+            ):
+                continue
+            countrycode = str(properties.get("countrycode") or "").casefold()
+            if countrycode and countrycode != "uy":
+                continue
+
+            name = str(properties.get("name") or "").strip()
+            official_name = str(properties.get("official_name") or "").strip()
+            street = str(properties.get("street") or "").strip()
+            house_number = str(properties.get("housenumber") or "").strip()
+            osm_key = str(properties.get("osm_key") or "").strip().casefold()
+            osm_value = str(properties.get("osm_value") or "").strip().casefold()
+            aliases = self._photon_names(properties)
+            if name and official_name and name.casefold() != official_name.casefold():
+                aliases.append(name)
+            title_name = official_name or name
+            category = f"{osm_key}:{osm_value}".strip(":")
+            neighborhood = next(
+                (
+                    str(properties.get(key)).strip()
+                    for key in ("district", "suburb", "neighbourhood", "quarter")
+                    if properties.get(key)
+                ),
+                "",
+            )
+            city = str(
+                properties.get("city")
+                or properties.get("locality")
+                or properties.get("state")
+                or ""
+            ).strip()
+            address_fields = {
+                key: value
+                for key, value in {
+                    "street": street,
+                    "house_number": house_number,
+                    "neighborhood": neighborhood,
+                    "city": city,
+                    "country": properties.get("country"),
+                }.items()
+                if value
+            }
+
+            if intersection:
+                street1 = intersection.group(1).strip()
+                street2 = intersection.group(2).strip()
+                candidate_text = " ".join(
+                    [name, official_name, street, *aliases]
+                )
+                explicit_crossing = (
+                    (osm_key == "highway" and osm_value in {"crossing", "junction"})
+                    or osm_key == "junction"
+                    or any(separator in name for separator in ("&", " / "))
+                )
+                if (
+                    not explicit_crossing
+                    or not self._street_matches(candidate_text, street1)
+                    or not self._street_matches(candidate_text, street2)
+                ):
+                    continue
+                title = search.strip()
+                kind = "intersection"
+                precision = "intersectionPoint"
+                text_for_score = f"{street1} {street2}"
+            elif address_query is not None:
+                requested_street, door_number = address_query
+                candidate_street = street or name
+                if (
+                    osm_value in {"crossing", "junction"}
+                    or not self._street_matches(candidate_street, requested_street)
+                ):
+                    continue
+                number_match = self._photon_house_number(
+                    house_number,
+                    door_number,
+                )
+                if number_match == "different":
+                    continue
+                if not street and osm_key not in {"highway", "road"}:
+                    continue
+                precision = (
+                    "exactDoorNumber"
+                    if number_match == "exact"
+                    else "unconfirmedDoorNumber"
+                )
+                kind = "address"
+                title = (
+                    f"{candidate_street} {door_number}"
+                    if number_match == "exact"
+                    else search.strip()
+                )
+                text_for_score = requested_street
+            elif osm_key == "highway" or osm_value in {
+                "residential",
+                "primary",
+                "secondary",
+                "tertiary",
+            }:
+                title = street or name
+                if not title:
+                    continue
+                kind = "address"
+                precision = "streetSegment"
+                text_for_score = title
+            else:
+                title = title_name
+                if not title:
+                    continue
+                kind = self._photon_kind(osm_key, osm_value)
+                if self._photon_text_score(search, [title, *aliases]) < 50:
+                    continue
+                precision = "rooftopPoi" if kind == "poi" else "streetSegment"
+                text_for_score = search
+
+            if intersection:
+                title_name = title
+
+            location_parts: list[str] = []
+            if kind == "poi" and street:
+                location_parts.append(
+                    " ".join(part for part in (street, house_number) if part)
+                )
+            for value in (neighborhood, city):
+                if value and value not in location_parts:
+                    location_parts.append(value)
+            if not location_parts:
+                country = str(properties.get("country") or "").strip()
+                if country:
+                    location_parts.append(country)
+            subtitle = " · ".join(location_parts)
+
+            external_id = self._photon_osm_id(properties)
+            if external_id and external_id in seen_osm_ids:
+                continue
+            normalized_title = self._normalize_place_text(title)
+            normalized_category = category or kind
+            if not external_id and any(
+                old_title == normalized_title
+                and old_category == normalized_category
+                and math.hypot(
+                    longitude - old_longitude,
+                    latitude - old_latitude,
+                )
+                <= 0.0002
+                for old_title, old_category, old_latitude, old_longitude in seen_fallback
+            ):
+                continue
+            if external_id:
+                seen_osm_ids.add(external_id)
+            else:
+                seen_fallback.append(
+                    (normalized_title, normalized_category, latitude, longitude)
+                )
+
+            score = self._photon_feature_score(
+                query=text_for_score,
+                title=title_name,
+                aliases=aliases,
+                kind=kind,
+                precision=precision,
+                city=city,
+                latitude=latitude,
+                longitude=longitude,
+            )
+            normalized_results.append(
+                (
+                    score,
+                    {
+                        "id": external_id or f"photon:{index}:{latitude}_{longitude}",
+                        "externalId": external_id,
+                        "kind": kind,
+                        "title": title,
+                        "name": name or None,
+                        "officialName": official_name or None,
+                        "subtitle": subtitle,
+                        "address": address_fields,
+                        "street": street or None,
+                        "houseNumber": house_number or None,
+                        "lat": latitude,
+                        "lon": longitude,
+                        "precision": precision,
+                        "source": "openStreetMap",
+                        "category": category or None,
+                        "neighborhood": neighborhood or None,
+                        "aliases": list(dict.fromkeys(aliases)),
+                    },
+                )
+            )
+        normalized_results.sort(key=lambda result: result[0], reverse=True)
+        return json.dumps(
+            [result for _, result in normalized_results[:5]],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+    @staticmethod
+    def _photon_kind(osm_key: str, osm_value: str) -> str:
+        if osm_key in {"highway", "road"}:
+            return "address"
+        if osm_key in {"place"}:
+            if osm_value in {"suburb", "neighbourhood", "quarter"}:
+                return "neighborhood"
+            return "poi"
+        if osm_key in {"shop", "tourism", "amenity", "leisure", "building"}:
+            return "poi"
+        return "poi"
+
     def _search_places(self, search: str) -> tuple[int, str, bytes]:
-        cache_key = search.casefold()
+        cache_key = geocoding_query(search).casefold()
         with self._place_lock:
             now = time.monotonic()
             cached = self._place_responses.get(cache_key)
@@ -457,17 +930,33 @@ class ApiProxy:
             if wait > 0:
                 time.sleep(wait)
             upstream_search = geocoding_query(search)
-            params = urllib.parse.urlencode(
-                {
-                    "q": upstream_search,
-                    "countrycodes": "uy",
-                    "format": "jsonv2",
-                    "addressdetails": "1",
-                    "limit": "5",
-                    "viewbox": MONTEVIDEO_GEOCODING_VIEWBOX,
-                    "bounded": "1",
-                }
-            )
+            provider_hostname = urllib.parse.urlsplit(PLACE_SEARCH_URL).hostname or ""
+            is_photon = "photon" in provider_hostname.lower()
+            if is_photon:
+                west, south, east, north = URUGUAY_GEOCODING_BOUNDS
+                bias_lat, bias_lon = MONTEVIDEO_GEOCODING_BIAS
+                params = urllib.parse.urlencode(
+                    {
+                        "q": upstream_search,
+                        "limit": "5",
+                        "bbox": f"{west},{south},{east},{north}",
+                        "lat": bias_lat,
+                        "lon": bias_lon,
+                        "zoom": "10",
+                    }
+                )
+            else:
+                params = urllib.parse.urlencode(
+                    {
+                        "q": upstream_search,
+                        "countrycodes": "uy",
+                        "format": "jsonv2",
+                        "addressdetails": "1",
+                        "limit": "5",
+                        "viewbox": MONTEVIDEO_GEOCODING_VIEWBOX,
+                        "bounded": "1",
+                    }
+                )
             request = urllib.request.Request(
                 f"{PLACE_SEARCH_URL}?{params}",
                 headers={
@@ -497,6 +986,36 @@ class ApiProxy:
                 if cached is not None:
                     return cached[1]
                 raise ApiError(502, "No se pudo conectar al servicio de lugares.") from None
+            try:
+                if is_photon:
+                    result = (
+                        response.status,
+                        "application/json",
+                        self._normalize_photon_response(body, search),
+                    )
+                else:
+                    payload = json.loads(body)
+                    if not isinstance(payload, list):
+                        raise ApiError(
+                            502,
+                            "El proveedor devolvió una respuesta geográfica inválida.",
+                        )
+                    result = (
+                        response.status,
+                        "application/json",
+                        body,
+                    )
+            except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                if cached is not None:
+                    return cached[1]
+                raise ApiError(
+                    502,
+                    f"El proveedor de lugares devolvió JSON inválido: {error}",
+                ) from None
+            except ApiError:
+                if cached is not None:
+                    return cached[1]
+                raise
             self._place_responses[cache_key] = (time.monotonic(), result)
             return result
 

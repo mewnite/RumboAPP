@@ -19,52 +19,36 @@ class SmartRankingEngine {
   }) {
     if (candidates.isEmpty) return const [];
 
-    final scored = candidates.map((candidate) {
-      final score = computeScore(
-        candidate: candidate,
-        query: query,
-        userLatitude: userLatitude,
-        userLongitude: userLongitude,
-      );
-      return candidate.copyWith(score: score);
-    }).toList();
+    final scored = candidates
+        .where((candidate) => _textScore(candidate, query) >= 25)
+        .map((candidate) {
+          final score = computeScore(
+            candidate: candidate,
+            query: query,
+            userLatitude: userLatitude,
+            userLongitude: userLongitude,
+          );
+          return candidate.copyWith(score: score);
+        })
+        .toList();
 
-    // Orden inicial por puntuación descendente
     scored.sort((a, b) => b.score.compareTo(a.score));
 
-    // Deduplicación espacial y semántica
     final deduplicated = <SearchResult>[];
     for (final candidate in scored) {
       final isDuplicate = deduplicated.any((existing) {
+        final sameExternalObject =
+            candidate.externalId != null &&
+            candidate.externalId == existing.externalId;
+        if (sameExternalObject || candidate.id == existing.id) return true;
+
         final distance = _haversineMeters(
           candidate.latitude,
           candidate.longitude,
           existing.latitude,
           existing.longitude,
         );
-
-        // Si están a menos de 25 metros y comparten similitud en el nombre
-        if (distance < 25) {
-          final cNorm = queryParser.normalizeText(candidate.title);
-          final eNorm = queryParser.normalizeText(existing.title);
-          final cClean = cNorm.replaceAll(' ', '');
-          final eClean = eNorm.replaceAll(' ', '');
-          if (cNorm == eNorm ||
-              cNorm.contains(eNorm) ||
-              eNorm.contains(cNorm) ||
-              cClean == eClean ||
-              cClean.contains(eClean) ||
-              eClean.contains(cClean)) {
-            return true;
-          }
-        }
-
-        // Si tienen exactamente las mismas coordenadas y el mismo tipo
-        if (distance < 5 && candidate.kind == existing.kind) {
-          return true;
-        }
-
-        return false;
+        return _sameNamedPlace(candidate, existing, distance);
       });
 
       if (!isDuplicate) {
@@ -92,111 +76,276 @@ class SmartRankingEngine {
       return 100.0;
     }
 
-    final sText = _textScore(candidate, query);
-    final sType = _typeScore(candidate, query);
-    final sPrec = _precisionScore(candidate);
-    final sDist = _distanceScore(candidate, userLatitude, userLongitude);
+    final textScore = _textScore(candidate, query);
+    final typeScore = _typeScore(candidate, query);
+    final precisionScore = _precisionScore(candidate);
+    final localityScore = _localityScore(candidate);
+    final distanceScore = _distanceScore(
+      candidate,
+      userLatitude,
+      userLongitude,
+    );
 
-    // Ponderación: 50% texto, 25% tipo, 15% precisión, 10% distancia
-    final total =
-        (0.50 * sText) + (0.25 * sType) + (0.15 * sPrec) + (0.10 * sDist);
-    return total.clamp(0.0, 100.0);
+    return (0.66 * textScore +
+            0.20 * typeScore +
+            0.08 * precisionScore +
+            0.04 * localityScore +
+            0.02 * distanceScore)
+        .clamp(0.0, 100.0);
   }
 
   double _textScore(SearchResult candidate, ParsedQuery query) {
-    final titleNorm = queryParser.normalizeText(candidate.title);
-    final subtitleNorm = queryParser.normalizeText(candidate.subtitle);
-    final qNorm = query.normalized;
+    final queryText = query.normalized;
+    if (queryText.isEmpty) return 50;
 
-    if (qNorm.isEmpty) return 50.0;
-
-    // Caso 1: Búsqueda por código de parada
     if (query.intent == QueryIntentKind.stopCode) {
       if (candidate.stopCode != null && candidate.stopCode == query.stopCode) {
         return 100.0;
       }
-      if (candidate.title.contains(query.stopCode!)) return 90.0;
+      return candidate.title.contains(query.stopCode!) ? 90 : 0;
     }
 
-    // Caso 2: Intersección (ambas calles deben coincidir)
     if (query.intent == QueryIntentKind.intersection) {
-      final s1 = query.street1 ?? '';
-      final s2 = query.street2 ?? '';
-      final fullText = '$titleNorm $subtitleNorm';
-      final hasS1 = fullText.contains(s1);
-      final hasS2 = fullText.contains(s2);
-      if (hasS1 && hasS2) return 95.0;
-      if (hasS1 || hasS2) return 60.0;
+      final candidateText = _candidateText(candidate);
+      final hasFirst = queryParser.streetMatches(
+        candidateText,
+        query.street1 ?? '',
+      );
+      final hasSecond = queryParser.streetMatches(
+        candidateText,
+        query.street2 ?? '',
+      );
+      if (hasFirst && hasSecond) {
+        return candidate.kind == SearchEntityKind.intersection ? 100 : 78;
+      }
+      return 0;
     }
 
-    // Caso 3: Dirección con número
     if (query.intent == QueryIntentKind.addressWithNumber) {
-      final street = query.street1 ?? '';
-      final numStr = query.doorNumber.toString();
-      final fullText = '$titleNorm $subtitleNorm';
-      final hasStreet = fullText.contains(street);
-      final hasNum = fullText.contains(numStr);
-      if (hasStreet && hasNum) return 95.0;
-      if (hasStreet) return 70.0;
+      if (candidate.kind != SearchEntityKind.address ||
+          !queryParser.streetMatches(
+            _candidateText(candidate),
+            query.street1 ?? '',
+          )) {
+        return 0;
+      }
+      final requested = query.doorNumber;
+      if (requested == null) return 40;
+      final requestedNumber = requested.toString();
+      final hasRequestedNumber =
+          _containsWholeNumber(candidate.houseNumber, requestedNumber) ||
+          _containsWholeNumber(candidate.title, requestedNumber);
+      if (hasRequestedNumber &&
+          candidate.precision == GeoPrecision.exactDoorNumber) {
+        return 100;
+      }
+      return candidate.precision == GeoPrecision.unconfirmedDoorNumber
+          ? 58
+          : 35;
     }
 
-    // Caso 4: Búsqueda por línea de bus (ej. "522")
     if (query.intent == QueryIntentKind.routeCode) {
       final route = query.routeCode?.toLowerCase() ?? '';
       if (candidate.title.toLowerCase() == route) return 100.0;
       if (candidate.lines.any((line) => line.toLowerCase() == route)) {
         return 90.0;
       }
+      return 0;
     }
 
-    // Coincidencia exacta completa
-    if (titleNorm == qNorm) return 100.0;
+    final queryNorm = queryParser.normalizeText(queryText);
+    final titles = [
+      candidate.title,
+      ...candidate.aliases,
+    ].map(queryParser.normalizeText).where((title) => title.isNotEmpty);
+    final titleMatches = titles.toList(growable: false);
+    if (titleMatches.contains(queryNorm)) return 100;
+    if (titleMatches.any((title) => title.startsWith(queryNorm))) return 88;
+    if (titleMatches.any((title) => title.contains(queryNorm))) return 82;
 
-    // Coincidencia por prefijo
-    if (titleNorm.startsWith(qNorm)) return 85.0;
-
-    // Contiene la consulta completa
-    if (titleNorm.contains(qNorm)) return 75.0;
-    if (subtitleNorm.contains(qNorm)) return 65.0;
-
-    // Coincidencia de tokens
-    final qTokens = qNorm.split(' ').where((t) => t.length > 2).toList();
-    if (qTokens.isNotEmpty) {
-      var matches = 0;
-      for (final token in qTokens) {
-        if (titleNorm.contains(token) || subtitleNorm.contains(token)) {
-          matches++;
-        }
-      }
-      final ratio = matches / qTokens.length;
-      return (ratio * 60.0).clamp(10.0, 60.0);
+    const ignoredTokens = {'de', 'del', 'la', 'las', 'el', 'los', 'y'};
+    final queryTokens = queryNorm
+        .split(' ')
+        .where((token) => token.length > 1 && !ignoredTokens.contains(token));
+    final titleTokenText = titleMatches.join(' ');
+    if (queryTokens.isNotEmpty) {
+      final tokens = queryTokens.toList(growable: false);
+      final matchedTokens = tokens
+          .where((token) => _containsToken(titleTokenText, token))
+          .length;
+      if (matchedTokens == tokens.length) return 76;
     }
 
-    return 20.0;
+    final contextualText = queryParser.normalizeText(
+      '${candidate.subtitle} ${candidate.street ?? ''}',
+    );
+    if (contextualText == queryNorm || contextualText.contains(queryNorm)) {
+      return 45;
+    }
+    return 5;
   }
 
   double _typeScore(SearchResult candidate, ParsedQuery query) {
+    if (query.intent == QueryIntentKind.addressWithNumber) {
+      return switch (candidate.kind) {
+        SearchEntityKind.address => 100,
+        SearchEntityKind.poi => 20,
+        SearchEntityKind.neighborhood => 10,
+        _ => 0,
+      };
+    }
+    if (query.intent == QueryIntentKind.intersection) {
+      return switch (candidate.kind) {
+        SearchEntityKind.intersection => 100,
+        SearchEntityKind.stop => 58,
+        SearchEntityKind.address => 15,
+        _ => 0,
+      };
+    }
+    if (query.intent == QueryIntentKind.routeCode) {
+      return candidate.kind == SearchEntityKind.route ? 100 : 0;
+    }
     switch (candidate.kind) {
       case SearchEntityKind.stop:
-        // Paradas con múltiples líneas de conexión son más valiosas para el viaje
-        final lineBonus = math.min(candidate.lines.length * 3.0, 15.0);
-        return 75.0 + lineBonus;
+        return 32.0;
       case SearchEntityKind.route:
-        return 80.0;
+        return 45.0;
       case SearchEntityKind.address:
-        return 80.0;
-      case SearchEntityKind.intersection:
-        return 80.0;
-      case SearchEntityKind.poi:
-        return 75.0;
-      case SearchEntityKind.favorite:
-        return 90.0;
-      case SearchEntityKind.recentSearch:
         return 70.0;
+      case SearchEntityKind.intersection:
+        return 70.0;
+      case SearchEntityKind.poi:
+        return 90.0;
+      case SearchEntityKind.favorite:
+        return 78.0;
+      case SearchEntityKind.recentSearch:
+        return 55.0;
       case SearchEntityKind.neighborhood:
         return 50.0;
     }
   }
+
+  double _localityScore(SearchResult candidate) {
+    final locality = queryParser.normalizeText(
+      '${candidate.subtitle} ${candidate.neighborhood ?? ''}',
+    );
+    if (locality.contains('montevideo')) return 100;
+    if (locality.contains('uruguay')) return 70;
+    return 25;
+  }
+
+  String _candidateText(SearchResult candidate) => [
+    candidate.title,
+    candidate.subtitle,
+    candidate.street,
+    candidate.houseNumber,
+    ...candidate.aliases,
+  ].whereType<String>().join(' ');
+
+  bool _containsWholeNumber(String? value, String number) {
+    if (value == null || value.isEmpty) return false;
+    return RegExp(r'(^|[^\d])' + number + r'($|[^\d])').hasMatch(value);
+  }
+
+  bool _containsToken(String text, String token) {
+    final exact = RegExp('(^|\\s)${RegExp.escape(token)}(\\s|\$)');
+    if (exact.hasMatch(text)) return true;
+    return text.split(' ').any((candidate) => _isOneEditAway(candidate, token));
+  }
+
+  bool _isOneEditAway(String first, String second) {
+    if ((first.length - second.length).abs() > 1) return false;
+    var firstIndex = 0;
+    var secondIndex = 0;
+    var edits = 0;
+    while (firstIndex < first.length && secondIndex < second.length) {
+      if (first[firstIndex] == second[secondIndex]) {
+        firstIndex++;
+        secondIndex++;
+        continue;
+      }
+      if (++edits > 1) return false;
+      if (first.length > second.length) {
+        firstIndex++;
+      } else if (second.length > first.length) {
+        secondIndex++;
+      } else {
+        firstIndex++;
+        secondIndex++;
+      }
+    }
+    return edits +
+            (firstIndex < first.length ? 1 : 0) +
+            (secondIndex < second.length ? 1 : 0) <=
+        1;
+  }
+
+  bool _sameNamedPlace(
+    SearchResult first,
+    SearchResult second,
+    double distanceMeters,
+  ) {
+    final firstNames = _normalizedNames(first);
+    final secondNames = _normalizedNames(second);
+    final exactNamesMatch = firstNames.any(secondNames.contains);
+    if (distanceMeters > 20) {
+      return distanceMeters <= 500 &&
+          first.kind == SearchEntityKind.neighborhood &&
+          second.kind == SearchEntityKind.neighborhood &&
+          exactNamesMatch &&
+          _localityScore(first) == 100 &&
+          _localityScore(second) == 100;
+    }
+
+    final namesMatch = exactNamesMatch ||
+        firstNames.any(
+          (firstName) => secondNames.any(
+            (secondName) => _similarNames(firstName, secondName),
+          ),
+        );
+    if (!namesMatch) return false;
+
+    final sameKind = first.kind == second.kind;
+    final localRemoteTwin =
+        distanceMeters <= 8 &&
+        {
+          first.kind,
+          second.kind,
+        }.containsAll({SearchEntityKind.stop, SearchEntityKind.poi});
+    final addressPlaceTwin =
+        distanceMeters <= 8 &&
+        {
+          first.kind,
+          second.kind,
+        }.containsAll({SearchEntityKind.address, SearchEntityKind.poi});
+    final sameCategory =
+        first.category != null && first.category == second.category;
+    return localRemoteTwin ||
+        addressPlaceTwin ||
+        (sameKind && (sameCategory || distanceMeters <= 8));
+  }
+
+  bool _similarNames(String first, String second) {
+    if (first.replaceAll(' ', '') == second.replaceAll(' ', '')) return true;
+    final firstTokens = first
+        .split(' ')
+        .where((token) => token.length > 1)
+        .toSet();
+    final secondTokens = second
+        .split(' ')
+        .where((token) => token.length > 1)
+        .toSet();
+    if (firstTokens.isEmpty || secondTokens.isEmpty) return false;
+    final intersectionSize = firstTokens.intersection(secondTokens).length;
+    final overlap =
+        intersectionSize / math.min(firstTokens.length, secondTokens.length);
+    return overlap >= 0.8;
+  }
+
+  Set<String> _normalizedNames(SearchResult result) => {
+    result.title,
+    ...result.aliases,
+  }.map(queryParser.normalizeText).where((name) => name.isNotEmpty).toSet();
 
   double _precisionScore(SearchResult candidate) {
     switch (candidate.precision) {

@@ -2000,6 +2000,24 @@ abstract class AppLocalizations {
   /// **'Cruce aproximado · punto por tramo de calle'**
   String get searchApproximateIntersection;
 
+  /// No description provided for @searchExactAddress.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Dirección exacta'**
+  String get searchExactAddress;
+
+  /// No description provided for @searchConfirmedIntersection.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Intersección confirmada'**
+  String get searchConfirmedIntersection;
+
+  /// No description provided for @searchIntersectionNotConfirmed.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No pudimos confirmar esa esquina. Revisá los nombres de ambas calles.'**
+  String get searchIntersectionNotConfirmed;
+
   /// No description provided for @searchRecent.
   ///
   /// In es_UY, this message translates to:
@@ -2051,7 +2069,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchKindPoi.
   ///
   /// In es_UY, this message translates to:
-  /// **'Lugar de interés'**
+  /// **'Punto de interés'**
   String get searchKindPoi;
 
   /// No description provided for @searchKindNeighborhood.

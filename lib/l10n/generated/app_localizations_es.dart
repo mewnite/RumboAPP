@@ -1157,6 +1157,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Cruce aproximado · punto por tramo de calle';
 
   @override
+  String get searchExactAddress => 'Dirección exacta';
+
+  @override
+  String get searchConfirmedIntersection => 'Intersección confirmada';
+
+  @override
+  String get searchIntersectionNotConfirmed =>
+      'No pudimos confirmar esa esquina. Revisá los nombres de ambas calles.';
+
+  @override
   String get searchRecent => 'Búsquedas recientes';
 
   @override
@@ -1184,7 +1194,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get searchKindIntersection => 'Esquina';
 
   @override
-  String get searchKindPoi => 'Lugar de interés';
+  String get searchKindPoi => 'Punto de interés';
 
   @override
   String get searchKindNeighborhood => 'Barrio';
@@ -2421,6 +2431,16 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
       'Cruce aproximado · punto por tramo de calle';
 
   @override
+  String get searchExactAddress => 'Dirección exacta';
+
+  @override
+  String get searchConfirmedIntersection => 'Intersección confirmada';
+
+  @override
+  String get searchIntersectionNotConfirmed =>
+      'No pudimos confirmar esa esquina. Revisá los nombres de ambas calles.';
+
+  @override
   String get searchRecent => 'Búsquedas recientes';
 
   @override
@@ -2448,7 +2468,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get searchKindIntersection => 'Esquina';
 
   @override
-  String get searchKindPoi => 'Lugar de interés';
+  String get searchKindPoi => 'Punto de interés';
 
   @override
   String get searchKindNeighborhood => 'Barrio';

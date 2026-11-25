@@ -153,6 +153,79 @@ void main() {
       expect(results.first.source, SearchDataSource.openStreetMap);
     });
 
+    test('clasifica las dos variantes de neighborhood como barrio', () async {
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: MockClient(
+          (_) async => http.Response(
+            '['
+            '{"name":"Parque Rodó","display_name":"Parque Rodó, Montevideo, Uruguay",'
+            '"category":"boundary","type":"neighborhood","osm_type":"relation",'
+            '"osm_id":13353266,"lat":"-34.9141426","lon":"-56.1676888"},'
+            '{"name":"Parque Rodó","display_name":"Parque Rodó, Montevideo, Uruguay",'
+            '"category":"boundary","type":"neighbourhood","osm_type":"relation",'
+            '"osm_id":13353267,"lat":"-34.9141426","lon":"-56.1676888"}'
+            ']',
+            200,
+          ),
+        ),
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(parser.parse('Parque Rodo'));
+
+      expect(results, hasLength(2));
+      expect(
+        results.map((result) => result.kind),
+        everyElement(SearchEntityKind.neighborhood),
+      );
+    });
+
+    test(
+      'ignora un cajero nombrado como el destino salvo que se busque un cajero',
+      () async {
+        const response =
+            '['
+            '{"name":"Terminal Tres Cruces","display_name":"Terminal Tres Cruces, Goes, Montevideo, Uruguay",'
+            '"category":"amenity","type":"bus_station","osm_type":"way","osm_id":1,'
+            '"lat":"-34.8938334","lon":"-56.1665762"},'
+            '{"name":"Terminal Tres Cruces","display_name":"Terminal Tres Cruces, 1825, Bulevar General Artigas, Montevideo, Uruguay",'
+            '"category":"amenity","type":"atm","osm_type":"node","osm_id":2,'
+            '"lat":"-34.8939371","lon":"-56.1664894"}'
+            ']';
+
+        final terminalSource = RemoteGeocodingSource(
+          endpoint: 'https://example.test/geocode',
+          client: MockClient((_) async => http.Response(response, 200)),
+        );
+        addTearDown(terminalSource.close);
+
+        final terminalResults = await terminalSource.searchRemote(
+          parser.parse('Terminal Tres Cruces'),
+        );
+        expect(terminalResults, hasLength(1));
+        expect(terminalResults.single.title, 'Terminal Tres Cruces');
+        expect(terminalResults.single.category, 'amenity:bus_station');
+
+        final atmSource = RemoteGeocodingSource(
+          endpoint: 'https://example.test/geocode',
+          client: MockClient(
+            (_) async => http.Response(
+              '[{"name":"Cajero","display_name":"Cajero, Montevideo, Uruguay",'
+              '"category":"amenity","type":"atm","osm_type":"node","osm_id":3,'
+              '"lat":"-34.8939371","lon":"-56.1664894"}]',
+              200,
+            ),
+          ),
+        );
+        addTearDown(atmSource.close);
+
+        final atmResults = await atmSource.searchRemote(parser.parse('Cajero'));
+        expect(atmResults, hasLength(1));
+        expect(atmResults.single.category, 'amenity:atm');
+      },
+    );
+
     test('mantiene calle y número juntos en una dirección exacta', () async {
       final client = MockClient((request) async {
         expect(request.url.queryParameters['q'], 'faramiñán 801');
@@ -222,38 +295,91 @@ void main() {
           parser.parse('Faramiñan y Santa Lucía'),
         );
         expect(results.single.kind, SearchEntityKind.intersection);
-        expect(results.single.title, 'Faramiñan y Santa Lucía');
+        expect(results.single.title, 'Faramiñan & Santa Lucía');
         expect(results.single.precision, GeoPrecision.intersectionPoint);
       },
     );
 
+    test('descarta el cruce si el proveedor devolvió una calle', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          '[{"display_name":"Av. Italia, Montevideo, Uruguay",'
+          '"lat":"-34.88","lon":"-56.18","type":"residential"},'
+          '{"display_name":"Avenida Italia & Ejido, Montevideo, Uruguay",'
+          '"lat":"-34.89","lon":"-56.19","type":"residential"}]',
+          200,
+        );
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(
+        parser.parse('Av. Italia y Ejido'),
+      );
+
+      expect(results, isEmpty);
+    });
+
+    test('no confirma un cruce por repetir las calles solo en el título normalizado', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          '[{"id":"intersection","kind":"intersection",'
+          '"title":"Rivera esquina Soca","name":"Avenida Rivera",'
+          '"street":"Avenida Rivera","subtitle":"Montevideo",'
+          '"lat":-34.88,"lon":-56.18,'
+          '"precision":"intersectionPoint","source":"openStreetMap"}]',
+          200,
+        );
+      });
+      final source = RemoteGeocodingSource(
+        endpoint: 'https://example.test/geocode',
+        client: client,
+      );
+      addTearDown(source.close);
+
+      final results = await source.searchRemote(
+        parser.parse('Rivera esquina Soca'),
+      );
+      expect(results, isEmpty);
+    });
+
     test(
-      'marca el cruce como aproximado si el proveedor devolvió una calle',
+      'conserva nombre oficial, alias y dirección de un POI Photon',
       () async {
-        final client = MockClient((request) async {
-          return http.Response(
-            '[{"display_name":"Av. Italia, Montevideo, Uruguay",'
-            '"lat":"-34.88","lon":"-56.18","type":"residential"},'
-            '{"display_name":"Avenida Italia & Ejido, Montevideo, Uruguay",'
-            '"lat":"-34.89","lon":"-56.19","type":"residential"}]',
-            200,
-          );
-        });
         final source = RemoteGeocodingSource(
           endpoint: 'https://example.test/geocode',
-          client: client,
+          client: MockClient((_) async {
+            return http.Response(
+              '[{"id":"osm:relation:9001",'
+              '"externalId":"osm:relation:9001","kind":"poi",'
+              '"title":"Auditorio Nacional Adela Reta",'
+              '"name":"Auditorio Nacional Adela Reta",'
+              '"officialName":"Auditorio Nacional Adela Reta",'
+              '"aliases":["SODRE"],"category":"amenity:theatre",'
+              '"street":"Andes","subtitle":"Andes · Montevideo",'
+              '"address":{"street":"Andes","city":"Montevideo"},'
+              '"lat":-34.9037,"lon":-56.1882,'
+              '"precision":"rooftopPoi","source":"openStreetMap"}]',
+              200,
+            );
+          }),
         );
         addTearDown(source.close);
 
-        final results = await source.searchRemote(
-          parser.parse('Av. Italia y Ejido'),
-        );
+        final result = (await source.searchRemote(parser.parse('SODRE')))
+            .single;
 
-        expect(results.single.kind, SearchEntityKind.intersection);
-        expect(results.single.title, 'Av. Italia y Ejido');
-        expect(results.single.latitude, closeTo(-34.89, 0.00001));
-        expect(results.single.precision, GeoPrecision.approximateIntersection);
-        expect(results.single.toTripEndpoint().isApproximate, isTrue);
+        expect(result.title, 'Auditorio Nacional Adela Reta');
+        expect(result.aliases, contains('SODRE'));
+        expect(result.category, 'amenity:theatre');
+        expect(result.externalId, 'osm:relation:9001');
+        expect(result.subtitle, 'Andes · Montevideo');
+        expect(result.toTripEndpoint().category, 'poi');
+        expect(result.toTripEndpoint().subtitle, 'Andes · Montevideo');
+        expect(result.toTripEndpoint().precision, 'rooftopPoi');
       },
     );
 

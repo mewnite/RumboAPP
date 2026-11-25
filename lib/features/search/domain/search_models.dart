@@ -45,6 +45,10 @@ class SearchResult {
     this.lines = const [],
     this.externalId,
     this.neighborhood,
+    this.category,
+    this.street,
+    this.houseNumber,
+    this.aliases = const [],
   });
 
   /// Identificador estable y único del resultado.
@@ -89,6 +93,18 @@ class SearchResult {
   /// Barrio de Montevideo al que pertenece el punto.
   final String? neighborhood;
 
+  /// Categoría OSM del proveedor, por ejemplo `amenity:theatre`.
+  final String? category;
+
+  /// Calle asociada al lugar o dirección, si el proveedor la informa.
+  final String? street;
+
+  /// Número de puerta tal como lo informa el proveedor.
+  final String? houseNumber;
+
+  /// Nombres alternativos informados por el proveedor.
+  final List<String> aliases;
+
   /// Convierte este resultado en un [TripEndpoint] apto para el planificador de viajes.
   TripEndpoint toTripEndpoint() {
     if (stop != null) {
@@ -114,6 +130,9 @@ class SearchResult {
           precision == GeoPrecision.approximateArea ||
           precision == GeoPrecision.unconfirmedDoorNumber ||
           precision == GeoPrecision.approximateIntersection,
+      subtitle: subtitle,
+      category: kind.name,
+      precision: precision.name,
     );
   }
 
@@ -132,6 +151,10 @@ class SearchResult {
     List<String>? lines,
     String? externalId,
     String? neighborhood,
+    String? category,
+    String? street,
+    String? houseNumber,
+    List<String>? aliases,
   }) {
     return SearchResult(
       id: id ?? this.id,
@@ -148,6 +171,10 @@ class SearchResult {
       lines: lines ?? this.lines,
       externalId: externalId ?? this.externalId,
       neighborhood: neighborhood ?? this.neighborhood,
+      category: category ?? this.category,
+      street: street ?? this.street,
+      houseNumber: houseNumber ?? this.houseNumber,
+      aliases: aliases ?? this.aliases,
     );
   }
 

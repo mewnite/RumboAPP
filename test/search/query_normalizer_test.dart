@@ -32,6 +32,10 @@ void main() {
     test('elimina signos de puntuación y normaliza consultas', () {
       expect(parser.normalizeText('¿DÓNDE—está? Plaza!'), 'donde esta plaza');
       expect(parser.normalizeText('Bvar., Artigas /'), 'bulevar artigas');
+      expect(
+        parser.normalizeText('Nuevocentro Shopping'),
+        'nuevo centro shopping',
+      );
     });
 
     test('expande abreviaturas comunes de Montevideo', () {
@@ -140,6 +144,46 @@ void main() {
 
       final q3 = parser.parse('Pocitos');
       expect(q3.intent, QueryIntentKind.general);
+    });
+
+    test('clasifica las once consultas geográficas requeridas', () {
+      for (final query in [
+        '18 de Julio 1234',
+        'Avenida Italia 2450',
+        'Bulevar Artigas 1500',
+      ]) {
+        expect(
+          parser.parse(query).intent,
+          QueryIntentKind.addressWithNumber,
+          reason: query,
+        );
+      }
+
+      for (final query in [
+        '18 de Julio y Ejido',
+        'Rivera esquina Soca',
+        'Bulevar Artigas & Garibaldi',
+      ]) {
+        expect(
+          parser.parse(query).intent,
+          QueryIntentKind.intersection,
+          reason: query,
+        );
+      }
+
+      for (final query in [
+        'Palacio Legislativo',
+        'SODRE',
+        'Estadio Centenario',
+        'Terminal Tres Cruces',
+        'Parque Rodo',
+      ]) {
+        expect(
+          parser.parse(query).intent,
+          QueryIntentKind.general,
+          reason: query,
+        );
+      }
     });
   });
 }

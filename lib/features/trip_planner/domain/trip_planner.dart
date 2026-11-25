@@ -19,6 +19,9 @@ class TripEndpoint {
     this.stop,
     this.route,
     this.isApproximate = false,
+    this.subtitle,
+    this.category,
+    this.precision,
   });
 
   factory TripEndpoint.fromStop(Stop stop) => TripEndpoint(
@@ -45,6 +48,9 @@ class TripEndpoint {
   final Stop? stop;
   final Route? route;
   final bool isApproximate;
+  final String? subtitle;
+  final String? category;
+  final String? precision;
 }
 
 enum TripTimingMode { departNow, departAt, arriveBy }

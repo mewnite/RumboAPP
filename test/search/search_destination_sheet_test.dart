@@ -11,10 +11,15 @@ import 'package:rumbo/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TestSearchService implements PlaceSearchService {
-  TestSearchService({this.failRemote = false, this.unconfirmedAddress = false});
+  TestSearchService({
+    this.failRemote = false,
+    this.unconfirmedAddress = false,
+    this.emptyResults = false,
+  });
 
   final bool failRemote;
   final bool unconfirmedAddress;
+  final bool emptyResults;
   int remoteCalls = 0;
 
   @override
@@ -36,6 +41,7 @@ class TestSearchService implements PlaceSearchService {
         ),
       );
     }
+    if (emptyResults) return const [];
     if (unconfirmedAddress) {
       return const [
         SearchResult(
@@ -82,6 +88,7 @@ class TestSearchService implements PlaceSearchService {
     double? userLatitude,
     double? userLongitude,
   }) async {
+    if (emptyResults) return const [];
     return [
       SearchResult(
         id: 'stop-1',
@@ -172,6 +179,7 @@ void main() {
       expect(find.text('21'), findsOneWidget);
       expect(find.text('180'), findsOneWidget);
       expect(find.text('Av. Italia 2450'), findsOneWidget);
+      expect(find.text('Dirección exacta'), findsOneWidget);
       expect(searchService.remoteCalls, 1);
       await tester.pumpAndSettle();
       expect(find.text('Buscar lugares o direcciones'), findsNothing);
@@ -267,12 +275,53 @@ void main() {
       expect(
         find.descendant(
           of: result,
-          matching: find.text('Número no confirmado · ubicación aproximada'),
+          matching: find.textContaining(
+            'Número no confirmado · ubicación aproximada',
+          ),
         ),
         findsOneWidget,
       );
     },
   );
+
+  testWidgets('avisa cuando no puede confirmar una esquina', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'remote_place_search_enabled': true,
+    });
+    final searchService = TestSearchService(emptyResults: true);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          searchServiceProvider.overrideWithValue(searchService),
+          networkAvailableProvider.overrideWith(
+            (ref) => Stream<bool>.value(true),
+          ),
+        ],
+        child: MaterialApp(
+          locale: const Locale('es', 'UY'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: SearchDestinationSheet(onDestinationSelected: (_) {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Rivera esquina Soca');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'No pudimos confirmar esa esquina. Revisá los nombres de ambas calles.',
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('pide consentimiento después de solicitar la búsqueda en línea', (
     tester,

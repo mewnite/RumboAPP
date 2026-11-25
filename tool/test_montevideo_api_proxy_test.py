@@ -55,14 +55,14 @@ class ApiProxyTest(unittest.TestCase):
             self.assertEqual(handler._local_cors_headers(), {})
 
     def test_place_search_is_validated_cached_and_identifies_rumbo(self):
-        payload = (200, "application/json", b'[]')
+        payload = (200, "application/json", b"[]")
         response = type(
             "Response",
             (),
             {
                 "status": 200,
                 "headers": {"Content-Type": "application/json"},
-                "read": lambda self, limit: payload[2],
+                "read": lambda self, limit: b'{"type":"FeatureCollection","features":[]}',
                 "__enter__": lambda self: self,
                 "__exit__": lambda self, *args: None,
             },
@@ -77,11 +77,11 @@ class ApiProxyTest(unittest.TestCase):
         self.assertEqual(second, first)
         upstream.assert_called_once()
         request = upstream.call_args.args[0]
-        self.assertIn("countrycodes=uy", request.full_url)
-        self.assertIn("addressdetails=1", request.full_url)
-        self.assertIn("bounded=1", request.full_url)
+        self.assertIn("photon.komoot.io", request.full_url)
+        self.assertIn("lat=-34.9037", request.full_url)
+        self.assertIn("lon=-56.1882", request.full_url)
         self.assertIn(
-            "viewbox=" + urllib.parse.quote(MONTEVIDEO_GEOCODING_VIEWBOX),
+            "bbox=" + urllib.parse.quote("-58.5,-35.2,-53.0,-30.0"),
             request.full_url,
         )
         self.assertEqual(request.get_header("User-agent"), "RumboAPP/1.0 (+https://github.com/mewnite/RumboAPP)")
@@ -138,6 +138,342 @@ class ApiProxyTest(unittest.TestCase):
             geocoding_query("Av. Italia 2450, Uruguay"),
             "avenida Italia 2450, Uruguay",
         )
+
+    def test_photon_normalizes_addresses_intersections_and_pois(self):
+        fixture = Path("tool/test_fixtures/photon_montevideo.json").read_bytes()
+        address = json.loads(
+            self.proxy._normalize_photon_response(fixture, "18 de Julio 1234")
+        )
+        exact_address = next(item for item in address if item["kind"] == "address")
+        self.assertEqual(exact_address["title"], "Avenida 18 de Julio 1234")
+        self.assertEqual(exact_address["precision"], "exactDoorNumber")
+
+        poi = json.loads(
+            self.proxy._normalize_photon_response(fixture, "SODRE")
+        )
+        sodre = next(item for item in poi if item["title"] == "SODRE")
+        self.assertEqual(sodre["kind"], "poi")
+        self.assertEqual(sodre["source"], "openStreetMap")
+
+        intersection = json.loads(
+            self.proxy._normalize_photon_response(
+                fixture, "18 de Julio y Ejido"
+            )
+        )
+        crossing = next(
+            item for item in intersection
+            if item["kind"] == "intersection"
+        )
+        self.assertEqual(crossing["title"], "18 de Julio y Ejido")
+        self.assertEqual(crossing["precision"], "intersectionPoint")
+
+    def test_photon_normalization_rejects_invalid_and_unconfirmed_results(self):
+        with self.assertRaises(ApiError):
+            self.proxy._normalize_photon_response(b"{bad", "SODRE")
+        with self.assertRaises(ApiError):
+            self.proxy._normalize_photon_response(b"[]", "SODRE")
+        self.assertEqual(
+            json.loads(
+                self.proxy._normalize_photon_response(
+                    b'{"type":"FeatureCollection","features":[{}]}',
+                    "SODRE",
+                )
+            ),
+            [],
+        )
+
+    def test_photon_normalization_validates_geojson_coordinates(self):
+        feature = lambda coords, props: (
+            '{"type":"FeatureCollection","features":[{'
+            '"type":"Feature","geometry":{"type":"Point","coordinates":'
+            + json.dumps(coords)
+            + '},"properties":'
+            + json.dumps(props)
+            + '}]}'
+        ).encode()
+
+        for coords in ([200, -34.9], [-34.9, -56.2], [-60.0, -34.9],
+                       [-56.2, -40.0]):
+            results = json.loads(
+                self.proxy._normalize_photon_response(
+                    feature(coords, {"name": "Lugar"}),
+                    "Lugar",
+                )
+            )
+            self.assertEqual(results, [])
+
+        no_name = feature([-56.2, -34.9], {"country": "Uruguay"})
+        self.assertEqual(
+            json.loads(
+                self.proxy._normalize_photon_response(no_name, "Montevideo")
+            ),
+            [],
+        )
+
+        no_house = feature(
+            [-56.2, -34.9],
+            {"name": "Avenida Italia", "street": "Avenida Italia",
+             "city": "Montevideo"},
+        )
+        results = json.loads(
+            self.proxy._normalize_photon_response(no_house, "Avenida Italia 2450")
+        )
+        self.assertEqual(results[0]["precision"], "unconfirmedDoorNumber")
+        self.assertEqual(results[0]["title"], "Avenida Italia 2450")
+
+    def test_photon_normalization_matches_all_required_query_intents(self):
+        fixture = Path("tool/test_fixtures/photon_montevideo.json").read_bytes()
+        expectations = {
+            "18 de Julio 1234": ("address", "exactDoorNumber"),
+            "Avenida Italia 2450": ("address", "exactDoorNumber"),
+            "Bulevar Artigas 1500": ("address", "exactDoorNumber"),
+            "18 de Julio y Ejido": ("intersection", "intersectionPoint"),
+            "Rivera esquina Soca": ("intersection", "intersectionPoint"),
+            "Bulevar Artigas & Garibaldi": (
+                "intersection",
+                "intersectionPoint",
+            ),
+            "Palacio Legislativo": ("poi", "rooftopPoi"),
+            "SODRE": ("poi", "rooftopPoi"),
+            "Estadio Centenario": ("poi", "rooftopPoi"),
+            "Terminal Tres Cruces": ("poi", "rooftopPoi"),
+            "Parque Rodo": ("poi", "rooftopPoi"),
+        }
+
+        for query, (expected_kind, expected_precision) in expectations.items():
+            with self.subTest(query=query):
+                results = json.loads(
+                    self.proxy._normalize_photon_response(fixture, query)
+                )
+                self.assertTrue(results)
+                self.assertEqual(results[0]["kind"], expected_kind)
+                self.assertEqual(results[0]["precision"], expected_precision)
+
+    def test_photon_normalization_preserves_poi_name_and_alternatives(self):
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-56.1882, -34.9037],
+            },
+            "properties": {
+                "osm_id": 9001,
+                "osm_type": "R",
+                "osm_key": "amenity",
+                "osm_value": "theatre",
+                "name": "Auditorio Nacional Adela Reta",
+                "official_name": "Auditorio Nacional Adela Reta",
+                "alt_name": "SODRE",
+                "street": "Andes",
+                "city": "Montevideo",
+            },
+        }
+        response = json.dumps(
+            {"type": "FeatureCollection", "features": [feature]}
+        ).encode()
+
+        result = json.loads(
+            self.proxy._normalize_photon_response(response, "SODRE")
+        )[0]
+
+        self.assertEqual(result["title"], "Auditorio Nacional Adela Reta")
+        self.assertIn("SODRE", result["aliases"])
+        self.assertEqual(result["street"], "Andes")
+        self.assertEqual(result["externalId"], "osm:relation:9001")
+        self.assertEqual(result["subtitle"], "Andes · Montevideo")
+
+    def test_photon_normalization_rejects_unrelated_or_unconfirmed_intersections(self):
+        features = [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-56.1882, -34.9037],
+                },
+                "properties": {
+                    "osm_id": 9010,
+                    "osm_type": "N",
+                    "osm_key": "highway",
+                    "osm_value": "crossing",
+                    "name": "Rivera & Soca",
+                    "city": "Montevideo",
+                },
+            },
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-56.1883, -34.9038],
+                },
+                "properties": {
+                    "osm_id": 9010,
+                    "osm_type": "N",
+                    "osm_key": "highway",
+                    "osm_value": "crossing",
+                    "name": "Rivera & Soca",
+                    "city": "Montevideo",
+                },
+            },
+        ]
+        response = json.dumps(
+            {"type": "FeatureCollection", "features": features}
+        ).encode()
+
+        self.assertEqual(
+            len(
+                json.loads(
+                    self.proxy._normalize_photon_response(
+                        response,
+                        "Rivera esquina Soca",
+                    )
+                )
+            ),
+            1,
+        )
+        self.assertEqual(
+            json.loads(
+                self.proxy._normalize_photon_response(
+                    response,
+                    "Rivera esquina Ejido",
+                )
+            ),
+            [],
+        )
+
+    def test_photon_normalization_rejects_grouped_number_outside_range(self):
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-56.1882, -34.9037],
+            },
+            "properties": {
+                "osm_id": 9020,
+                "osm_type": "W",
+                "osm_key": "building",
+                "osm_value": "residential",
+                "name": "Avenida Italia",
+                "street": "Avenida Italia",
+                "housenumber": "2400, 2450, 2500",
+                "city": "Montevideo",
+            },
+        }
+        response = json.dumps(
+            {"type": "FeatureCollection", "features": [feature]}
+        ).encode()
+
+        result = json.loads(
+            self.proxy._normalize_photon_response(
+                response,
+                "Avenida Italia 2450",
+            )
+        )[0]
+        self.assertEqual(result["precision"], "unconfirmedDoorNumber")
+        self.assertEqual(result["title"], "Avenida Italia 2450")
+
+    def test_photon_normalization_keeps_nearby_different_places(self):
+        features = []
+        for index, name, category, longitude_offset in (
+            (9030, "Auditorio SODRE", "theatre", 0.0),
+            (9031, "Café SODRE", "cafe", 0.00005),
+        ):
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-56.1882 + longitude_offset, -34.9037],
+                    },
+                    "properties": {
+                        "osm_id": index,
+                        "osm_type": "N",
+                        "osm_key": "amenity",
+                        "osm_value": category,
+                        "name": name,
+                        "alt_name": "SODRE",
+                        "city": "Montevideo",
+                    },
+                }
+            )
+        response = json.dumps(
+            {"type": "FeatureCollection", "features": features}
+        ).encode()
+
+        results = json.loads(
+            self.proxy._normalize_photon_response(response, "SODRE")
+        )
+
+        self.assertEqual(len(results), 2)
+        self.assertNotEqual(results[0]["externalId"], results[1]["externalId"])
+
+    def test_photon_request_uses_fixed_bias_and_uruguay_bbox(self):
+        response = type(
+            "Response",
+            (),
+            {
+                "status": 200,
+                "headers": {"Content-Type": "application/json"},
+                "read": lambda self, limit: b'{"type":"FeatureCollection","features":[]}',
+                "__enter__": lambda self: self,
+                "__exit__": lambda self, *args: None,
+            },
+        )()
+        with patch(
+            "tool.montevideo_api_proxy.urllib.request.urlopen",
+            return_value=response,
+        ) as upstream:
+            self.proxy.handle("/geocode?q=Estadio%20Centenario")
+        request = upstream.call_args.args[0]
+        query = urllib.parse.parse_qs(
+            urllib.parse.urlsplit(request.full_url).query
+        )
+        self.assertEqual(query["lat"], ["-34.9037"])
+        self.assertEqual(query["lon"], ["-56.1882"])
+        self.assertEqual(query["bbox"], ["-58.5,-35.2,-53.0,-30.0"])
+        self.assertIn("photon.komoot.io", request.full_url)
+
+    def test_place_provider_timeout_http_error_and_large_response(self):
+        with patch(
+            "tool.montevideo_api_proxy.urllib.request.urlopen",
+            side_effect=TimeoutError(),
+        ):
+            with self.assertRaises(ApiError) as context:
+                self.proxy._search_places("SODRE")
+            self.assertEqual(context.exception.status, 502)
+
+        http_error = urllib.error.HTTPError(
+            "https://photon.komoot.io/api/",
+            503,
+            "Unavailable",
+            {},
+            None,
+        )
+        with patch(
+            "tool.montevideo_api_proxy.urllib.request.urlopen",
+            side_effect=http_error,
+        ):
+            with self.assertRaises(ApiError) as context:
+                self.proxy._search_places("Estadio Centenario")
+            self.assertEqual(context.exception.status, 502)
+
+        response = type(
+            "Response",
+            (),
+            {
+                "status": 200,
+                "headers": {"Content-Type": "application/json"},
+                "read": lambda self, limit: b"x" * (1024 * 1024 + 1),
+                "__enter__": lambda self: self,
+                "__exit__": lambda self, *args: None,
+            },
+        )()
+        with patch(
+            "tool.montevideo_api_proxy.urllib.request.urlopen",
+            return_value=response,
+        ):
+            with self.assertRaises(ApiError) as context:
+                self.proxy._search_places("Terminal Tres Cruces")
+            self.assertIn("demasiado grande", context.exception.args[0])
 
     def test_geo_request_validates_bounds_and_normalizes_query(self):
         result = (200, "application/json", b"[]")
@@ -239,7 +575,8 @@ class ApiProxyTest(unittest.TestCase):
 
     def test_place_search_returns_stale_cache_when_provider_fails(self):
         stale = (200, "application/json", b'[{"display_name":"Centro"}]')
-        self.proxy._place_responses["centro"] = (
+        cache_key = geocoding_query("Centro").casefold()
+        self.proxy._place_responses[cache_key] = (
             time.monotonic() - 48 * 60 * 60,
             stale,
         )

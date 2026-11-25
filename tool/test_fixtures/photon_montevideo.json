@@ -1,0 +1,161 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1643, -34.9053]},
+      "properties": {
+        "osm_id": 1001,
+        "osm_type": "W",
+        "osm_key": "building",
+        "osm_value": "residential",
+        "name": "18 de Julio",
+        "street": "Avenida 18 de Julio",
+        "housenumber": "1234",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1882, -34.9037]},
+      "properties": {
+        "osm_id": 1002,
+        "osm_type": "N",
+        "osm_key": "amenity",
+        "osm_value": "theatre",
+        "name": "SODRE",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1911, -34.9061]},
+      "properties": {
+        "osm_id": 1003,
+        "osm_type": "N",
+        "osm_key": "highway",
+        "osm_value": "crossing",
+        "name": "18 de Julio & Ejido",
+        "street": "18 de Julio",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1492, -34.8887]},
+      "properties": {
+        "osm_id": 1004,
+        "osm_type": "W",
+        "osm_key": "building",
+        "osm_value": "residential",
+        "name": "Avenida Italia",
+        "street": "Avenida Italia",
+        "housenumber": "2450",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1734, -34.8942]},
+      "properties": {
+        "osm_id": 1005,
+        "osm_type": "W",
+        "osm_key": "building",
+        "osm_value": "residential",
+        "name": "Bulevar Artigas",
+        "street": "Bulevar Artigas",
+        "housenumber": "1500",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1681, -34.8953]},
+      "properties": {
+        "osm_id": 1006,
+        "osm_type": "N",
+        "osm_key": "highway",
+        "osm_value": "crossing",
+        "name": "Rivera & Soca",
+        "street": "Avenida Rivera",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1763, -34.8918]},
+      "properties": {
+        "osm_id": 1007,
+        "osm_type": "N",
+        "osm_key": "highway",
+        "osm_value": "crossing",
+        "name": "Bulevar Artigas & Garibaldi",
+        "street": "Bulevar Artigas",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1975, -34.8914]},
+      "properties": {
+        "osm_id": 1008,
+        "osm_type": "W",
+        "osm_key": "government",
+        "osm_value": "legislative",
+        "name": "Palacio Legislativo",
+        "official_name": "Palacio Legislativo",
+        "street": "Avenida de las Leyes",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1526, -34.8944]},
+      "properties": {
+        "osm_id": 1009,
+        "osm_type": "W",
+        "osm_key": "leisure",
+        "osm_value": "stadium",
+        "name": "Estadio Centenario",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1631, -34.8944]},
+      "properties": {
+        "osm_id": 1010,
+        "osm_type": "R",
+        "osm_key": "amenity",
+        "osm_value": "bus_station",
+        "name": "Terminal Tres Cruces",
+        "street": "Bulevar General Artigas",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-56.1772, -34.9147]},
+      "properties": {
+        "osm_id": 1011,
+        "osm_type": "W",
+        "osm_key": "leisure",
+        "osm_value": "park",
+        "name": "Parque Rodó",
+        "official_name": "Parque Rodó",
+        "city": "Montevideo",
+        "country": "Uruguay"
+      }
+    }
+  ]
+}

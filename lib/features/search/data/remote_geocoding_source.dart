@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
@@ -8,6 +9,8 @@ import 'package:http/http.dart' as http;
 import '../domain/place_search_service.dart';
 import '../domain/query_normalizer.dart';
 import '../domain/search_models.dart';
+
+enum _HouseNumberMatch { missing, exact, approximate, different }
 
 /// Fuente remota de geocodificación que interactúa con el gateway o proxy de Rumbo.
 class RemoteGeocodingSource implements GeocodingRepository {
@@ -161,67 +164,80 @@ class RemoteGeocodingSource implements GeocodingRepository {
       return null;
     }
 
-    // 1. Formato estructurado nativo de Rumbo Gateway
+    // 1. Formato estructurado de Rumbo Gateway / Photon.
     if (item.containsKey('title') && item.containsKey('kind')) {
       var title = (item['title'] as String?)?.trim() ?? '';
       if (title.isEmpty) return null;
-      final isIntersection = query.intent == QueryIntentKind.intersection;
-      final precision = _parsePrecision(item['precision']?.toString());
       final kind = _parseKind(item['kind']?.toString());
-      final titleHasRequestedNumber =
-          query.doorNumber != null &&
-          RegExp('(?<!\\d)${query.doorNumber}(?!\\d)').hasMatch(title);
-      final hasDifferentDoorNumber =
-          query.intent == QueryIntentKind.addressWithNumber &&
-          RegExp(r'\b\d{1,5}\b').hasMatch(title) &&
-          !titleHasRequestedNumber;
-      if (hasDifferentDoorNumber) return null;
-      final hasUnconfirmedDoorNumber =
-          query.intent == QueryIntentKind.addressWithNumber &&
-          (precision != GeoPrecision.exactDoorNumber ||
-              !titleHasRequestedNumber);
-
-      if (query.intent == QueryIntentKind.addressWithNumber &&
-          kind != SearchEntityKind.address) {
+      final precision = _parsePrecision(item['precision']?.toString());
+      final street = _firstNonEmpty([item['street']]);
+      final houseNumber = _firstNonEmpty([item['houseNumber']]);
+      final aliases = _readAliases(item['aliases']);
+      var resultPrecision = precision;
+      if (_isUnrequestedAtm(item['category']?.toString(), query)) {
         return null;
       }
-      if (query.intent == QueryIntentKind.addressWithNumber &&
-          hasUnconfirmedDoorNumber) {
-        title = query.raw.trim();
-      }
-      if (isIntersection) {
-        if (!_containsBothIntersectionStreets(
-          '$title ${item['subtitle'] ?? ''}',
-          query,
-        )) {
+
+      if (query.intent == QueryIntentKind.addressWithNumber) {
+        if (kind != SearchEntityKind.address ||
+            !_queryParser.streetMatches(street ?? title, query.street1 ?? '')) {
           return null;
         }
-        title = query.raw.trim();
+        final numberMatch = _matchHouseNumber(
+          houseNumber ?? _houseNumberFromTitle(title),
+          query.doorNumber!,
+        );
+        if (numberMatch == _HouseNumberMatch.different) return null;
+        final exact =
+            numberMatch == _HouseNumberMatch.exact &&
+            precision == GeoPrecision.exactDoorNumber;
+        resultPrecision = exact
+            ? GeoPrecision.exactDoorNumber
+            : GeoPrecision.unconfirmedDoorNumber;
+        if (!exact) title = query.raw.trim();
+      } else if (query.intent == QueryIntentKind.intersection) {
+        final providerAddress = item['address'];
+        final addressValues = providerAddress is Map<String, dynamic>
+            ? providerAddress.values
+            : null;
+        final providerIntersectionText = [
+          item['name'],
+          street,
+          ...?addressValues,
+          ...aliases,
+        ].whereType<String>().join(' ');
+        if (kind != SearchEntityKind.intersection ||
+            !_containsBothIntersectionStreets(
+              providerIntersectionText,
+              query,
+            )) {
+          return null;
+        }
+        title = title.isEmpty ? query.raw.trim() : title;
+        if (precision != GeoPrecision.intersectionPoint) {
+          resultPrecision = GeoPrecision.approximateIntersection;
+        }
       }
-      final isApproximateIntersection =
-          isIntersection && precision != GeoPrecision.intersectionPoint;
-      final resultPrecision = switch (query.intent) {
-        QueryIntentKind.addressWithNumber when hasUnconfirmedDoorNumber =>
-          GeoPrecision.unconfirmedDoorNumber,
-        QueryIntentKind.intersection when isApproximateIntersection =>
-          GeoPrecision.approximateIntersection,
-        _ => precision,
-      };
 
       return SearchResult(
         id: item['id']?.toString() ?? 'remote:$index:${latitude}_$longitude',
-        kind: isIntersection ? SearchEntityKind.intersection : kind,
+        kind: kind,
         title: title,
-        subtitle: (item['subtitle'] as String?)?.trim() ?? 'Montevideo',
+        subtitle: (item['subtitle'] as String?)?.trim() ?? '',
         latitude: latitude,
         longitude: longitude,
         precision: resultPrecision,
         source: _parseSource(item['source']?.toString()),
         neighborhood: item['neighborhood']?.toString(),
+        category: item['category']?.toString(),
+        externalId: item['externalId']?.toString(),
+        street: street,
+        houseNumber: houseNumber,
+        aliases: aliases,
       );
     }
 
-    // 2. Formato compatible con Nominatim / OSM genérico
+    // 2. Formato compatible con Nominatim / OSM genérico.
     final displayName =
         item['display_name'] as String? ?? item['name'] as String? ?? '';
     if (displayName.trim().isEmpty) return null;
@@ -243,102 +259,221 @@ class RemoteGeocodingSource implements GeocodingRepository {
     final houseNumber = address is Map<String, dynamic>
         ? _firstNonEmpty([address['house_number']])
         : null;
-    final isIntersection = query.intent == QueryIntentKind.intersection;
-    if (isIntersection) {
-      final addressText = address is Map<String, dynamic>
-          ? address.values.join(' ')
-          : '';
-      if (!_containsBothIntersectionStreets(
-        '${item['name'] ?? ''} $displayName $addressText',
-        query,
-      )) {
-        return null;
-      }
-    }
-    final exactAddress = street == null
-        ? null
-        : houseNumber == null
-        ? street
-        : '$street $houseNumber';
-    final primaryTitle =
-        exactAddress ??
-        _firstNonEmpty([item['name']]) ??
-        (parts.isEmpty ? '' : parts.first);
-    final remainingParts = exactAddress == null
-        ? parts.skip(1).toList(growable: false)
-        : parts
-              .where(
-                (part) =>
-                    part.toLowerCase() != street?.toLowerCase() &&
-                    part.toLowerCase() != houseNumber?.toLowerCase(),
-              )
-              .toList(growable: false);
-    final secondary = remainingParts.isNotEmpty
-        ? remainingParts.take(3).join(', ')
-        : 'Montevideo';
-
     final osmType = item['type']?.toString().toLowerCase() ?? '';
-    var kind = isIntersection
-        ? SearchEntityKind.intersection
-        : _inferKindFromOsmType(osmType);
+    final osmCategory = item['category']?.toString().toLowerCase() ?? '';
+    if (_isUnrequestedAtm('$osmCategory:$osmType', query)) return null;
+    final kind = _inferKindFromOsmType(osmType, osmCategory);
     final hasIntersectionGeometry =
         osmType == 'intersection' ||
         osmType == 'crossing' ||
-        osmType == 'junction';
-    final houseNumberMatch = houseNumber == null
-        ? null
-        : RegExp(
-            r'^\s*(\d+)(?:\s*(?:bis|b|a))?\s*$',
-            caseSensitive: false,
-          ).firstMatch(houseNumber);
-    final hasExactRequestedHouseNumber =
-        query.intent == QueryIntentKind.addressWithNumber &&
-        houseNumberMatch != null &&
-        int.tryParse(houseNumberMatch.group(1)!) == query.doorNumber;
+        osmType == 'junction' ||
+        item['addresstype']?.toString().toLowerCase() == 'intersection';
+    final aliases = _readAliases([
+      item['alt_name'],
+      item['official_name'],
+      item['short_name'],
+      item['name:es'],
+      item['name:en'],
+      item['brand'],
+    ]);
+    final name = _firstNonEmpty([
+      item['name'],
+      item['official_name'],
+      parts.isEmpty ? null : parts.first,
+    ]);
+    var resultKind = kind;
+    var resultPrecision = GeoPrecision.rooftopPoi;
+    String title = name ?? '';
+    final addressMap = address is Map<String, dynamic> ? address : null;
+    final subtitle = _buildSubtitle(
+      address: addressMap,
+      street: street,
+      houseNumber: houseNumber,
+      isPoi: kind == SearchEntityKind.poi,
+    );
+    final normalizedAddressParts = parts
+        .where(
+          (part) =>
+              _queryParser.normalizeText(part) !=
+                  _queryParser.normalizeText(street ?? '') &&
+              _queryParser.normalizeText(part) !=
+                  _queryParser.normalizeText(houseNumber ?? ''),
+        )
+        .where((part) => _queryParser.normalizeText(part) != 'uruguay')
+        .take(2)
+        .toList(growable: false);
+    final resolvedSubtitle = subtitle.isNotEmpty
+        ? subtitle
+        : normalizedAddressParts.join(' · ');
+
     if (query.intent == QueryIntentKind.addressWithNumber) {
-      if (!{
-        'house',
-        'building',
-        'residential',
-        'road',
-        'pedestrian',
-        'unclassified',
-        'primary',
-        'secondary',
-        'tertiary',
-        'living_street',
-        'service',
-      }.contains(osmType)) {
+      if (kind != SearchEntityKind.address ||
+          street == null ||
+          !_queryParser.streetMatches(street, query.street1 ?? '')) {
         return null;
       }
-      if (houseNumber != null && !hasExactRequestedHouseNumber) return null;
-      kind = SearchEntityKind.address;
+      final numberMatch = _matchHouseNumber(houseNumber, query.doorNumber!);
+      if (numberMatch == _HouseNumberMatch.different) return null;
+      final exact = numberMatch == _HouseNumberMatch.exact;
+      resultKind = SearchEntityKind.address;
+      resultPrecision = exact
+          ? GeoPrecision.exactDoorNumber
+          : GeoPrecision.unconfirmedDoorNumber;
+      title = exact ? '$street ${query.doorNumber}' : query.raw.trim();
+    } else if (query.intent == QueryIntentKind.intersection) {
+      final addressText = addressMap?.values.join(' ') ?? '';
+      final candidateText = [
+        item['name'],
+        displayName,
+        addressText,
+        ...aliases,
+      ].whereType<String>().join(' ');
+      if (!hasIntersectionGeometry ||
+          !_containsBothIntersectionStreets(candidateText, query)) {
+        return null;
+      }
+      resultKind = SearchEntityKind.intersection;
+      resultPrecision = GeoPrecision.intersectionPoint;
+      title = name ?? query.raw.trim();
+    } else if (kind == SearchEntityKind.address) {
+      if (street != null) title = street;
+      resultPrecision = GeoPrecision.streetSegment;
+    } else {
+      if (title.isEmpty) return null;
+      resultPrecision = GeoPrecision.rooftopPoi;
     }
-    final approximateAddress =
-        query.intent == QueryIntentKind.addressWithNumber &&
-        !hasExactRequestedHouseNumber;
+
+    final externalId = _nominatimExternalId(item);
+    final category = [
+      osmCategory,
+      osmType,
+    ].where((part) => part.isNotEmpty).join(':');
     return SearchResult(
-      id: 'osm:${item['osm_id'] ?? index}:${latitude}_$longitude',
-      kind: kind,
-      title: isIntersection
-          ? query.raw.trim()
-          : approximateAddress
-          ? query.raw.trim()
-          : primaryTitle,
-      subtitle: secondary,
+      id: externalId ?? 'osm:$index:${latitude}_$longitude',
+      kind: resultKind,
+      title: title,
+      subtitle: resolvedSubtitle,
       latitude: latitude,
       longitude: longitude,
-      precision: isIntersection
-          ? hasIntersectionGeometry
-                ? GeoPrecision.intersectionPoint
-                : GeoPrecision.approximateIntersection
-          : kind == SearchEntityKind.address
-          ? hasExactRequestedHouseNumber
-                ? GeoPrecision.exactDoorNumber
-                : GeoPrecision.unconfirmedDoorNumber
-          : GeoPrecision.rooftopPoi,
+      precision: resultPrecision,
       source: SearchDataSource.openStreetMap,
+      externalId: externalId,
+      category: category.isEmpty ? null : category,
+      neighborhood: _firstNonEmpty([
+        addressMap?['neighbourhood'],
+        addressMap?['suburb'],
+        addressMap?['quarter'],
+      ]),
+      street: street,
+      houseNumber: houseNumber,
+      aliases: aliases,
     );
+  }
+
+  String _buildSubtitle({
+    required Map<String, dynamic>? address,
+    required String? street,
+    required String? houseNumber,
+    required bool isPoi,
+  }) {
+    final parts = <String>[];
+    if (isPoi && street != null) {
+      final streetAddress = [street, ?houseNumber].join(' ');
+      parts.add(streetAddress);
+    }
+    if (address != null) {
+      for (final key in [
+        'neighbourhood',
+        'suburb',
+        'quarter',
+        'city_district',
+        'city',
+        'town',
+        'village',
+        'state',
+        'country',
+      ]) {
+        final value = address[key];
+        if (value is String &&
+            value.trim().isNotEmpty &&
+            !parts.any(
+              (part) =>
+                  _queryParser.normalizeText(part) ==
+                  _queryParser.normalizeText(value),
+            )) {
+          parts.add(value.trim());
+        }
+      }
+    }
+    return parts.join(' · ');
+  }
+
+  List<String> _readAliases(Object? value) {
+    final values = <Object?>[];
+    if (value is List) {
+      values.addAll(value);
+    } else if (value is String) {
+      values.addAll(value.split(RegExp(r'[;,|]')));
+    }
+    return values
+        .whereType<String>()
+        .map((alias) => alias.trim())
+        .where((alias) => alias.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
+  _HouseNumberMatch _matchHouseNumber(String? value, int requested) {
+    if (value == null || value.trim().isEmpty) {
+      return _HouseNumberMatch.missing;
+    }
+    final normalized = value.trim().toLowerCase();
+    final exact = RegExp(
+      r'^0*(\d+)(?:\s*(?:bis|b|a))?$',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    if (exact != null) {
+      return int.tryParse(exact.group(1)!) == requested
+          ? _HouseNumberMatch.exact
+          : _HouseNumberMatch.different;
+    }
+
+    final range = RegExp(r'^\s*(\d+)\s*[-–]\s*(\d+)\s*$')
+        .firstMatch(normalized);
+    if (range != null) {
+      final start = int.tryParse(range.group(1)!);
+      final end = int.tryParse(range.group(2)!);
+      if (start != null &&
+          end != null &&
+          requested >= math.min(start, end) &&
+          requested <= math.max(start, end)) {
+        return _HouseNumberMatch.approximate;
+      }
+      return _HouseNumberMatch.different;
+    }
+
+    final numbers = RegExp(r'\d+')
+        .allMatches(normalized)
+        .map((match) => int.tryParse(match.group(0)!))
+        .whereType<int>()
+        .toList(growable: false);
+    if (numbers.contains(requested)) return _HouseNumberMatch.approximate;
+    if (numbers.isNotEmpty) return _HouseNumberMatch.different;
+    return _HouseNumberMatch.missing;
+  }
+
+  String? _houseNumberFromTitle(String title) {
+    final matches = RegExp(r'\b(\d{1,5})\b').allMatches(title);
+    return matches.isEmpty ? null : matches.last.group(1);
+  }
+
+  String? _nominatimExternalId(Map<String, dynamic> item) {
+    final osmId = item['osm_id']?.toString();
+    final osmType = item['osm_type']?.toString().toLowerCase();
+    if (osmId == null || osmType == null || osmId.isEmpty || osmType.isEmpty) {
+      return null;
+    }
+    return 'osm:$osmType:$osmId';
   }
 
   String? _firstNonEmpty(List<Object?> values) {
@@ -349,36 +484,8 @@ class RemoteGeocodingSource implements GeocodingRepository {
   }
 
   bool _containsBothIntersectionStreets(String candidate, ParsedQuery query) {
-    final normalizedCandidate = _queryParser.normalizeText(candidate);
-    final candidateTokens = normalizedCandidate.split(' ');
-    bool containsPhrase(String phrase) {
-      final phraseTokens = phrase.split(' ');
-      for (
-        var start = 0;
-        start + phraseTokens.length <= candidateTokens.length;
-        start++
-      ) {
-        if (candidateTokens.skip(start).take(phraseTokens.length).join(' ') ==
-            phrase) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    bool containsStreet(String? street) {
-      if (street == null || street.trim().isEmpty) return false;
-      final normalizedStreet = _queryParser.normalizeText(street);
-      if (containsPhrase(normalizedStreet)) return true;
-      final streetWithoutType = normalizedStreet.replaceFirst(
-        RegExp(r'^(?:avenida|calle|camino|bulevar|rambla|pasaje|plaza)\s+'),
-        '',
-      );
-      return streetWithoutType != normalizedStreet &&
-          containsPhrase(streetWithoutType);
-    }
-
-    return containsStreet(query.street1) && containsStreet(query.street2);
+    return _queryParser.streetMatches(candidate, query.street1 ?? '') &&
+        _queryParser.streetMatches(candidate, query.street2 ?? '');
   }
 
   SearchEntityKind _parseKind(String? value) {
@@ -402,7 +509,7 @@ class RemoteGeocodingSource implements GeocodingRepository {
     );
   }
 
-  SearchEntityKind _inferKindFromOsmType(String type) {
+  SearchEntityKind _inferKindFromOsmType(String type, String category) {
     switch (type) {
       case 'house':
       case 'building':
@@ -422,13 +529,24 @@ class RemoteGeocodingSource implements GeocodingRepository {
         return SearchEntityKind.intersection;
       case 'suburb':
       case 'neighbourhood':
+      case 'neighborhood':
       case 'quarter':
         return SearchEntityKind.neighborhood;
       case 'bus_stop':
       case 'platform':
         return SearchEntityKind.stop;
       default:
+        if (category == 'highway') return SearchEntityKind.address;
         return SearchEntityKind.poi;
     }
+  }
+
+  bool _isUnrequestedAtm(String? category, ParsedQuery query) {
+    if (category == null || category.toLowerCase().split(':').last != 'atm') {
+      return false;
+    }
+    final normalizedQuery = _queryParser.normalizeText(query.raw);
+    return !normalizedQuery.contains('atm') &&
+        !normalizedQuery.contains('cajero');
   }
 }

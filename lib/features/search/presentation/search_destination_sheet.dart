@@ -9,6 +9,7 @@ import '../../../core/widgets/line_chip.dart';
 import '../../../core/widgets/rumbo_components.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../map/data/connectivity_provider.dart';
+import '../domain/query_normalizer.dart';
 import '../domain/search_models.dart';
 import 'search_controller.dart';
 import 'search_state.dart';
@@ -308,7 +309,11 @@ class _SearchDestinationSheetState
       return EmptyState(
         icon: const Icon(Symbols.location_off_rounded, size: 48),
         title: l10n.searchEmptyTitle,
-        message: l10n.searchEmptyBody(state.query),
+        message:
+            const MontevideoQueryParser().parse(state.query).intent ==
+                QueryIntentKind.intersection
+            ? l10n.searchIntersectionNotConfirmed
+            : l10n.searchEmptyBody(state.query),
       );
     }
 
@@ -449,7 +454,7 @@ class _SearchResultTile extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 8),
                 child: Text(
-                  _kindLabel(result.kind, l10n),
+                  _kindLabel(result, l10n),
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -484,12 +489,16 @@ class _SearchResultTile extends StatelessWidget {
   }
 
   String _resultSubtitle(SearchResult result, AppLocalizations l10n) {
-    return switch (result.precision) {
+    final precisionLabel = switch (result.precision) {
       GeoPrecision.unconfirmedDoorNumber => l10n.searchApproximateAddress,
       GeoPrecision.approximateIntersection =>
         l10n.searchApproximateIntersection,
-      _ => result.subtitle,
+      _ => null,
     };
+    final subtitle = result.subtitle.trim();
+    if (precisionLabel == null || precisionLabel.isEmpty) return subtitle;
+    if (subtitle.isEmpty) return precisionLabel;
+    return '$precisionLabel · $subtitle';
   }
 
   Color _kindBackgroundColor(SearchEntityKind kind, ThemeData theme) {
@@ -506,15 +515,27 @@ class _SearchResultTile extends StatelessWidget {
     return theme.colorScheme.onSurfaceVariant;
   }
 
-  String _kindLabel(SearchEntityKind kind, AppLocalizations l10n) {
-    switch (kind) {
+  String _kindLabel(SearchResult result, AppLocalizations l10n) {
+    switch (result.kind) {
       case SearchEntityKind.stop:
         return l10n.searchKindStop;
       case SearchEntityKind.route:
         return l10n.searchKindRoute;
       case SearchEntityKind.address:
+        if (result.precision == GeoPrecision.exactDoorNumber) {
+          return l10n.searchExactAddress;
+        }
+        if (result.precision == GeoPrecision.unconfirmedDoorNumber) {
+          return l10n.searchKindAddress;
+        }
         return l10n.searchKindAddress;
       case SearchEntityKind.intersection:
+        if (result.precision == GeoPrecision.intersectionPoint) {
+          return l10n.searchConfirmedIntersection;
+        }
+        if (result.precision == GeoPrecision.approximateIntersection) {
+          return l10n.searchKindIntersection;
+        }
         return l10n.searchKindIntersection;
       case SearchEntityKind.poi:
         return l10n.searchKindPoi;

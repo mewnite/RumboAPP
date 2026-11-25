@@ -147,36 +147,32 @@ void main() {
     final results = await source.search(query);
 
     expect(results, hasLength(1));
-    expect(results.single.name, query);
+    expect(results.single.name, '18 de Julio & Ejido');
     expect(results.single.isApproximate, isFalse);
   });
 
-  test(
-    'marks an intersection approximate without an intersection point',
-    () async {
-      final client = MockClient((request) async {
-        return http.Response(
-          jsonEncode([
-            {
-              'display_name': 'Avenida Italia & Ejido, Montevideo, Uruguay',
-              'type': 'residential',
-              'lat': '-34.9050',
-              'lon': '-56.1900',
-            },
-          ]),
-          200,
-        );
-      });
-      final source = OpenStreetMapPlaceSource(
-        endpoint: 'http://127.0.0.1:8765/geocode',
-        client: client,
+  test('does not return an unverified street as an intersection', () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode([
+          {
+            'display_name': 'Avenida Italia & Ejido, Montevideo, Uruguay',
+            'type': 'residential',
+            'lat': '-34.9050',
+            'lon': '-56.1900',
+          },
+        ]),
+        200,
       );
-      addTearDown(source.close);
+    });
+    final source = OpenStreetMapPlaceSource(
+      endpoint: 'http://127.0.0.1:8765/geocode',
+      client: client,
+    );
+    addTearDown(source.close);
 
-      final results = await source.search('Av. Italia x Ejido');
+    final results = await source.search('Av. Italia x Ejido');
 
-      expect(results.single.name, 'Av. Italia x Ejido');
-      expect(results.single.isApproximate, isTrue);
-    },
-  );
+    expect(results, isEmpty);
+  });
 }

@@ -57,6 +57,9 @@ class MontevideoQueryParser {
     'pza': 'plaza',
     'rbla': 'rambla',
   };
+  static const Map<String, String> _placeAliases = {
+    'nuevocentro': 'nuevo centro',
+  };
 
   static final RegExp _diacritics = RegExp(r'[áàäâéèëêíìïîóòöôúùüûñ]');
   static final RegExp _multiSpace = RegExp(r'\s+');
@@ -116,9 +119,66 @@ class MontevideoQueryParser {
     final withoutPunctuation = withoutAccents.replaceAll(_punctuation, ' ');
     final tokens = withoutPunctuation
         .split(_multiSpace)
-        .map((token) => _abbreviations[token] ?? token);
+        .map((token) => _abbreviations[token] ?? _placeAliases[token] ?? token);
 
     return tokens.join(' ').trim();
+  }
+
+  /// Matches whole street-name phrases while tolerating common street prefixes.
+  bool streetMatches(String candidate, String requested) {
+    final candidateTokens = normalizeText(candidate).split(' ');
+    final requestedTokens = normalizeText(requested).split(' ');
+    if (candidateTokens.isEmpty || requestedTokens.isEmpty) return false;
+
+    const removablePrefixes = {
+      'avenida',
+      'calle',
+      'camino',
+      'bulevar',
+      'rambla',
+      'pasaje',
+      'plaza',
+      'general',
+      'doctor',
+      'ingeniero',
+      'brigadier',
+    };
+
+    List<String> withoutKnownPrefixes(List<String> tokens) {
+      var start = 0;
+      while (start < tokens.length &&
+          removablePrefixes.contains(tokens[start])) {
+        start++;
+      }
+      return tokens.skip(start).toList(growable: false);
+    }
+
+    bool containsPhrase(List<String> haystack, List<String> needle) {
+      if (needle.isEmpty || needle.length > haystack.length) return false;
+      for (var start = 0; start + needle.length <= haystack.length; start++) {
+        if (haystack.skip(start).take(needle.length).join(' ') ==
+            needle.join(' ')) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    final candidateVariants = [
+      candidateTokens,
+      withoutKnownPrefixes(candidateTokens),
+    ];
+    final requestedVariants = [
+      requestedTokens,
+      withoutKnownPrefixes(requestedTokens),
+    ];
+    return candidateVariants.any(
+      (candidateVariant) => requestedVariants.any(
+        (requestedVariant) =>
+            containsPhrase(candidateVariant, requestedVariant) ||
+            containsPhrase(requestedVariant, candidateVariant),
+      ),
+    );
   }
 
   /// Analiza la consulta y extrae su intención probable y componentes geográficos.

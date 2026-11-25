@@ -8,6 +8,7 @@ import '../../../core/widgets/line_chip.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/rumbo_components.dart';
 import '../../../features/search/domain/place_search_service.dart';
+import '../../../features/search/domain/query_normalizer.dart';
 import '../../../features/stops_and_lines/domain/transit_models.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../domain/planner_config.dart';
@@ -276,6 +277,33 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
 
   String _endpointKey(TripEndpoint endpoint) =>
       '${endpoint.latitude}:${endpoint.longitude}';
+
+  String _endpointSubtitle(TripEndpoint endpoint, AppLocalizations l10n) {
+    final category = switch (endpoint.category) {
+      'address' => switch (endpoint.precision) {
+        'exactDoorNumber' => l10n.searchExactAddress,
+        'unconfirmedDoorNumber' => l10n.searchApproximateAddress,
+        'streetSegment' => l10n.tripPlaceApproximate,
+        _ => l10n.searchKindAddress,
+      },
+      'intersection' => switch (endpoint.precision) {
+        'intersectionPoint' => l10n.searchConfirmedIntersection,
+        'approximateIntersection' => l10n.searchApproximateIntersection,
+        _ => l10n.searchKindIntersection,
+      },
+      'poi' => l10n.searchKindPoi,
+      'neighborhood' => l10n.searchKindNeighborhood,
+      'stop' => l10n.searchKindStop,
+      'favorite' => l10n.searchKindFavorite,
+      'recentSearch' => l10n.searchKindRecent,
+      _ =>
+        endpoint.isApproximate
+            ? l10n.tripPlaceApproximate
+            : l10n.tripPlaceResult,
+    };
+    final subtitle = endpoint.subtitle?.trim() ?? '';
+    return subtitle.isEmpty ? category : '$category · $subtitle';
+  }
 
   void _selectEndpoint(TripEndpoint endpoint) {
     _planGeneration++;
@@ -667,7 +695,15 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
-                  _remoteSearchEnabled ? l10n.tripNoPlaces : l10n.tripNoStops,
+                  _remoteSearchEnabled &&
+                          const MontevideoQueryParser()
+                                  .parse(_activeController.text)
+                                  .intent ==
+                              QueryIntentKind.intersection
+                      ? l10n.searchIntersectionNotConfirmed
+                      : _remoteSearchEnabled
+                      ? l10n.tripNoPlaces
+                      : l10n.tripNoStops,
                 ),
               )
             else if (_suggestions.isNotEmpty)
@@ -704,11 +740,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                       ),
                       title: Text(endpoint.name),
                       subtitle: endpoint.stop == null
-                          ? Text(
-                              endpoint.isApproximate
-                                  ? l10n.tripPlaceApproximate
-                                  : l10n.tripPlaceResult,
-                            )
+                          ? Text(_endpointSubtitle(endpoint, l10n))
                           : endpoint.stop!.code.isEmpty
                           ? Text(l10n.tripStopResult)
                           : Text(

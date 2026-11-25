@@ -872,6 +872,42 @@ void main() {
     );
   });
 
+  testWidgets('labels online transit stops as bus stops', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            remotePlaceSearchEnabled: true,
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [
+              TripEndpoint(
+                name: 'Terminal Tres Cruces',
+                latitude: -34.8938,
+                longitude: -56.1670,
+                category: 'stop',
+                subtitle: 'Tres Cruces',
+              ),
+            ],
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Terminal Tres Cruces');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Parada de ómnibus · Tres Cruces'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('keeps typing local until the person requests online search', (
     tester,
   ) async {
@@ -1004,6 +1040,9 @@ void main() {
                 latitude: -34.89,
                 longitude: -56.18,
                 isApproximate: true,
+                subtitle: 'Montevideo',
+                category: 'address',
+                precision: 'unconfirmedDoorNumber',
               ),
             ],
             findPlans: (origin, destination, timing, config) async => const [],
@@ -1020,7 +1059,39 @@ void main() {
 
     expect(find.text('Faramiñán 801'), findsNWidgets(2));
     expect(
-      find.text('Ubicación aproximada; verificá el punto en el mapa.'),
+      find.text('Número no confirmado · ubicación aproximada · Montevideo'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows an explicit message for an unconfirmed intersection', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: true,
+            remotePlaceSearchEnabled: true,
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).last, 'Rivera esquina Soca');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'No pudimos confirmar esa esquina. Revisá los nombres de ambas calles.',
+      ),
       findsOneWidget,
     );
   });

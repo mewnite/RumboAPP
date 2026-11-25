@@ -162,9 +162,240 @@ void main() {
 
       expect(scoreClinicas, greaterThan(scoreNearby));
     });
+
+    test('un POI coincidente supera una parada cercana no relacionada', () {
+      final query = parser.parse('Palacio Legislativo');
+      const poi = SearchResult(
+        id: 'poi',
+        kind: SearchEntityKind.poi,
+        title: 'Palacio Legislativo',
+        subtitle: 'Avenida de las Leyes · Montevideo',
+        latitude: -34.8914,
+        longitude: -56.1975,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+      );
+      const stop = SearchResult(
+        id: 'stop',
+        kind: SearchEntityKind.stop,
+        title: 'Parada Palacio',
+        subtitle: 'Parada STM · Montevideo',
+        latitude: -34.8915,
+        longitude: -56.1976,
+        precision: GeoPrecision.stopCoordinates,
+        source: SearchDataSource.stmGtfsLocal,
+      );
+
+      final ranked = engine.rankAndDeduplicate(
+        candidates: [stop, poi],
+        query: query,
+      );
+
+      expect(ranked.first, poi);
+    });
+
+    test('deduplica por OSM ID y conserva alias para nombres alternativos', () {
+      final query = parser.parse('SODRE');
+      const official = SearchResult(
+        id: 'remote-1',
+        externalId: 'osm:relation:9001',
+        kind: SearchEntityKind.poi,
+        title: 'Auditorio Nacional Adela Reta',
+        subtitle: 'Andes · Montevideo',
+        latitude: -34.9037,
+        longitude: -56.1882,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        aliases: ['SODRE'],
+      );
+      const duplicate = SearchResult(
+        id: 'remote-2',
+        externalId: 'osm:relation:9001',
+        kind: SearchEntityKind.poi,
+        title: 'SODRE',
+        subtitle: 'Andes · Montevideo',
+        latitude: -34.9038,
+        longitude: -56.1883,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+      );
+
+      final results = engine.rankAndDeduplicate(
+        candidates: [official, duplicate],
+        query: query,
+      );
+
+      expect(results, hasLength(1));
+      expect(results.single.title, 'Auditorio Nacional Adela Reta');
+    });
+
+    test('deduplica un POI remoto con su parada local coincidente', () {
+      final query = parser.parse('SODRE');
+      const stop = SearchResult(
+        id: 'stm:stop:100',
+        kind: SearchEntityKind.stop,
+        title: 'SODRE',
+        subtitle: 'Parada STM',
+        latitude: -34.9037,
+        longitude: -56.1882,
+        precision: GeoPrecision.stopCoordinates,
+        source: SearchDataSource.stmGtfsLocal,
+      );
+      const poi = SearchResult(
+        id: 'osm:poi',
+        kind: SearchEntityKind.poi,
+        title: 'Auditorio Nacional Adela Reta',
+        subtitle: 'Andes · Montevideo',
+        latitude: -34.9037,
+        longitude: -56.1882,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        aliases: ['SODRE'],
+      );
+
+      final results = engine.rankAndDeduplicate(
+        candidates: [stop, poi],
+        query: query,
+      );
+
+      expect(results, hasLength(1));
+      expect(results.single.kind, SearchEntityKind.poi);
+    });
+
+    test(
+      'elimina candidatos de intersección que solo coinciden con una calle',
+      () {
+        const streetStop = SearchResult(
+          id: 'stm:stop:200',
+          kind: SearchEntityKind.stop,
+          title: 'Parada Rivera',
+          subtitle: 'Parada STM · Avenida Rivera',
+          latitude: -34.9,
+          longitude: -56.1,
+          precision: GeoPrecision.stopCoordinates,
+          source: SearchDataSource.stmGtfsLocal,
+        );
+
+        final results = engine.rankAndDeduplicate(
+          candidates: [streetStop],
+          query: parser.parse('Rivera esquina Soca'),
+        );
+
+        expect(results, isEmpty);
+      },
+    );
+
+    test(
+      'no muestra una parada que coincide solo con parte del nombre de un POI',
+      () {
+        const unrelatedStop = SearchResult(
+          id: 'stm:stop:300',
+          kind: SearchEntityKind.stop,
+          title: 'Camino Cibils - Costanera Parque Tomkinson',
+          subtitle: 'Parada STM · Montevideo',
+          latitude: -34.8,
+          longitude: -56.2,
+          precision: GeoPrecision.stopCoordinates,
+          source: SearchDataSource.stmGtfsLocal,
+        );
+
+        final results = engine.rankAndDeduplicate(
+          candidates: [unrelatedStop],
+          query: parser.parse('Parque Rodo'),
+        );
+
+        expect(results, isEmpty);
+      },
+    );
   });
 
   group('SmartRankingEngine - Deduplicación espacial', () {
+    test('deduplica dos representaciones OSM del mismo barrio', () {
+      final query = parser.parse('Parque Rodo');
+      const suburb = SearchResult(
+        id: 'osm:node:953469120',
+        externalId: 'osm:node:953469120',
+        kind: SearchEntityKind.neighborhood,
+        title: 'Parque Rodó',
+        subtitle: 'Parque Rodó · Montevideo',
+        latitude: -34.9100822,
+        longitude: -56.1697776,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        category: 'place:suburb',
+      );
+      const boundary = SearchResult(
+        id: 'osm:relation:13353266',
+        externalId: 'osm:relation:13353266',
+        kind: SearchEntityKind.neighborhood,
+        title: 'Parque Rodó',
+        subtitle: 'Parque Rodó · Montevideo',
+        latitude: -34.9141426,
+        longitude: -56.1676888,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        category: 'boundary:neighborhood',
+      );
+      const park = SearchResult(
+        id: 'osm:way:36807838',
+        externalId: 'osm:way:36807838',
+        kind: SearchEntityKind.poi,
+        title: 'Parque Rodó',
+        subtitle: 'Parque Rodó · Montevideo',
+        latitude: -34.9155643,
+        longitude: -56.1675704,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        category: 'leisure:park',
+      );
+
+      final results = engine.rankAndDeduplicate(
+        candidates: [suburb, boundary, park],
+        query: query,
+      );
+
+      expect(results, hasLength(2));
+      expect(
+        results.where((result) => result.kind == SearchEntityKind.neighborhood),
+        hasLength(1),
+      );
+      expect(
+        results.where((result) => result.kind == SearchEntityKind.poi),
+        hasLength(1),
+      );
+    });
+
+    test('conserva lugares diferentes cercanos aunque compartan un token', () {
+      final query = parser.parse('Parque');
+      const firstPark = SearchResult(
+        id: 'park-1',
+        kind: SearchEntityKind.poi,
+        title: 'Parque Rodó',
+        subtitle: 'Montevideo',
+        latitude: -34.91556,
+        longitude: -56.16757,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+      );
+      const secondPark = SearchResult(
+        id: 'park-2',
+        kind: SearchEntityKind.poi,
+        title: 'Parque Batlle',
+        subtitle: 'Montevideo',
+        latitude: -34.91560,
+        longitude: -56.16760,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+      );
+
+      final results = engine.rankAndDeduplicate(
+        candidates: [firstPark, secondPark],
+        query: query,
+      );
+
+      expect(results, hasLength(2));
+    });
+
     test('deduplica candidatos a menos de 25 metros con nombres similares', () {
       final query = parser.parse('Nuevo Centro');
 
@@ -206,7 +437,7 @@ void main() {
         query: query,
       );
 
-      expect(results, hasLength(2));
+      expect(results, hasLength(1));
       expect(results.first.title, contains('Nuevo Centro'));
     });
   });
