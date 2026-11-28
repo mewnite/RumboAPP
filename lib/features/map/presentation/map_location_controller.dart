@@ -23,10 +23,15 @@ enum MapLocationStatus {
 }
 
 class MapLocationState {
-  const MapLocationState({this.status = MapLocationStatus.idle, this.location});
+  const MapLocationState({
+    this.status = MapLocationStatus.idle,
+    this.location,
+    this.failure,
+  });
 
   final MapLocationStatus status;
   final DeviceLocation? location;
+  final LocationFailure? failure;
 }
 
 class MapLocationController extends Notifier<MapLocationState> {
@@ -66,18 +71,24 @@ class MapLocationController extends Notifier<MapLocationState> {
         status: MapLocationStatus.available,
         location: location,
       );
-    } on LocationRepositoryException {
-      state = const MapLocationState(status: MapLocationStatus.error);
+    } on LocationRepositoryException catch (error) {
+      state = MapLocationState(
+        status: switch (error.failure) {
+          LocationFailure.serviceDisabled => MapLocationStatus.serviceDisabled,
+          LocationFailure.permissionDenied =>
+            MapLocationStatus.permissionDenied,
+          _ => MapLocationStatus.error,
+        },
+        failure: error.failure,
+      );
     } on Exception {
       state = const MapLocationState(status: MapLocationStatus.error);
     }
   }
 
-  Future<void> openPermissionSettings() async {
-    await ref.read(locationRepositoryProvider).openAppSettings();
-  }
+  Future<bool> openPermissionSettings() =>
+      ref.read(locationRepositoryProvider).openAppSettings();
 
-  Future<void> openLocationSettings() async {
-    await ref.read(locationRepositoryProvider).openLocationSettings();
-  }
+  Future<bool> openLocationSettings() =>
+      ref.read(locationRepositoryProvider).openLocationSettings();
 }

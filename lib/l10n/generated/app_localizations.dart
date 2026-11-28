@@ -748,7 +748,7 @@ abstract class AppLocalizations {
   /// No description provided for @locationRationaleBody.
   ///
   /// In es_UY, this message translates to:
-  /// **'Rumbo la usa para centrar el mapa. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.'**
+  /// **'Rumbo la usa para centrar el mapa y planificar desde donde estás. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.'**
   String get locationRationaleBody;
 
   /// No description provided for @locationRationaleContinue.
@@ -780,6 +780,24 @@ abstract class AppLocalizations {
   /// In es_UY, this message translates to:
   /// **'No pudimos obtener tu ubicación. Probá de nuevo.'**
   String get locationError;
+
+  /// No description provided for @locationTimeout.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'La señal tardó demasiado. Revisá la ubicación y volvé a intentar.'**
+  String get locationTimeout;
+
+  /// No description provided for @locationFixStale.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'La ubicación recibida era antigua. Volvé a intentar.'**
+  String get locationFixStale;
+
+  /// No description provided for @locationFixInvalid.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No pudimos validar la ubicación. Volvé a intentar.'**
+  String get locationFixInvalid;
 
   /// No description provided for @locationRetry.
   ///
@@ -1378,8 +1396,14 @@ abstract class AppLocalizations {
   /// No description provided for @tripOriginLocationHint.
   ///
   /// In es_UY, this message translates to:
-  /// **'Mi ubicación'**
+  /// **'Mi ubicación actual'**
   String get tripOriginLocationHint;
+
+  /// No description provided for @tripOriginLocationCurrent.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Mi ubicación actual'**
+  String get tripOriginLocationCurrent;
 
   /// No description provided for @tripOriginStopHint.
   ///
@@ -1396,8 +1420,26 @@ abstract class AppLocalizations {
   /// No description provided for @tripUseCurrentLocation.
   ///
   /// In es_UY, this message translates to:
-  /// **'Usar mi ubicación'**
+  /// **'Usar mi ubicación actual'**
   String get tripUseCurrentLocation;
+
+  /// No description provided for @tripGettingLocation.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Obteniendo tu ubicación…'**
+  String get tripGettingLocation;
+
+  /// No description provided for @tripLocationAccuracy.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Precisión informada: ±{meters} m'**
+  String tripLocationAccuracy(int meters);
+
+  /// No description provided for @tripLocationAccuracyApproximate.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'Tu ubicación puede ser aproximada · precisión informada: ±{meters} m'**
+  String tripLocationAccuracyApproximate(int meters);
 
   /// No description provided for @tripTimingLabel.
   ///
@@ -1516,8 +1558,14 @@ abstract class AppLocalizations {
   /// No description provided for @tripLocationUnavailable.
   ///
   /// In es_UY, this message translates to:
-  /// **'Elegí una parada de origen o activá tu ubicación desde el mapa.'**
+  /// **'Elegí una parada de origen o usá tu ubicación actual.'**
   String get tripLocationUnavailable;
+
+  /// No description provided for @tripLocationRequestFailed.
+  ///
+  /// In es_UY, this message translates to:
+  /// **'No pudimos obtener tu ubicación. Revisá los permisos y los servicios de ubicación e intentá de nuevo.'**
+  String get tripLocationRequestFailed;
 
   /// No description provided for @tripNoTrips.
   ///

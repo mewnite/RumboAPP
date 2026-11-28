@@ -156,6 +156,14 @@ void main() {
         parser.parse('Catedral Metropolitana').intent,
         QueryIntentKind.poi,
       );
+      expect(
+        parser.normalizeText('Auditorio Adela Reta'),
+        'auditorio nacional adela reta',
+      );
+      expect(
+        parser.normalizeText('Catedral Metropolitana Montevideo'),
+        'catedral metropolitana de montevideo',
+      );
       expect(parser.parse('Ciudad Vieja').intent, QueryIntentKind.neighborhood);
     });
 

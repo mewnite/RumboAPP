@@ -1,16 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../domain/location_repository.dart';
 
 class GeolocatorLocationRepository implements LocationRepository {
-  static const Duration _maximumCachedFixAge = Duration(seconds: 30);
+  static const Duration _maximumFixAge = Duration(seconds: 15);
 
   @visibleForTesting
-  static bool isLocationFixRecent(
-    DateTime timestamp, {
+  static LocationFailure? validateLocationFix({
+    required double latitude,
+    required double longitude,
+    required double accuracyMeters,
+    required DateTime timestamp,
     required DateTime now,
-  }) => now.difference(timestamp).abs() <= _maximumCachedFixAge;
+  }) {
+    if (!latitude.isFinite ||
+        latitude < -90 ||
+        latitude > 90 ||
+        !longitude.isFinite ||
+        longitude < -180 ||
+        longitude > 180 ||
+        !accuracyMeters.isFinite ||
+        accuracyMeters < 0) {
+      return LocationFailure.invalid;
+    }
+    final age = now.difference(timestamp);
+    if (age.isNegative || age > _maximumFixAge) return LocationFailure.stale;
+    return null;
+  }
 
   @override
   Future<bool> isLocationServiceEnabled() =>
@@ -41,35 +60,37 @@ class GeolocatorLocationRepository implements LocationRepository {
   @override
   Future<DeviceLocation> getCurrentLocation() async {
     try {
-      final lastKnownPosition = await Geolocator.getLastKnownPosition();
-      final Position position;
-      if (lastKnownPosition != null &&
-          isLocationFixRecent(
-            lastKnownPosition.timestamp,
-            now: DateTime.now(),
-          )) {
-        position = lastKnownPosition;
-      } else {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 20),
-          ),
-        );
-      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      final failure = validateLocationFix(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracy,
+        timestamp: position.timestamp,
+        now: DateTime.now(),
+      );
+      if (failure != null) throw LocationRepositoryException(failure);
+      final accuracy = await Geolocator.getLocationAccuracy();
       return DeviceLocation(
         latitude: position.latitude,
         longitude: position.longitude,
         accuracyMeters: position.accuracy,
+        capturedAt: position.timestamp,
+        reducedAccuracy: accuracy == LocationAccuracyStatus.reduced,
       );
+    } on TimeoutException {
+      throw const LocationRepositoryException(LocationFailure.timeout);
     } on LocationServiceDisabledException {
-      throw const LocationRepositoryException(LocationFailure.unavailable);
+      throw const LocationRepositoryException(LocationFailure.serviceDisabled);
     } on PermissionDeniedException {
-      throw const LocationRepositoryException(LocationFailure.unavailable);
-    } on Exception catch (error) {
-      if (error.toString().contains('TimeoutException')) {
-        throw const LocationRepositoryException(LocationFailure.timeout);
-      }
+      throw const LocationRepositoryException(LocationFailure.permissionDenied);
+    } on LocationRepositoryException {
+      rethrow;
+    } on Exception {
       throw const LocationRepositoryException(LocationFailure.unknown);
     }
   }
@@ -110,6 +131,7 @@ class GeolocatorLocationRepository implements LocationRepository {
         latitude: position.latitude,
         longitude: position.longitude,
         accuracyMeters: position.accuracy,
+        capturedAt: position.timestamp,
       ),
     );
   }

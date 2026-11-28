@@ -225,12 +225,15 @@
   "mapFeedProxyHint": "La app usa el servicio de Rumbo para cargar datos oficiales. Si no responde, reintentá más tarde.",
   "locationRecenter": "Usar mi ubicación",
   "locationRationaleTitle": "Usar tu ubicación",
-  "locationRationaleBody": "Rumbo la usa para centrar el mapa. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.",
+  "locationRationaleBody": "Rumbo la usa para centrar el mapa y planificar desde donde estás. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.",
   "locationRationaleContinue": "Continuar",
   "locationPermissionDenied": "Sin permiso, el mapa sigue disponible desde Montevideo.",
   "locationPermissionDeniedForever": "El permiso está bloqueado en los ajustes del sistema.",
   "locationServiceDisabled": "Los servicios de ubicación están desactivados.",
   "locationError": "No pudimos obtener tu ubicación. Probá de nuevo.",
+  "locationTimeout": "La señal tardó demasiado. Revisá la ubicación y volvé a intentar.",
+  "locationFixStale": "La ubicación recibida era antigua. Volvé a intentar.",
+  "locationFixInvalid": "No pudimos validar la ubicación. Volvé a intentar.",
   "locationRetry": "Reintentar",
   "locationOpenSettings": "Abrir ajustes",
   "locationEnableService": "Activar ubicación",
@@ -375,10 +378,28 @@
   "tripSearchTitle": "Planificá tu viaje",
   "tripOriginLabel": "Desde",
   "tripDestinationLabel": "Hasta",
-  "tripOriginLocationHint": "Mi ubicación",
+  "tripOriginLocationHint": "Mi ubicación actual",
+  "tripOriginLocationCurrent": "Mi ubicación actual",
   "tripOriginStopHint": "Elegí una parada de origen",
   "tripDestinationHint": "Buscá una parada",
-  "tripUseCurrentLocation": "Usar mi ubicación",
+  "tripUseCurrentLocation": "Usar mi ubicación actual",
+  "tripGettingLocation": "Obteniendo tu ubicación…",
+  "tripLocationAccuracy": "Precisión informada: ±{meters} m",
+  "@tripLocationAccuracy": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
+  "tripLocationAccuracyApproximate": "Tu ubicación puede ser aproximada · precisión informada: ±{meters} m",
+  "@tripLocationAccuracyApproximate": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
   "tripTimingLabel": "Horario del viaje",
   "tripTimingNow": "Salir ahora",
   "tripTimingDepartAt": "Salir a las…",
@@ -425,7 +446,8 @@
   },
   "tripShowTrips": "Buscar ómnibus",
   "tripSearchingTrips": "Buscando opciones…",
-  "tripLocationUnavailable": "Elegí una parada de origen o activá tu ubicación desde el mapa.",
+  "tripLocationUnavailable": "Elegí una parada de origen o usá tu ubicación actual.",
+  "tripLocationRequestFailed": "No pudimos obtener tu ubicación. Revisá los permisos y los servicios de ubicación e intentá de nuevo.",
   "tripNoTrips": "No encontramos viajes con los horarios disponibles.",
   "tripStaticScheduleNotice": "Opciones basadas en horarios programados; no son arribos en vivo.",
   "tripOfficialDataUnavailable": "El GTFS oficial todavía no está disponible. Iniciá el proxy local y reintentá la actualización.",

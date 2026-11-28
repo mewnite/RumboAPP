@@ -41,6 +41,7 @@ class TripSearchSheet extends StatefulWidget {
     this.remotePlaceSearchEnabled = false,
     this.onRemotePlaceSearchConsentRequested,
     this.ensureCurrentLocation,
+    this.onOpenLocationSettings,
     this.onCancelPlan,
     this.searchService,
     this.initialOrigin,
@@ -59,7 +60,9 @@ class TripSearchSheet extends StatefulWidget {
   final bool hasCurrentLocation;
   final bool remotePlaceSearchEnabled;
   final Future<bool> Function()? onRemotePlaceSearchConsentRequested;
-  final Future<bool> Function(BuildContext context)? ensureCurrentLocation;
+  final Future<TripEndpoint?> Function(BuildContext context)?
+  ensureCurrentLocation;
+  final Future<void> Function()? onOpenLocationSettings;
   final VoidCallback? onCancelPlan;
   final PlaceSearchService? searchService;
   final TripEndpoint? initialOrigin;
@@ -93,6 +96,8 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
   bool _planning = false;
   bool _originUsesLocation = true;
   late bool _hasCurrentLocation;
+  bool _requestingCurrentLocation = false;
+  bool _locationRequestFailed = false;
   bool _searchOrigin = false;
   bool _showRemotePrivacy = false;
   late bool _remoteSearchEnabled;
@@ -523,31 +528,49 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     await _findPlans();
   }
 
-  void _useLocation() {
+  void _useLocation(TripEndpoint location) {
     _planGeneration++;
     widget.onCancelPlan?.call();
     setState(() {
-      _originUsesLocation = true;
-      _origin = null;
-      _originController.clear();
+      _originUsesLocation = false;
+      _origin = location;
+      _originController.text = location.name;
       _searchOrigin = false;
       _suggestions = const [];
       _plans = null;
+      _locationRequestFailed = false;
     });
     FocusScope.of(context).unfocus();
   }
 
   Future<void> _selectCurrentLocation() async {
-    if (_hasCurrentLocation) {
-      _useLocation();
-      return;
-    }
+    if (_requestingCurrentLocation) return;
+
     final ensureLocation = widget.ensureCurrentLocation;
-    if (ensureLocation == null || !await ensureLocation(context) || !mounted) {
-      return;
+    setState(() {
+      _requestingCurrentLocation = true;
+      _locationRequestFailed = false;
+      if (_origin?.isCurrentLocation == true) {
+        _origin = null;
+        _originController.clear();
+        _originUsesLocation = true;
+        _hasCurrentLocation = false;
+      }
+    });
+    TripEndpoint? location;
+    try {
+      location = ensureLocation == null ? null : await ensureLocation(context);
+    } on Exception {
+      location = null;
     }
-    _hasCurrentLocation = true;
-    _useLocation();
+    if (!mounted) return;
+    setState(() {
+      _requestingCurrentLocation = false;
+      _locationRequestFailed = location == null;
+      if (location != null) _hasCurrentLocation = true;
+    });
+    if (location == null) return;
+    _useLocation(location);
   }
 
   void _swapEndpoints() {
@@ -577,6 +600,7 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
     final l10n = AppLocalizations.of(context);
     final canPlan =
         _destination != null &&
+        !_requestingCurrentLocation &&
         (_originUsesLocation ? _hasCurrentLocation : _origin != null);
     final shownPlans = _plans == null
         ? const <TripPlan>[]
@@ -616,9 +640,6 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                             _searchOrigin = true;
                             _suggestions = const [];
                           });
-                          if (_originController.text.trim().isEmpty) {
-                            unawaited(_selectCurrentLocation());
-                          }
                         },
                         onChanged: (value) {
                           _searchOrigin = true;
@@ -627,19 +648,47 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                           _search(value);
                         },
                         decoration: InputDecoration(
-                          hintText: _hasCurrentLocation
+                          hintText: _originUsesLocation && _hasCurrentLocation
+                              ? null
+                              : _hasCurrentLocation
                               ? l10n.tripOriginLocationHint
                               : l10n.tripOriginStopHint,
                           labelText: l10n.tripOriginLabel,
-                          suffixIcon: _hasCurrentLocation
-                              ? IconButton(
-                                  tooltip: l10n.tripUseCurrentLocation,
-                                  onPressed: _selectCurrentLocation,
-                                  icon: const Icon(Symbols.my_location_rounded),
-                                )
+                          helperText:
+                              _origin?.isCurrentLocation == true &&
+                                  _origin?.accuracyMeters != null
+                              ? _origin!.isApproximate
+                                    ? l10n.tripLocationAccuracyApproximate(
+                                        _origin!.accuracyMeters!.round(),
+                                      )
+                                    : l10n.tripLocationAccuracy(
+                                        _origin!.accuracyMeters!.round(),
+                                      )
                               : null,
+                          suffixIcon: IconButton(
+                            tooltip: l10n.tripUseCurrentLocation,
+                            onPressed: _requestingCurrentLocation
+                                ? null
+                                : _selectCurrentLocation,
+                            icon: _requestingCurrentLocation
+                                ? const SizedBox.square(
+                                    dimension: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Symbols.my_location_rounded),
+                          ),
                         ),
                       ),
+                      if (_requestingCurrentLocation)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            l10n.tripGettingLocation,
+                            key: const ValueKey('trip-location-loading'),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _destinationController,
@@ -902,12 +951,28 @@ class _TripSearchSheetState extends State<TripSearchSheet> {
                   : const Icon(Symbols.directions_bus_rounded),
               label: _planning ? l10n.tripSearchingTrips : l10n.tripShowTrips,
             ),
-            if (_originUsesLocation && !_hasCurrentLocation)
+            if (_locationRequestFailed ||
+                (_originUsesLocation && !_hasCurrentLocation))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  l10n.tripLocationUnavailable,
-                  textAlign: TextAlign.center,
+                child: Column(
+                  children: [
+                    Text(
+                      _locationRequestFailed
+                          ? l10n.tripLocationRequestFailed
+                          : l10n.tripLocationUnavailable,
+                      textAlign: TextAlign.center,
+                      key: const ValueKey('trip-location-status'),
+                    ),
+                    if (_locationRequestFailed &&
+                        widget.onOpenLocationSettings != null)
+                      TextButton.icon(
+                        onPressed: () =>
+                            unawaited(widget.onOpenLocationSettings!.call()),
+                        icon: const Icon(Symbols.settings_rounded),
+                        label: Text(l10n.locationOpenSettings),
+                      ),
+                  ],
                 ),
               ),
             if (_planError != null)

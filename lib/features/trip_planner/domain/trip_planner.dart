@@ -19,6 +19,8 @@ class TripEndpoint {
     this.stop,
     this.route,
     this.isApproximate = false,
+    this.isCurrentLocation = false,
+    this.accuracyMeters,
     this.subtitle,
     this.category,
     this.precision,
@@ -48,6 +50,8 @@ class TripEndpoint {
   final Stop? stop;
   final Route? route;
   final bool isApproximate;
+  final bool isCurrentLocation;
+  final double? accuracyMeters;
   final String? subtitle;
   final String? category;
   final String? precision;

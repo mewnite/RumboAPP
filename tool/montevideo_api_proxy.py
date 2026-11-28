@@ -85,7 +85,11 @@ MONTEVIDEO_POI_CATALOG = {
     },
     "catedral metropolitana de montevideo": {
         "official_name": "Catedral Metropolitana",
-        "aliases": ("Catedral Metropolitana de Montevideo", "Catedral de Montevideo"),
+        "aliases": (
+            "Catedral Metropolitana",
+            "Catedral Metropolitana de Montevideo",
+            "Catedral de Montevideo",
+        ),
         "category": "amenity:place_of_worship",
     },
     "teatro solis": {
@@ -759,6 +763,26 @@ class ApiProxy:
             default=0,
         )
 
+    @staticmethod
+    def _is_unrequested_service(
+        *,
+        osm_key: str,
+        osm_value: str,
+        search: str,
+    ) -> bool:
+        normalized = ApiProxy._normalize_place_text(search)
+        if osm_key == "amenity" and osm_value == "bicycle_rental":
+            return not any(
+                token in normalized
+                for token in ("bicicleta", "bicicletas", "bici", "bicicletero", "alquiler")
+            )
+        if osm_key == "amenity" and osm_value == "parking":
+            return not any(
+                token in normalized
+                for token in ("parking", "estacionamiento")
+            )
+        return False
+
     def _normalize_photon_response(self, body: bytes, search: str) -> bytes:
         try:
             payload = json.loads(body)
@@ -822,6 +846,7 @@ class ApiProxy:
                 == "auditorio nacional adela reta"
             ):
                 aliases.append("SODRE")
+            category = f"{osm_key}:{osm_value}".strip(":")
             query_catalog = next(
                 (
                     record
@@ -851,7 +876,31 @@ class ApiProxy:
                 aliases.extend(query_catalog["aliases"])
                 if not official_name:
                     official_name = title_name
-            category = f"{osm_key}:{osm_value}".strip(":")
+                is_sodre_auditorio = (
+                    self._normalize_place_text(search) == "sodre"
+                    and category in {"amenity:theatre", "amenity:auditorium"}
+                    and self._normalize_place_text(title_name)
+                    in {"sodre", "auditorio nacional adela reta"}
+                )
+                if is_sodre_auditorio:
+                    if self._normalize_place_text(title_name) == "sodre":
+                        official_name = "Auditorio Nacional Adela Reta"
+                        title_name = official_name
+                    elif not official_name:
+                        official_name = title_name
+                elif (
+                    query_catalog["official_name"]
+                    and self._normalize_place_text(title_name)
+                    in {
+                        self._normalize_place_text(query_catalog["official_name"]),
+                        *[
+                            self._normalize_place_text(alias)
+                            for alias in query_catalog["aliases"]
+                        ],
+                    }
+                ):
+                    official_name = query_catalog["official_name"]
+                    title_name = official_name
             neighborhood = next(
                 (
                     str(properties.get(key)).strip()
@@ -940,6 +989,12 @@ class ApiProxy:
                 precision = "streetSegment"
                 text_for_score = title
             else:
+                if self._is_unrequested_service(
+                    osm_key=osm_key,
+                    osm_value=osm_value,
+                    search=search,
+                ):
+                    continue
                 title = title_name
                 if not title:
                     continue

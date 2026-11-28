@@ -97,5 +97,9 @@ void main() {
       container.read(mapLocationControllerProvider).status,
       MapLocationStatus.error,
     );
+    expect(
+      container.read(mapLocationControllerProvider).failure,
+      LocationFailure.timeout,
+    );
   });
 }

@@ -11,6 +11,201 @@ import 'package:rumbo/features/trip_planner/presentation/trip_search_sheet.dart'
 import 'package:rumbo/l10n/generated/app_localizations.dart';
 
 void main() {
+  testWidgets('shows when current location was selected as the origin', (
+    tester,
+  ) async {
+    const currentLocation = TripEndpoint(
+      name: 'Mi ubicación actual',
+      latitude: -34.912345,
+      longitude: -56.198765,
+      isCurrentLocation: true,
+      accuracyMeters: 18.4,
+    );
+    const destination = TripEndpoint(
+      name: 'Terminal',
+      latitude: -34.9,
+      longitude: -56.2,
+    );
+    var requests = 0;
+    TripEndpoint? plannedOrigin;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: false,
+            initialDestination: destination,
+            ensureCurrentLocation: (_) async {
+              requests++;
+              return currentLocation;
+            },
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, destination, timing, config) async {
+              plannedOrigin = origin;
+              return const [];
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('Usar mi ubicación actual'), findsOneWidget);
+    await tester.tap(find.byTooltip('Usar mi ubicación actual'));
+    await tester.pumpAndSettle();
+
+    expect(requests, 1);
+    expect(
+      tester
+          .widgetList<TextField>(find.byType(TextField))
+          .first
+          .controller
+          ?.text,
+      'Mi ubicación actual',
+    );
+    expect(
+      tester
+          .widgetList<TextField>(find.byType(TextField))
+          .last
+          .controller
+          ?.text,
+      destination.name,
+    );
+    expect(find.text('Precisión informada: ±18 m'), findsOneWidget);
+    expect(find.byKey(const ValueKey('trip-location-status')), findsNothing);
+
+    await tester.ensureVisible(find.text('Buscar ómnibus'));
+    await tester.tap(find.text('Buscar ómnibus'));
+    await tester.pumpAndSettle();
+    expect(plannedOrigin?.latitude, currentLocation.latitude);
+    expect(plannedOrigin?.longitude, currentLocation.longitude);
+    expect(plannedOrigin?.accuracyMeters, currentLocation.accuracyMeters);
+    expect(plannedOrigin?.isCurrentLocation, isTrue);
+  });
+
+  testWidgets('replaces only the origin while preserving the destination', (
+    tester,
+  ) async {
+    const destination = TripEndpoint(
+      name: 'Terminal',
+      latitude: -34.9,
+      longitude: -56.2,
+    );
+    const location = TripEndpoint(
+      name: 'Mi ubicación actual',
+      latitude: -34.912345,
+      longitude: -56.198765,
+      isCurrentLocation: true,
+      accuracyMeters: 18,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: false,
+            initialOrigin: const TripEndpoint(
+              name: 'Plaza Independencia',
+              latitude: -34.906,
+              longitude: -56.199,
+            ),
+            initialDestination: destination,
+            ensureCurrentLocation: (_) async => location,
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Usar mi ubicación actual'));
+    await tester.pumpAndSettle();
+
+    final fields = tester.widgetList<TextField>(find.byType(TextField));
+    expect(fields.first.controller?.text, location.name);
+    expect(fields.last.controller?.text, destination.name);
+  });
+
+  testWidgets('allows an approximate fix and shows its measured uncertainty', (
+    tester,
+  ) async {
+    const approximateLocation = TripEndpoint(
+      name: 'Mi ubicación actual',
+      latitude: -34.9,
+      longitude: -56.2,
+      isApproximate: true,
+      isCurrentLocation: true,
+      accuracyMeters: 760,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: false,
+            ensureCurrentLocation: (_) async => approximateLocation,
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Usar mi ubicación actual'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Tu ubicación puede ser aproximada · precisión informada: ±760 m',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('trip-location-status')), findsNothing);
+  });
+
+  testWidgets('explains when current location could not be selected', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('es', 'UY'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TripSearchSheet(
+            hasCurrentLocation: false,
+            ensureCurrentLocation: (_) async => null,
+            searchStops: (_) async => const [],
+            searchPlaces: (_) async => const [],
+            findPlans: (origin, destination, timing, config) async => const [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Usar mi ubicación actual'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Desde'), findsOneWidget);
+    expect(
+      find.text(
+        'No pudimos obtener tu ubicación. Revisá los permisos y los servicios de ubicación e intentá de nuevo.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('searches a destination and displays scheduled trip options', (
     tester,
   ) async {

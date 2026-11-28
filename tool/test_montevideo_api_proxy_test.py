@@ -183,9 +183,14 @@ class ApiProxyTest(unittest.TestCase):
         poi = json.loads(
             self.proxy._normalize_photon_response(fixture, "SODRE")
         )
-        sodre = next(item for item in poi if item["title"] == "SODRE")
+        sodre = next(
+            item
+            for item in poi
+            if item["title"] == "Auditorio Nacional Adela Reta"
+        )
         self.assertEqual(sodre["kind"], "poi")
         self.assertEqual(sodre["source"], "openStreetMap")
+        self.assertIn("SODRE", sodre["aliases"])
 
         intersection = json.loads(
             self.proxy._normalize_photon_response(

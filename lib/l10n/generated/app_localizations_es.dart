@@ -401,7 +401,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get locationRationaleBody =>
-      'Rumbo la usa para centrar el mapa. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.';
+      'Rumbo la usa para centrar el mapa y planificar desde donde estás. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.';
 
   @override
   String get locationRationaleContinue => 'Continuar';
@@ -421,6 +421,18 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get locationError =>
       'No pudimos obtener tu ubicación. Probá de nuevo.';
+
+  @override
+  String get locationTimeout =>
+      'La señal tardó demasiado. Revisá la ubicación y volvé a intentar.';
+
+  @override
+  String get locationFixStale =>
+      'La ubicación recibida era antigua. Volvé a intentar.';
+
+  @override
+  String get locationFixInvalid =>
+      'No pudimos validar la ubicación. Volvé a intentar.';
 
   @override
   String get locationRetry => 'Reintentar';
@@ -742,7 +754,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripDestinationLabel => 'Hasta';
 
   @override
-  String get tripOriginLocationHint => 'Mi ubicación';
+  String get tripOriginLocationHint => 'Mi ubicación actual';
+
+  @override
+  String get tripOriginLocationCurrent => 'Mi ubicación actual';
 
   @override
   String get tripOriginStopHint => 'Elegí una parada de origen';
@@ -751,7 +766,20 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tripDestinationHint => 'Buscá una parada';
 
   @override
-  String get tripUseCurrentLocation => 'Usar mi ubicación';
+  String get tripUseCurrentLocation => 'Usar mi ubicación actual';
+
+  @override
+  String get tripGettingLocation => 'Obteniendo tu ubicación…';
+
+  @override
+  String tripLocationAccuracy(int meters) {
+    return 'Precisión informada: ±$meters m';
+  }
+
+  @override
+  String tripLocationAccuracyApproximate(int meters) {
+    return 'Tu ubicación puede ser aproximada · precisión informada: ±$meters m';
+  }
 
   @override
   String get tripTimingLabel => 'Horario del viaje';
@@ -820,7 +848,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tripLocationUnavailable =>
-      'Elegí una parada de origen o activá tu ubicación desde el mapa.';
+      'Elegí una parada de origen o usá tu ubicación actual.';
+
+  @override
+  String get tripLocationRequestFailed =>
+      'No pudimos obtener tu ubicación. Revisá los permisos y los servicios de ubicación e intentá de nuevo.';
 
   @override
   String get tripNoTrips =>
@@ -1712,7 +1744,7 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get locationRationaleBody =>
-      'Rumbo la usa para centrar el mapa. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.';
+      'Rumbo la usa para centrar el mapa y planificar desde donde estás. La ubicación se procesa en este dispositivo y no se guarda. El proveedor de mapas puede inferir la zona aproximada por las teselas que se solicitan.';
 
   @override
   String get locationRationaleContinue => 'Continuar';
@@ -1732,6 +1764,18 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   @override
   String get locationError =>
       'No pudimos obtener tu ubicación. Probá de nuevo.';
+
+  @override
+  String get locationTimeout =>
+      'La señal tardó demasiado. Revisá la ubicación y volvé a intentar.';
+
+  @override
+  String get locationFixStale =>
+      'La ubicación recibida era antigua. Volvé a intentar.';
+
+  @override
+  String get locationFixInvalid =>
+      'No pudimos validar la ubicación. Volvé a intentar.';
 
   @override
   String get locationRetry => 'Reintentar';
@@ -2053,7 +2097,10 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripDestinationLabel => 'Hasta';
 
   @override
-  String get tripOriginLocationHint => 'Mi ubicación';
+  String get tripOriginLocationHint => 'Mi ubicación actual';
+
+  @override
+  String get tripOriginLocationCurrent => 'Mi ubicación actual';
 
   @override
   String get tripOriginStopHint => 'Elegí una parada de origen';
@@ -2062,7 +2109,20 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
   String get tripDestinationHint => 'Buscá una parada';
 
   @override
-  String get tripUseCurrentLocation => 'Usar mi ubicación';
+  String get tripUseCurrentLocation => 'Usar mi ubicación actual';
+
+  @override
+  String get tripGettingLocation => 'Obteniendo tu ubicación…';
+
+  @override
+  String tripLocationAccuracy(int meters) {
+    return 'Precisión informada: ±$meters m';
+  }
+
+  @override
+  String tripLocationAccuracyApproximate(int meters) {
+    return 'Tu ubicación puede ser aproximada · precisión informada: ±$meters m';
+  }
 
   @override
   String get tripTimingLabel => 'Horario del viaje';
@@ -2131,7 +2191,11 @@ class AppLocalizationsEsUy extends AppLocalizationsEs {
 
   @override
   String get tripLocationUnavailable =>
-      'Elegí una parada de origen o activá tu ubicación desde el mapa.';
+      'Elegí una parada de origen o usá tu ubicación actual.';
+
+  @override
+  String get tripLocationRequestFailed =>
+      'No pudimos obtener tu ubicación. Revisá los permisos y los servicios de ubicación e intentá de nuevo.';
 
   @override
   String get tripNoTrips =>

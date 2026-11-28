@@ -98,6 +98,23 @@ class SmartRankingEngine {
     final queryText = query.normalized;
     if (queryText.isEmpty) return 50;
 
+    final category = candidate.category?.toLowerCase() ?? '';
+    if (query.intent == QueryIntentKind.poi ||
+        query.intent == QueryIntentKind.general ||
+        query.intent == QueryIntentKind.unknown) {
+      final normalizedQuery = queryParser.normalizeText(query.raw);
+      final categoryIsUnrequestedService =
+          (category.endsWith(':parking') &&
+              !normalizedQuery.contains('parking') &&
+              !normalizedQuery.contains('estacionamiento')) ||
+          (category.endsWith(':bicycle_rental') &&
+              !normalizedQuery.contains('bicicleta') &&
+              !normalizedQuery.contains('bici') &&
+              !normalizedQuery.contains('bicicletero') &&
+              !normalizedQuery.contains('alquiler'));
+      if (categoryIsUnrequestedService) return 0;
+    }
+
     if (query.intent == QueryIntentKind.stopCode) {
       if (candidate.stopCode != null && candidate.stopCode == query.stopCode) {
         return 100.0;

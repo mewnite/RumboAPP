@@ -64,6 +64,12 @@ class MontevideoQueryParser {
   };
   static const Map<String, String> _placeAliases = {
     'nuevocentro': 'nuevo centro',
+    'nuevo centro shopping': 'nuevo centro shopping',
+    'sodre': 'auditorio nacional adela reta',
+    'auditorio adela reta': 'auditorio nacional adela reta',
+    'catedral metropolitana': 'catedral metropolitana de montevideo',
+    'catedral metropolitana montevideo': 'catedral metropolitana de montevideo',
+    'catedral de montevideo': 'catedral metropolitana de montevideo',
   };
   static const Set<String> _knownPoiNames = {
     'sodre',
@@ -139,8 +145,8 @@ class MontevideoQueryParser {
     final tokens = withoutPunctuation
         .split(_multiSpace)
         .map((token) => _abbreviations[token] ?? _placeAliases[token] ?? token);
-
-    return tokens.join(' ').trim();
+    final expanded = tokens.join(' ').trim();
+    return _placeAliases[expanded] ?? expanded;
   }
 
   /// Matches whole street-name phrases while tolerating common street prefixes.

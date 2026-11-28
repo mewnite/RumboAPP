@@ -115,3 +115,17 @@
 - Las búsquedas «calle A y calle B», «esquina» y equivalentes se envían como intersección al geocodificador; `junction` se clasifica como cruce.
 - Al devolver planes se filtran inmediatamente los buses por las líneas útiles del resultado.
 - Tests Flutter completos, tests focalizados y proxy Python: verdes; `flutter analyze`: sin issues.
+
+## Validación final de ubicación y APK · 2026-11-27
+- El campo “Desde” conserva un único botón de ubicación a la derecha. Al tocarlo, el dispositivo obtiene una posición reciente y el texto del origen cambia a “Mi ubicación actual”; la ubicación de destino no se modifica.
+- En el Samsung A34 `R5CW915LYXH` (Android 16), con permiso preciso activo, el flujo completó el campo y mostró la precisión reportada de ±12 m. La coordenada se entrega directamente al planificador local y no se envía a un servidor.
+- Se manejan ubicación antigua o inválida, timeout, servicio desactivado y permiso denegado; los permisos aproximados siguen permitiendo usar el origen y se informa la precisión disponible.
+- `flutter analyze` sin issues; `flutter test`: 296 tests en verde; `git diff --check` sin errores de whitespace; los archivos Dart modificados quedaron formateados.
+- La APK release se compiló e instaló como actualización en el teléfono. El paquete arm64 pesa 58.382.675 bytes; el build mantiene R8, reducción de recursos e íconos no usados y símbolos Dart fuera del APK.
+
+## Preparación de APK para GitHub · 2026-11-27
+- Se actualizó la versión a `1.0.1+2002` para que el APK universal pueda actualizar la instalación anterior con código 2001.
+- Se generó `build/github-release/Rumbo-v1.0.1-universal.apk` (115.482.212 bytes) y variantes para armeabi-v7a (52.928.669), arm64-v8a (58.382.675) y x86_64 (60.250.980); hashes SHA-256 en `build/github-release/SHA256SUMS.txt`. Los manifiestos reportan versión 1.0.1, application id `uy.rumbo.rumbo` y códigos crecientes respecto a la versión instalada.
+- Release mantiene R8, shrinkResources, obfuscación Dart, símbolos Dart fuera del paquete y tree-shaking de íconos.
+- `android/app/build.gradle.kts` todavía firma release con la clave debug del entorno; es instalable para distribución directa, pero para futuras actualizaciones se debe conservar esa clave o configurar una clave privada de distribución. No subir el archivo de clave al repositorio público.
+- El teléfono R5CW915LYXH se desconectó antes de validar la instalación de esta nueva versión; la compilación universal terminó correctamente.

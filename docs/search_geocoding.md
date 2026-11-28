@@ -16,6 +16,22 @@ Fuentes incorporadas actualmente:
   `RUMBO_GEOCODING_URL`.
 - **Proxy de Render**: caché y normalización del contrato Rumbo.
 
+Fuentes investigadas y su estado:
+
+| Fuente | URL oficial | Estado actual | Licencia / límites |
+|---|---|---|---|
+| Photon | https://photon.komoot.io/ | Provider configurable; predeterminado del proxy | Usa datos OSM; API pública sujeta a uso justo y limitación de carga |
+| OpenStreetMap | https://www.openstreetmap.org/copyright | Procedencia de los objetos devueltos por Photon | ODbL para los datos y atribución obligatoria |
+| Catálogo Nacional de Datos Abiertos | https://catalogodatos.gub.uy/ | Catálogo investigado; sin endpoint geográfico confirmado e incorporado | Depende de la licencia de cada conjunto |
+| Datos de Montevideo / IDE | Requieren una URL oficial verificable por dataset | No incorporados como proveedor automático | No se asumió disponibilidad ni licencia |
+
+Los alias locales se mantienen en el catálogo del backend y el normalizador del
+cliente. Incluyen nombres oficiales, alias y categorías, pero no contienen
+coordenadas inventadas. La coordinación actual cubre SODRE/Auditorio Nacional
+Adela Reta, Nuevo Centro Shopping, Catedral Metropolitana, Teatro Solís,
+Estadio Centenario y Shopping Punta Carretas. Si un proveedor no devuelve el
+objeto verificado, el alias no crea un resultado ficticio.
+
 No se incorporó una base municipal de numeración ni geometrías oficiales de
 calles porque no se verificó un endpoint distribuible y estable en esta
 implementación. Tampoco se añadieron endpoints de datos oficiales sin URL,

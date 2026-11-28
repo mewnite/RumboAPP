@@ -229,6 +229,40 @@ void main() {
       expect(results.single.title, 'Auditorio Nacional Adela Reta');
     });
 
+    test('parking y alquiler de bicicletas no desplazan al POI solicitado', () {
+      final query = parser.parse('Shopping Punta Carretas');
+      const parking = SearchResult(
+        id: 'parking',
+        kind: SearchEntityKind.poi,
+        title: 'Parking Punta Carretas',
+        subtitle: 'Montevideo',
+        latitude: -34.923,
+        longitude: -56.158,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        category: 'amenity:parking',
+      );
+      const shopping = SearchResult(
+        id: 'shopping',
+        kind: SearchEntityKind.poi,
+        title: 'Shopping Punta Carretas',
+        subtitle: 'Montevideo',
+        latitude: -34.923,
+        longitude: -56.158,
+        precision: GeoPrecision.rooftopPoi,
+        source: SearchDataSource.openStreetMap,
+        category: 'shop:mall',
+      );
+
+      final results = engine.rankAndDeduplicate(
+        candidates: [parking, shopping],
+        query: query,
+      );
+
+      expect(results, hasLength(1));
+      expect(results.single.category, 'shop:mall');
+    });
+
     test('deduplica un POI remoto con su parada local coincidente', () {
       final query = parser.parse('SODRE');
       const stop = SearchResult(

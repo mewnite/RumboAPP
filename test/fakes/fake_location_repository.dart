@@ -5,10 +5,11 @@ class FakeLocationRepository implements LocationRepository {
   LocationPermissionStatus checkedPermission = LocationPermissionStatus.granted;
   LocationPermissionStatus requestedPermission =
       LocationPermissionStatus.granted;
-  DeviceLocation location = const DeviceLocation(
+  DeviceLocation location = DeviceLocation(
     latitude: -34.9058,
     longitude: -56.1991,
     accuracyMeters: 18,
+    capturedAt: DateTime.now(),
   );
   LocationRepositoryException? locationFailure;
   bool backgroundPermissionGranted = true;

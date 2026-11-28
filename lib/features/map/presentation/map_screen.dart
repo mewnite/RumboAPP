@@ -17,6 +17,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/rumbo_components.dart';
 import '../../../features/favorites/domain/favorite.dart';
 import '../../../features/favorites/presentation/favorites_controller.dart';
+import '../domain/location_repository.dart';
 import '../../../features/search/presentation/search_controller.dart';
 import '../../../features/settings/presentation/privacy_preferences.dart';
 import '../../../features/stops_and_lines/data/montevideo_realtime_bus_source.dart';
@@ -131,6 +132,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   bool _mapError = false;
   bool _mapStyleReady = false;
   bool _pendingLocationRecenter = false;
+  bool _retryLocationOnResume = false;
   Future<void>? _locationRequestInFlight;
   bool _mapVisible = false;
   bool _appResumed = true;
@@ -204,6 +206,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appResumed = state == AppLifecycleState.resumed;
     _syncRealtimePolling();
+    if (_appResumed && _retryLocationOnResume && mounted) {
+      _retryLocationOnResume = false;
+      unawaited(_requestLocation());
+    }
   }
 
   void _syncRealtimePolling() {
@@ -689,12 +695,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final state = ref.read(mapLocationControllerProvider);
     final location = state.location;
     if (location == null) {
-      final message = switch (state.status) {
-        MapLocationStatus.permissionDenied => l10n.locationPermissionDenied,
-        MapLocationStatus.permissionDeniedForever =>
-          l10n.locationPermissionDeniedForever,
-        MapLocationStatus.serviceDisabled => l10n.locationServiceDisabled,
-        _ => l10n.locationError,
+      final message = switch (state.failure) {
+        LocationFailure.timeout => l10n.locationTimeout,
+        LocationFailure.stale => l10n.locationFixStale,
+        LocationFailure.invalid => l10n.locationFixInvalid,
+        LocationFailure.serviceDisabled => l10n.locationServiceDisabled,
+        LocationFailure.permissionDenied => l10n.locationPermissionDenied,
+        LocationFailure.unavailable ||
+        LocationFailure.unknown ||
+        null => switch (state.status) {
+          MapLocationStatus.permissionDenied => l10n.locationPermissionDenied,
+          MapLocationStatus.permissionDeniedForever =>
+            l10n.locationPermissionDeniedForever,
+          MapLocationStatus.serviceDisabled => l10n.locationServiceDisabled,
+          _ => l10n.locationError,
+        },
       };
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -737,6 +752,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }) async {
     final l10n = AppLocalizations.of(context);
     final location = ref.read(mapLocationControllerProvider).location;
+    final usableLocation = location?.isFreshAt(DateTime.now()) == true
+        ? location
+        : null;
+    final currentLocationOrigin = usableLocation == null
+        ? null
+        : _tripEndpointFromLocation(usableLocation, l10n);
+    final initialOrigin = origin ?? currentLocationOrigin;
     final searchService = ref.read(searchServiceProvider);
     final remotePlaceSearchEnabled =
         ref.read(remotePlaceSearchEnabledProvider).asData?.value ?? false;
@@ -758,10 +780,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
         isScrollControlled: true,
         showDragHandle: false,
         builder: (context) => TripSearchSheet(
-          hasCurrentLocation: location != null,
+          hasCurrentLocation: currentLocationOrigin != null,
           ensureCurrentLocation: (dialogContext) async {
             await _requestLocation(dialogContext: dialogContext);
-            return ref.read(mapLocationControllerProvider).location != null;
+            final fix = ref.read(mapLocationControllerProvider).location;
+            return fix == null ? null : _tripEndpointFromLocation(fix, l10n);
+          },
+          onOpenLocationSettings: () async {
+            final locationController = ref.read(
+              mapLocationControllerProvider.notifier,
+            );
+            if (ref.read(mapLocationControllerProvider).status ==
+                MapLocationStatus.serviceDisabled) {
+              await locationController.openLocationSettings();
+            } else {
+              await locationController.openPermissionSettings();
+            }
           },
           remotePlaceSearchEnabled: remotePlaceSearchEnabled,
           onRemotePlaceSearchConsentRequested: () async {
@@ -790,7 +824,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             return accepted == true;
           },
           onCancelPlan: tripPlanner.cancelPendingSearch,
-          initialOrigin: origin,
+          initialOrigin: initialOrigin,
           initialDestination: destination,
           searchService: searchService,
           onPlanSelected: (plan, origin, destination) {
@@ -846,20 +880,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     : l10n.tripOfficialDataUnavailable,
               );
             }
-            final currentLocation = ref
-                .read(mapLocationControllerProvider)
-                .location;
-            final originLatitude =
-                origin?.latitude ?? currentLocation?.latitude;
-            final originLongitude =
-                origin?.longitude ?? currentLocation?.longitude;
-            if (originLatitude == null || originLongitude == null) {
+            if (origin == null) {
               throw Exception(l10n.tripOriginRequired);
             }
             final plans = await tripPlanner.plan(
               TripRequest(
-                originLatitude: originLatitude,
-                originLongitude: originLongitude,
+                originLatitude: origin.latitude,
+                originLongitude: origin.longitude,
                 destinationLatitude: destination.latitude,
                 destinationLongitude: destination.longitude,
                 timing: timing,
@@ -902,6 +929,18 @@ class _MapScreenState extends ConsumerState<MapScreen>
       placeSource?.close();
     }
   }
+
+  TripEndpoint _tripEndpointFromLocation(
+    DeviceLocation location,
+    AppLocalizations l10n,
+  ) => TripEndpoint(
+    name: l10n.tripOriginLocationCurrent,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    isApproximate: location.isApproximate,
+    isCurrentLocation: true,
+    accuracyMeters: location.accuracyMeters,
+  );
 
   /// Recalcula los tramos peatonales del plan seleccionado con la red
   /// peatonal (si terminó de cargar después de planificar). Devuelve el
@@ -1114,11 +1153,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _handleLocationAction(MapLocationStatus status) async {
     final controller = ref.read(mapLocationControllerProvider.notifier);
+    final l10n = AppLocalizations.of(context);
     switch (status) {
       case MapLocationStatus.permissionDeniedForever:
-        await controller.openPermissionSettings();
+        final opened = await controller.openPermissionSettings();
+        if (!mounted) return;
+        if (opened) {
+          _retryLocationOnResume = true;
+        } else {
+          _showMessage(l10n.locationError);
+        }
       case MapLocationStatus.serviceDisabled:
-        await controller.openLocationSettings();
+        final opened = await controller.openLocationSettings();
+        if (!mounted) return;
+        if (opened) {
+          _retryLocationOnResume = true;
+        } else {
+          _showMessage(l10n.locationError);
+        }
       case MapLocationStatus.permissionDenied:
       case MapLocationStatus.error:
         await _requestLocation();

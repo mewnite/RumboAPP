@@ -343,6 +343,24 @@ class RemoteGeocodingSource implements GeocodingRepository {
     } else if (kind == SearchEntityKind.address) {
       if (street != null) title = street;
       resultPrecision = GeoPrecision.streetSegment;
+    } else if (query.intent == QueryIntentKind.geographicArea) {
+      final osmAreaType = {
+        'relation',
+        'way',
+      }.contains(item['osm_type']?.toString().toLowerCase());
+      final categoryArea =
+          osmCategory == 'boundary' ||
+          osmCategory == 'place' ||
+          osmCategory == 'natural' ||
+          osmCategory == 'waterway' ||
+          osmCategory == 'leisure';
+      if (!osmAreaType &&
+          !categoryArea &&
+          !title.toLowerCase().contains('rambla')) {
+        return null;
+      }
+      resultKind = SearchEntityKind.geographicArea;
+      resultPrecision = GeoPrecision.approximateArea;
     } else {
       if (title.isEmpty) return null;
       resultPrecision = GeoPrecision.rooftopPoi;
